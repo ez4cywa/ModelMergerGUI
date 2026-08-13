@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CastModelMerger</AssemblyName>
+    <RootNamespace>ModelMerger.Gui</RootNamespace>
+    <ApplicationIcon>..\ModelMerger\icon.ico</ApplicationIcon>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <Version>1.0.0</Version>
+    <Product>Cast Model Merger GUI</Product>
+    <Description>Merge 2 to 16 Cast model parts with a visual Windows interface.</Description>
+    <Company>ModelMerger contributors</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModelMerger.Core\ModelMerger.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\README.md" Link="README.md" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
