@@ -83,6 +83,27 @@ public sealed class ModelMergeServiceIntegrationTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_directory, "corrupt-result.cast")));
     }
 
+    [Fact]
+    public async Task MergeAsync_WithExistingDefaultOutput_StopsBeforeMergingMeshes()
+    {
+        var bodyPath = Path.Combine(_directory, "body.cast");
+        var headPath = Path.Combine(_directory, "head.cast");
+        var existingOutput = Path.Combine(_directory, "body.cast");
+        CreateBodyModel().Save(bodyPath);
+        CreateHeadModel().Save(headPath);
+        var reportedStages = new List<MergeStage>();
+        var progress = new CallbackProgress<MergeProgress>(value => reportedStages.Add(value.Stage));
+        var service = new ModelMergeService();
+
+        var exception = await Assert.ThrowsAsync<MergeValidationException>(() => service.MergeAsync(
+            new MergeRequest([bodyPath, headPath], _directory),
+            progress));
+
+        Assert.Contains(exception.Errors, error => error.Code == MergeValidationErrorCode.OutputAlreadyExists);
+        Assert.DoesNotContain(MergeStage.Merging, reportedStages);
+        Assert.True(File.Exists(existingOutput));
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);

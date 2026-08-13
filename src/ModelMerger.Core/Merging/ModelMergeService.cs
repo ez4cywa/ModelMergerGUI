@@ -194,6 +194,19 @@ public sealed class ModelMergeService : IModelMergeService
             ? loaded.Single(part => string.Equals(part.FilePath, request.ManualRootFile, StringComparison.OrdinalIgnoreCase))
             : GetRootPart(loaded);
         var rootModel = rootPart.Model;
+        var outputFileName = request.OutputFileName ?? $"{rootModel.Name}.cast";
+        var outputPath = Path.Combine(request.OutputDirectory, outputFileName);
+        if (File.Exists(outputPath) && !request.Overwrite)
+        {
+            throw new MergeValidationException(
+            [
+                new MergeValidationError(
+                    MergeValidationErrorCode.OutputAlreadyExists,
+                    "The output file already exists. Confirm overwrite before merging again.",
+                    outputPath)
+            ]);
+        }
+
         var merged = new HashSet<LoadedPart> { rootPart };
         var warnings = new List<string>();
         var mergeTotal = loaded.Count - 1;
@@ -245,19 +258,6 @@ public sealed class ModelMergeService : IModelMergeService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var outputFileName = request.OutputFileName ?? $"{rootModel.Name}.cast";
-        var outputPath = Path.Combine(request.OutputDirectory, outputFileName);
-        if (File.Exists(outputPath) && !request.Overwrite)
-        {
-            throw new MergeValidationException(
-            [
-                new MergeValidationError(
-                    MergeValidationErrorCode.OutputAlreadyExists,
-                    "The output file already exists. Confirm overwrite before merging again.",
-                    outputPath)
-            ]);
-        }
-
         var temporaryPath = Path.Combine(
             request.OutputDirectory,
             $".{Path.GetFileNameWithoutExtension(outputFileName)}.{Guid.NewGuid():N}.tmp.cast");
