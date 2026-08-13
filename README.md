@@ -1,0 +1,40 @@
+# ModelMerger
+
+A simple tool to merge models together, currently supports the following formats:
+
+* SEModel
+* Cast
+
+With other formats planned on request or by how many people use it.
+
+# Using
+
+PLEASE INSTALL .NET 8 RUNTIME [HERE](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-8.0.20-windows-x64-installer)
+
+Simply drag and drop supported model files onto the tool and it will attempt to merge them together, this includes moving the models to the new origins which makes it useful for weapons and characters exported from games. The merged model is saved to a `Merged Models` folder next to the dropped files.
+
+The tool will first sort the given models by names, and then attempt to locate the first model that cannot be connected to any other model, if not found, it will use the first model. It is recommended to use models designed to be used with each other i.e. character body + head, weapon parts, etc. Models that share no bones with the root model are still merged, without repositioning.
+
+# License
+
+MIT License
+
+Copyright (c) 2020 Philip
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

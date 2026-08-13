@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11018.127 d18.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelMerger", "ModelMerger.csproj", "{0AC36128-5FCA-4D89-A1AE-9614412CD3FA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SELib", "..\SELibDotNet\src\SELib\SELib.csproj", "{E03DA150-718D-4EA9-AFCA-D3E17A7DF3E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhilLibX", "..\PhilLibX\PhilLibX.csproj", "{0F468D5B-2F30-42F5-9043-920040D83D9D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0AC36128-5FCA-4D89-A1AE-9614412CD3FA}.Debug|x64.ActiveCfg = Debug|x64
+		{0AC36128-5FCA-4D89-A1AE-9614412CD3FA}.Release|x64.ActiveCfg = Release|x64
+		{0AC36128-5FCA-4D89-A1AE-9614412CD3FA}.Release|x64.Build.0 = Release|x64
+		{E03DA150-718D-4EA9-AFCA-D3E17A7DF3E8}.Debug|x64.ActiveCfg = Debug|x64
+		{E03DA150-718D-4EA9-AFCA-D3E17A7DF3E8}.Release|x64.ActiveCfg = Release|x64
+		{E03DA150-718D-4EA9-AFCA-D3E17A7DF3E8}.Release|x64.Build.0 = Release|x64
+		{0F468D5B-2F30-42F5-9043-920040D83D9D}.Debug|x64.ActiveCfg = Debug|x64
+		{0F468D5B-2F30-42F5-9043-920040D83D9D}.Debug|x64.Build.0 = Debug|x64
+		{0F468D5B-2F30-42F5-9043-920040D83D9D}.Release|x64.ActiveCfg = Release|x64
+		{0F468D5B-2F30-42F5-9043-920040D83D9D}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AD2EB45C-CBA4-435E-980E-DB67A74269BB}
+	EndGlobalSection
+EndGlobal
