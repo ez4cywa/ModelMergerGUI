@@ -173,7 +173,20 @@ public sealed class ModelMergeService : IModelMergeService
                 index,
                 sortedInputs.Length,
                 $"Loading {Path.GetFileName(path)}"));
-            loaded.Add(new LoadedPart(path, CastModelLoader.Load(path, cancellationToken)));
+            try
+            {
+                loaded.Add(new LoadedPart(path, CastModelLoader.Load(path, cancellationToken)));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidDataException(
+                    $"Unable to read {Path.GetFileName(path)}. The file is not a valid or readable Cast model. {exception.Message}",
+                    exception);
+            }
         }
 
         progress?.Report(new MergeProgress(MergeStage.SelectingRoot, 0, 1, "Selecting root model"));

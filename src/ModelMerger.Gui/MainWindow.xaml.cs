@@ -82,7 +82,16 @@ public partial class MainWindow : Window
         }
 
         _savingBeforeClose = true;
+        IsEnabled = false;
         await _viewModel.SaveSettingsAsync(GetWindowBounds(), showConfirmation: false);
+        if (_viewModel.IsAnyBusy)
+        {
+            IsEnabled = true;
+            _savingBeforeClose = false;
+            MessageBox.Show("已有合并任务启动，请先取消任务再关闭。", "正在合并", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         _closingAfterSave = true;
         Close();
     }

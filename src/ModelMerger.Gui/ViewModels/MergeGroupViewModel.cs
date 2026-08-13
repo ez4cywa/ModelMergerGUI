@@ -110,6 +110,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public bool CanMerge => _parts.CanMerge && !IsBusy && !string.IsNullOrWhiteSpace(OutputDirectory);
 
+    public bool IsEditable => !IsBusy;
+
     public bool IsExpanded
     {
         get => _isExpanded;
@@ -175,6 +177,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         {
             if (SetProperty(ref _isBusy, value))
             {
+                RaisePropertyChanged(nameof(IsEditable));
                 OnMergeStateChanged();
             }
         }
@@ -256,6 +259,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             return;
         }
 
+        var request = BuildRequest(overwrite.Value);
+
         IsBusy = true;
         IsExpanded = true;
         ProgressValue = 0;
@@ -269,7 +274,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             MergeResult result;
             try
             {
-                result = await _executionQueue.EnqueueAsync(BuildRequest(overwrite.Value), progress, _mergeCancellation.Token);
+                result = await _executionQueue.EnqueueAsync(request, progress, _mergeCancellation.Token);
             }
             catch (MergeValidationException exception) when (
                 exception.Errors.Any(error => error.Code == MergeValidationErrorCode.OutputAlreadyExists))
@@ -281,7 +286,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
                     return;
                 }
 
-                result = await _executionQueue.EnqueueAsync(BuildRequest(overwrite: true), progress, _mergeCancellation.Token);
+                result = await _executionQueue.EnqueueAsync(request with { Overwrite = true }, progress, _mergeCancellation.Token);
             }
 
             LastOutputPath = result.OutputPath;

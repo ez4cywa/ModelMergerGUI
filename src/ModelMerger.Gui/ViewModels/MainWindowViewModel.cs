@@ -197,8 +197,16 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
     private async Task RestoreDefaultsAsync()
     {
-        var defaults = new AppSettings();
-        await _settingsStore.SaveAsync(defaults);
+        try
+        {
+            await _settingsStore.SaveAsync(new AppSettings());
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _dialogs.ShowError("无法恢复默认设置", exception.Message);
+            return;
+        }
+
         RememberOutputDirectory = false;
         _preferredOutputDirectory = null;
         _defaultRootMode = RootSelectionMode.Automatic;

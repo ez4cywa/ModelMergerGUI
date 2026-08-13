@@ -229,7 +229,10 @@
                                         <ColumnDefinition Width="340" />
                                     </Grid.ColumnDefinitions>
 
-                                    <Border Grid.Column="0" Style="{StaticResource SectionCardStyle}" Background="#F8FAFC">
+                                    <Border Grid.Column="0"
+                                            Style="{StaticResource SectionCardStyle}"
+                                            Background="#F8FAFC"
+                                            IsEnabled="{Binding IsEditable}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
@@ -360,7 +363,9 @@
 
                                     <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                         <StackPanel>
-                                            <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,12">
+                                            <Border Style="{StaticResource SectionCardStyle}"
+                                                    Margin="0,0,0,12"
+                                                    IsEnabled="{Binding IsEditable}">
                                                 <StackPanel>
                                                     <TextBlock Text="本组设置" FontSize="16" FontWeight="SemiBold" />
                                                     <TextBlock Margin="0,12,0,4" Text="根模型" FontWeight="SemiBold" />
@@ -378,14 +383,18 @@
                                                             <ColumnDefinition Width="7" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBox Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                                                        <TextBox Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                                                 AutomationProperties.Name="输出文件夹"
+                                                                 AutomationProperties.HelpText="选择本模型组的合并输出文件夹" />
                                                         <Button Grid.Column="2"
                                                                 Content="浏览"
                                                                 Command="{Binding BrowseOutputCommand}"
                                                                 Style="{StaticResource SecondaryButtonStyle}" />
                                                     </Grid>
                                                     <TextBlock Margin="0,12,0,4" Text="输出文件名（可选）" FontWeight="SemiBold" />
-                                                    <TextBox Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}"
+                                                             AutomationProperties.Name="输出文件名"
+                                                             AutomationProperties.HelpText="可选；留空时使用根模型名称" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Text="留空时使用本组根模型名称"
                                                                FontSize="11"

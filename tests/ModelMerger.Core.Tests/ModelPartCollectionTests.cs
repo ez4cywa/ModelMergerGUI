@@ -76,6 +76,18 @@ public sealed class ModelPartCollectionTests : IDisposable
         Assert.Empty(parts.Paths);
     }
 
+    [Fact]
+    public void Add_MissingCastFile_IsRejected()
+    {
+        var parts = new ModelPartCollection();
+        var missingFile = Path.Combine(_directory, "missing.cast");
+
+        var result = parts.TryAdd(missingFile);
+
+        Assert.Equal(AddPartStatus.FileNotFound, result.Status);
+        Assert.Empty(parts.Paths);
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);

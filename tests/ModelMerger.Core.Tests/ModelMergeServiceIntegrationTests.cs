@@ -50,7 +50,7 @@ public sealed class ModelMergeServiceIntegrationTests : IDisposable
         using var cancellation = new CancellationTokenSource();
         var progress = new CallbackProgress<MergeProgress>(value =>
         {
-            if (value.Stage == MergeStage.Merging)
+            if (value.Stage == MergeStage.Saving)
             {
                 cancellation.Cancel();
             }
@@ -64,6 +64,23 @@ public sealed class ModelMergeServiceIntegrationTests : IDisposable
 
         Assert.False(File.Exists(Path.Combine(_directory, "cancelled.cast")));
         Assert.Empty(Directory.GetFiles(_directory, "*.tmp.cast"));
+    }
+
+    [Fact]
+    public async Task MergeAsync_WithCorruptCast_IdentifiesTheUnreadableFile()
+    {
+        var validPath = Path.Combine(_directory, "valid.cast");
+        var corruptPath = Path.Combine(_directory, "broken.cast");
+        CreateBodyModel().Save(validPath);
+        await File.WriteAllTextAsync(corruptPath, "not a Cast model");
+        var service = new ModelMergeService();
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => service.MergeAsync(
+            new MergeRequest([validPath, corruptPath], _directory, "corrupt-result.cast")));
+
+        Assert.Contains("broken.cast", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("valid or readable Cast", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(Path.Combine(_directory, "corrupt-result.cast")));
     }
 
     public void Dispose()
