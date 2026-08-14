@@ -41,6 +41,46 @@ public sealed class ModelMergeServiceIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task MergeAsync_ReportsStructuredProgressWithSubjects()
+    {
+        var bodyPath = Path.Combine(_directory, "progress-body.cast");
+        var headPath = Path.Combine(_directory, "progress-head.cast");
+        CreateBodyModel().Save(bodyPath);
+        CreateHeadModel().Save(headPath);
+        var reported = new List<MergeProgress>();
+        var service = new ModelMergeService();
+
+        await service.MergeAsync(
+            new MergeRequest([bodyPath, headPath], _directory, "progress.cast"),
+            new CallbackProgress<MergeProgress>(reported.Add));
+
+        Assert.Contains(reported, item =>
+            item.Code == MergeProgressCode.LoadingFile && item.Subject == "progress-body.cast");
+        Assert.Contains(reported, item =>
+            item.Code == MergeProgressCode.SavedFile && item.Subject == "progress.cast");
+    }
+
+    [Fact]
+    public async Task MergeAsync_ReportsStructuredWarningsWithModelNames()
+    {
+        var bodyPath = Path.Combine(_directory, "warning-body.cast");
+        var propPath = Path.Combine(_directory, "warning-prop.cast");
+        CreateBodyModel().Save(bodyPath);
+        var prop = new Model("prop");
+        prop.Bones.Add(new Model.Bone("unrelated"));
+        prop.Save(propPath);
+        var service = new ModelMergeService();
+
+        var result = await service.MergeAsync(
+            new MergeRequest([bodyPath, propPath], _directory, "warning.cast"));
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal(MergeWarningCode.NoAttachmentBone, warning.Code);
+        Assert.Equal("warning-prop", warning.ModelName);
+        Assert.Equal("warning-body", warning.RootModelName);
+    }
+
+    [Fact]
     public async Task MergeAsync_WhenCancelled_RemovesTemporaryOutput()
     {
         var bodyPath = Path.Combine(_directory, "cancel-body.cast");
@@ -75,9 +115,11 @@ public sealed class ModelMergeServiceIntegrationTests : IDisposable
         await File.WriteAllTextAsync(corruptPath, "not a Cast model");
         var service = new ModelMergeService();
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => service.MergeAsync(
+        var exception = await Assert.ThrowsAsync<ModelPartReadException>(() => service.MergeAsync(
             new MergeRequest([validPath, corruptPath], _directory, "corrupt-result.cast")));
 
+        Assert.Equal(corruptPath, exception.FilePath);
+        Assert.Equal("Cast", exception.FormatName);
         Assert.Contains("broken.cast", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("valid or readable Cast", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(File.Exists(Path.Combine(_directory, "corrupt-result.cast")));

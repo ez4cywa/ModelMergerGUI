@@ -1,16 +1,17 @@
 using Microsoft.Win32;
+using ModelMerger.Gui.Localization;
 using System.Windows;
 
 namespace ModelMerger.Gui.Services;
 
-internal sealed class UserDialogService : IUserDialogService
+internal sealed class UserDialogService(ILanguageCatalog language) : IUserDialogService
 {
     public string? PickCastFile(string? initialDirectory = null)
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择 Cast 模型部件",
-            Filter = "Cast 模型 (*.cast)|*.cast",
+            Title = language[LanguageKeys.PickCastTitle],
+            Filter = language[LanguageKeys.CastFilter],
             Multiselect = false,
             CheckFileExists = true,
             InitialDirectory = Directory.Exists(initialDirectory) ? initialDirectory : null
@@ -22,7 +23,7 @@ internal sealed class UserDialogService : IUserDialogService
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "选择合并模型的输出文件夹",
+            Title = language[LanguageKeys.PickOutputTitle],
             Multiselect = false,
             InitialDirectory = Directory.Exists(initialDirectory) ? initialDirectory : null
         };

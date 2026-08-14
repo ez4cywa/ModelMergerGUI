@@ -1,4 +1,6 @@
 using ModelMerger.Core.Merging;
+using ModelMerger.Core.Settings;
+using ModelMerger.Gui.Localization;
 using ModelMerger.Gui.Services;
 using ModelMerger.Gui.ViewModels;
 using System.IO;
@@ -36,6 +38,50 @@ public sealed class MergeGroupViewModelTests : IDisposable
         Assert.Null(dialogs.InitialDirectories[0]);
         Assert.Equal(_directory, dialogs.InitialDirectories[1]);
         Assert.Equal(2, viewModel.PartCount);
+    }
+
+    [Fact]
+    public void LanguageChange_ReRendersExistingGroupStatus()
+    {
+        var catalog = new LanguageCatalog(AppLanguage.ChineseSimplified);
+        var viewModel = new MergeGroupViewModel(
+            1,
+            new UnusedTaskScheduler(),
+            new RecordingDialogService(),
+            preferredOutputDirectory: null,
+            RootSelectionMode.Automatic,
+            catalog);
+
+        Assert.Equal("添加 2 至 16 个 Cast 部件", viewModel.StatusMessage);
+
+        catalog.SetLanguage(AppLanguage.English);
+
+        Assert.Equal("Add 2 to 16 Cast parts", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task LanguageChange_ReRendersExistingRunLog()
+    {
+        var first = CreateCastFile("log-first.cast");
+        var second = CreateCastFile("log-second.cast");
+        var catalog = new LanguageCatalog(AppLanguage.ChineseSimplified);
+        using var scheduler = new MergeTaskScheduler(new CompletedMergeService(), 1);
+        using var viewModel = new MergeGroupViewModel(
+            1,
+            scheduler,
+            new RecordingDialogService(first, second),
+            preferredOutputDirectory: null,
+            RootSelectionMode.Automatic,
+            catalog);
+        viewModel.AddNextCommand.Execute(null);
+        viewModel.AddNextCommand.Execute(null);
+
+        await viewModel.MergeAsync();
+
+        Assert.Contains("已加入队列", viewModel.LogText);
+        catalog.SetLanguage(AppLanguage.English);
+        Assert.DoesNotContain("已加入队列", viewModel.LogText);
+        Assert.Contains("was queued", viewModel.LogText);
     }
 
     public void Dispose()
@@ -85,6 +131,23 @@ public sealed class MergeGroupViewModelTests : IDisposable
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class CompletedMergeService : IModelMergeService
+    {
+        public Task<MergeResult> MergeAsync(
+            MergeRequest request,
+            IProgress<MergeProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new MergeResult(
+                Path.Combine(request.OutputDirectory, "merged.cast"),
+                "root",
+                request.InputFiles.Count,
+                1,
+                1,
+                []));
         }
     }
 }

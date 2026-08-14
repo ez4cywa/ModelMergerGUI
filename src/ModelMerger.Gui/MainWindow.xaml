@@ -4,8 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:ModelMerger.Gui.ViewModels"
+        xmlns:loc="clr-namespace:ModelMerger.Gui.Localization"
         mc:Ignorable="d"
-        Title="Cast Model Merger"
+        Title="{Binding [AppTitle], Source={x:Static loc:LanguageCatalog.Current}}"
         Width="1280"
         Height="900"
         MinWidth="1000"
@@ -148,21 +149,31 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="Cast Model Merger" FontSize="28" FontWeight="Bold" />
+                <TextBlock Text="{Binding [AppTitle], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="28" FontWeight="Bold" />
                 <TextBlock Margin="0,4,0,0"
-                           Text="按模型组管理和并发合并 Cast 部件；每组支持 2–16 个部件"
+                           Text="{Binding [AppSubtitle], Source={x:Static loc:LanguageCatalog.Current}}"
                            Foreground="{StaticResource MutedForegroundBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Content="新建模型组"
+                <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding [Language], Source={x:Static loc:LanguageCatalog.Current}}"
+                               FontSize="11"
+                               Foreground="{StaticResource MutedForegroundBrush}" />
+                    <ComboBox MinWidth="92"
+                              ItemsSource="{Binding LanguageOptions}"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="Value"
+                              SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}" />
+                </StackPanel>
+                <Button Content="{Binding [NewGroup], Source={x:Static loc:LanguageCatalog.Current}}"
                         Margin="0,0,8,0"
                         Command="{Binding AddGroupCommand}"
                         Style="{StaticResource SecondaryButtonStyle}" />
-                <Button Content="保存设置"
+                <Button Content="{Binding [SaveSettings], Source={x:Static loc:LanguageCatalog.Current}}"
                         Margin="0,0,8,0"
                         Click="SaveSettings_Click"
                         Style="{StaticResource SecondaryButtonStyle}" />
-                <Button Content="恢复默认"
+                <Button Content="{Binding [RestoreDefaults], Source={x:Static loc:LanguageCatalog.Current}}"
                         Command="{Binding RestoreDefaultsCommand}"
                         Style="{StaticResource SecondaryButtonStyle}" />
             </StackPanel>
@@ -206,15 +217,15 @@
                                                    VerticalAlignment="Center"
                                                    Foreground="{StaticResource MutedForegroundBrush}" />
                                         <Button Grid.Column="3"
-                                                Content="开始本组"
+                                                Content="{Binding [StartGroup], Source={x:Static loc:LanguageCatalog.Current}}"
                                                 Command="{Binding MergeCommand}"
                                                 Style="{StaticResource SecondaryButtonStyle}" />
                                         <Button Grid.Column="5"
-                                                Content="取消"
+                                                Content="{Binding [Cancel], Source={x:Static loc:LanguageCatalog.Current}}"
                                                 Command="{Binding CancelCommand}"
                                                 Style="{StaticResource SecondaryButtonStyle}" />
                                         <Button Grid.Column="7"
-                                                Content="删除组"
+                                                Content="{Binding [DeleteGroup], Source={x:Static loc:LanguageCatalog.Current}}"
                                                 Foreground="#B91C1C"
                                                 Command="{Binding DataContext.RemoveGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}"
@@ -246,17 +257,17 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel>
-                                                    <TextBlock Text="模型部件" FontSize="16" FontWeight="SemiBold" />
-                                                    <TextBlock Text="点击空槽逐个添加，或将多个 .cast 文件拖到本组"
+                                                    <TextBlock Text="{Binding [ModelParts], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding [ModelPartsHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                FontSize="12"
                                                                Foreground="{StaticResource MutedForegroundBrush}" />
                                                 </StackPanel>
                                                 <Button Grid.Column="1"
-                                                        Content="添加下一个"
+                                                        Content="{Binding [AddNext], Source={x:Static loc:LanguageCatalog.Current}}"
                                                         Command="{Binding AddNextCommand}"
                                                         Style="{StaticResource SecondaryButtonStyle}" />
                                                 <Button Grid.Column="3"
-                                                        Content="清空"
+                                                        Content="{Binding [Clear], Source={x:Static loc:LanguageCatalog.Current}}"
                                                         Command="{Binding ClearCommand}"
                                                         Style="{StaticResource SecondaryButtonStyle}" />
                                             </Grid>
@@ -292,7 +303,7 @@
                                                                             CornerRadius="7"
                                                                             Background="#FEF3C7"
                                                                             Visibility="Collapsed">
-                                                                        <TextBlock Text="根" FontSize="10" Foreground="#92400E" />
+                                                                        <TextBlock Text="{Binding [RootBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="10" Foreground="#92400E" />
                                                                     </Border>
                                                                 </Grid>
                                                                 <Button Grid.Row="1"
@@ -327,13 +338,13 @@
                                                                             Orientation="Horizontal"
                                                                             HorizontalAlignment="Center"
                                                                             Visibility="Collapsed">
-                                                                    <Button Content="设为根"
+                                                                    <Button Content="{Binding [SetAsRoot], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                             Command="{Binding DataContext.SetManualRootCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
                                                                             Style="{StaticResource LinkButtonStyle}"
                                                                             FontSize="10"
                                                                             Foreground="#B45309" />
-                                                                    <Button Content="移除"
+                                                                    <Button Content="{Binding [Remove], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                             Command="{Binding DataContext.RemovePartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
                                                                             Style="{StaticResource LinkButtonStyle}"
@@ -367,16 +378,16 @@
                                                     Margin="0,0,0,12"
                                                     IsEnabled="{Binding IsEditable}">
                                                 <StackPanel>
-                                                    <TextBlock Text="本组设置" FontSize="16" FontWeight="SemiBold" />
-                                                    <TextBlock Margin="0,12,0,4" Text="根模型" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding [GroupSettings], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
+                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [RootModel], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="SemiBold" />
                                                     <WrapPanel>
-                                                        <RadioButton Content="自动识别" IsChecked="{Binding IsAutomaticRoot}" />
-                                                        <RadioButton Content="手动指定" IsChecked="{Binding IsManualRootMode}" />
+                                                        <RadioButton Content="{Binding [Automatic], Source={x:Static loc:LanguageCatalog.Current}}" IsChecked="{Binding IsAutomaticRoot}" />
+                                                        <RadioButton Content="{Binding [Manual], Source={x:Static loc:LanguageCatalog.Current}}" IsChecked="{Binding IsManualRootMode}" />
                                                     </WrapPanel>
-                                                    <TextBlock Text="手动模式下，在部件槽点击“设为根”"
+                                                    <TextBlock Text="{Binding [ManualRootHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                FontSize="11"
                                                                Foreground="{StaticResource MutedForegroundBrush}" />
-                                                    <TextBlock Margin="0,12,0,4" Text="输出文件夹" FontWeight="SemiBold" />
+                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [OutputFolder], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="SemiBold" />
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -384,19 +395,19 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBox Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}"
-                                                                 AutomationProperties.Name="输出文件夹"
-                                                                 AutomationProperties.HelpText="选择本模型组的合并输出文件夹" />
+                                                                 AutomationProperties.Name="{Binding [OutputFolder], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                 AutomationProperties.HelpText="{Binding [OutputFolderHelp], Source={x:Static loc:LanguageCatalog.Current}}" />
                                                         <Button Grid.Column="2"
-                                                                Content="浏览"
+                                                                Content="{Binding [Browse], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                 Command="{Binding BrowseOutputCommand}"
                                                                 Style="{StaticResource SecondaryButtonStyle}" />
                                                     </Grid>
-                                                    <TextBlock Margin="0,12,0,4" Text="输出文件名（可选）" FontWeight="SemiBold" />
+                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="SemiBold" />
                                                     <TextBox Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}"
-                                                             AutomationProperties.Name="输出文件名"
-                                                             AutomationProperties.HelpText="可选；留空时使用根模型名称" />
+                                                             AutomationProperties.Name="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                             AutomationProperties.HelpText="{Binding [OutputFileNameHelp], Source={x:Static loc:LanguageCatalog.Current}}" />
                                                     <TextBlock Margin="0,4,0,0"
-                                                               Text="留空时使用本组根模型名称"
+                                                               Text="{Binding [OutputFileHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                FontSize="11"
                                                                Foreground="{StaticResource MutedForegroundBrush}" />
                                                 </StackPanel>
@@ -404,7 +415,7 @@
 
                                             <Border Style="{StaticResource SectionCardStyle}">
                                                 <StackPanel>
-                                                    <TextBlock Text="本组状态" FontSize="16" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding [GroupStatus], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
                                                     <TextBlock Margin="0,9,0,7"
                                                                Text="{Binding StatusMessage}"
                                                                TextWrapping="Wrap"
@@ -415,7 +426,7 @@
                                                                  Value="{Binding ProgressValue, Mode=OneWay}"
                                                                  Foreground="{StaticResource PrimaryBrush}"
                                                                  Background="#E2E8F0" />
-                                                    <Expander Margin="0,9,0,0" Header="运行日志">
+                                                    <Expander Margin="0,9,0,0" Header="{Binding [RunLog], Source={x:Static loc:LanguageCatalog.Current}}">
                                                         <TextBox Margin="0,7,0,0"
                                                                  Height="86"
                                                                  Text="{Binding LogText, Mode=OneWay}"
@@ -427,7 +438,7 @@
                                                                  FontSize="11" />
                                                     </Expander>
                                                     <Button Margin="0,9,0,0"
-                                                            Content="打开本组输出"
+                                                            Content="{Binding [OpenGroupOutput], Source={x:Static loc:LanguageCatalog.Current}}"
                                                             Command="{Binding OpenOutputCommand}"
                                                             Style="{StaticResource SecondaryButtonStyle}" />
                                                 </StackPanel>
@@ -455,23 +466,23 @@
                 <TextBlock Text="{Binding WorkspaceStatus}" AutomationProperties.LiveSetting="Polite" />
                 <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                     <TextBlock Text="{Binding ConcurrencyText}" FontSize="12" Foreground="{StaticResource MutedForegroundBrush}" />
-                    <TextBlock Text=" · 基于 Scobalula / echo000 ModelMerger · MIT License"
+                    <TextBlock Text="{Binding [Attribution], Source={x:Static loc:LanguageCatalog.Current}}"
                                FontSize="12"
                                Foreground="{StaticResource MutedForegroundBrush}" />
                 </StackPanel>
             </StackPanel>
             <CheckBox Grid.Column="1"
-                      Content="记住最近选择的输出目录"
+                      Content="{Binding [RememberOutput], Source={x:Static loc:LanguageCatalog.Current}}"
                       IsChecked="{Binding RememberOutputDirectory}"
                       VerticalAlignment="Center"
-                      ToolTip="保存设置后，作为新建模型组的默认输出目录" />
+                      ToolTip="{Binding [RememberOutputHint], Source={x:Static loc:LanguageCatalog.Current}}" />
             <Button Grid.Column="3"
-                    Content="取消全部"
+                    Content="{Binding [CancelAll], Source={x:Static loc:LanguageCatalog.Current}}"
                     Command="{Binding CancelAllCommand}"
                     Style="{StaticResource SecondaryButtonStyle}" />
             <Button Grid.Column="5"
-                    Width="170"
-                    Content="合并全部就绪组"
+                    MinWidth="210"
+                    Content="{Binding [MergeAllReady], Source={x:Static loc:LanguageCatalog.Current}}"
                     Command="{Binding MergeAllCommand}"
                     Style="{StaticResource PrimaryButtonStyle}" />
         </Grid>

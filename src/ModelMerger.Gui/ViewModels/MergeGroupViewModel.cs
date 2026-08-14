@@ -2,20 +2,23 @@ using ModelMerger.Core.Merging;
 using ModelMerger.Core.Planning;
 using ModelMerger.Core.Selection;
 using ModelMerger.Gui.Commands;
+using ModelMerger.Gui.Localization;
 using ModelMerger.Gui.Services;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Windows.Input;
 
 namespace ModelMerger.Gui.ViewModels;
 
-internal sealed class MergeGroupViewModel : ViewModelBase
+internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
 {
     private readonly IMergeTaskScheduler _scheduler;
     private readonly IUserDialogService _dialogs;
+    private readonly ILanguageCatalog _language;
     private readonly MergeGroupPlan _plan;
-    private readonly StringBuilder _log = new();
+    private readonly List<LogEntry> _log = [];
     private readonly RelayCommand _addNextCommand;
     private readonly RelayCommand _addOrReplaceCommand;
     private readonly RelayCommand _removePartCommand;
@@ -26,8 +29,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
     private readonly RelayCommand _openOutputCommand;
     private readonly AsyncRelayCommand _mergeCommand;
     private MergeTaskHandle? _mergeTask;
-    private string _statusMessage = "添加 2 至 16 个 Cast 部件";
-    private string _logText = string.Empty;
+    private LocalizedText _status = LocalizedText.FromKey(LanguageKeys.StatusInitial);
     private string? _lastOutputPath;
     private bool _isBusy;
     private bool _isExpanded = true;
@@ -38,14 +40,18 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         IMergeTaskScheduler scheduler,
         IUserDialogService dialogs,
         string? preferredOutputDirectory,
-        RootSelectionMode defaultRootMode)
+        RootSelectionMode defaultRootMode,
+        ILanguageCatalog? languageCatalog = null)
     {
         Number = number;
         _scheduler = scheduler;
         _dialogs = dialogs;
+        _language = languageCatalog ?? LanguageCatalog.Current;
+        _language.PropertyChanged += Language_PropertyChanged;
         _plan = new MergeGroupPlan(preferredOutputDirectory, defaultRootMode);
         Slots = new ObservableCollection<PartSlotViewModel>(
-            Enumerable.Range(0, ModelPartCollection.MaximumParts).Select(index => new PartSlotViewModel(index)));
+            Enumerable.Range(0, ModelPartCollection.MaximumParts)
+                .Select(index => new PartSlotViewModel(index, _language)));
 
         _addNextCommand = new RelayCommand(_ => AddNextPart(), _ => !IsBusy && PartCount < ModelPartCollection.MaximumParts);
         _addOrReplaceCommand = new RelayCommand(AddOrReplacePart, parameter => !IsBusy && parameter is PartSlotViewModel);
@@ -64,7 +70,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public int Number { get; }
 
-    public string Name => $"模型组 {Number}";
+    public string Name => _language.Format(LanguageKeys.GroupName, Number);
 
     public ObservableCollection<PartSlotViewModel> Slots { get; }
 
@@ -91,10 +97,10 @@ internal sealed class MergeGroupViewModel : ViewModelBase
     public string PartCountText => $"{PartCount} / {ModelPartCollection.MaximumParts}";
 
     public string SummaryText => IsBusy
-        ? $"{PartCountText} · 处理中"
+        ? _language.Format(LanguageKeys.SummaryProcessing, PartCountText)
         : CanMerge
-            ? $"{PartCountText} · 已就绪"
-            : $"{PartCountText} · 至少需要 2 个部件";
+            ? _language.Format(LanguageKeys.SummaryReady, PartCountText)
+            : _language.Format(LanguageKeys.SummaryNeedTwo, PartCountText);
 
     public bool CanMerge => _plan.State.IsReady && !IsBusy;
 
@@ -187,16 +193,23 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         private set => SetProperty(ref _progressValue, value);
     }
 
-    public string StatusMessage
-    {
-        get => _statusMessage;
-        private set => SetProperty(ref _statusMessage, value);
-    }
+    public string StatusMessage => _status.Render(_language);
 
     public string LogText
     {
-        get => _logText;
-        private set => SetProperty(ref _logText, value);
+        get
+        {
+            var result = new StringBuilder();
+            foreach (var entry in _log)
+            {
+                result.Append('[')
+                    .Append(entry.Timestamp.ToString("HH:mm:ss"))
+                    .Append("] ")
+                    .AppendLine(entry.Message.Render(_language));
+            }
+
+            return result.ToString();
+        }
     }
 
     public string? LastOutputPath
@@ -229,7 +242,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             }
             else
             {
-                rejected.Add($"{Path.GetFileName(file)}：{Describe(result.Status)}");
+                rejected.Add($"{Path.GetFileName(file)}: {Describe(result.Status)}");
             }
         }
 
@@ -238,8 +251,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         if (rejected.Count > 0)
         {
             _dialogs.ShowInformation(
-                $"{Name}：部分文件未添加",
-                $"已添加 {added} 个部件。\n\n{string.Join(Environment.NewLine, rejected)}");
+                Text(LanguageKeys.DroppedPartialTitle, Name),
+                Text(LanguageKeys.DroppedPartialBody, added, string.Join(Environment.NewLine, rejected)));
         }
     }
 
@@ -256,14 +269,13 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             return;
         }
 
-        var request = BuildRequest(overwrite.Value);
-
+        var request = _plan.CreateRequest(overwrite.Value);
         IsBusy = true;
         IsExpanded = true;
         ProgressValue = 0;
         LastOutputPath = null;
-        StatusMessage = "等待可用的并发处理位置";
-        AppendLog($"{Name} 已加入队列，共 {PartCount} 个部件");
+        SetStatus(LanguageKeys.QueueWaiting);
+        AppendLog(LanguageKeys.QueueLog, Name, PartCount);
         var progress = new Progress<MergeProgress>(OnProgress);
         try
         {
@@ -277,9 +289,11 @@ internal sealed class MergeGroupViewModel : ViewModelBase
                 exception.Errors.Any(error => error.Code == MergeValidationErrorCode.OutputAlreadyExists))
             {
                 var output = exception.Errors.First(error => error.Code == MergeValidationErrorCode.OutputAlreadyExists).FilePath;
-                if (!_dialogs.Confirm("覆盖输出文件", $"{Name} 的文件已存在：\n{output}\n\n是否覆盖？"))
+                if (!_dialogs.Confirm(
+                        Text(LanguageKeys.OverwriteTitle),
+                        Text(LanguageKeys.OverwritePrompt, Name, output)))
                 {
-                    StatusMessage = "已取消覆盖";
+                    SetStatus(LanguageKeys.OverwriteCancelled);
                     return;
                 }
 
@@ -289,38 +303,53 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
             LastOutputPath = result.OutputPath;
             ProgressValue = 100;
-            StatusMessage = $"完成：{Path.GetFileName(result.OutputPath)}";
-            AppendLog($"合并完成：{result.BoneCount} 根骨骼，{result.MeshCount} 个网格");
+            SetStatus(LanguageKeys.MergeCompletedStatus, Path.GetFileName(result.OutputPath));
+            AppendLog(LanguageKeys.MergeCompletedLog, result.BoneCount, result.MeshCount);
             var warningText = result.Warnings.Count > 0
-                ? $"\n\n警告：\n{string.Join(Environment.NewLine, result.Warnings)}"
+                ? $"\n\n{Text(LanguageKeys.WarningsHeading)}\n{string.Join(Environment.NewLine, result.Warnings.Select(Describe))}"
                 : string.Empty;
             _dialogs.ShowInformation(
-                $"{Name} 合并完成",
-                $"已保存到：\n{result.OutputPath}\n\n骨骼：{result.BoneCount}    网格：{result.MeshCount}{warningText}");
+                Text(LanguageKeys.MergeCompletedTitle, Name),
+                Text(LanguageKeys.MergeCompletedBody, result.OutputPath, result.BoneCount, result.MeshCount, warningText));
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "已取消，临时文件已清理";
-            AppendLog("用户取消了该组任务");
+            SetStatus(LanguageKeys.CancelledStatus);
+            AppendLog(LanguageKeys.CancelledLog);
         }
         catch (MergeValidationException exception)
         {
-            var message = string.Join(Environment.NewLine, exception.Errors.Select(error => error.Message));
-            StatusMessage = "合并请求无效";
-            AppendLog(message);
-            _dialogs.ShowError($"{Name} 无法开始合并", message);
+            var messages = exception.Errors.Select(Describe).ToArray();
+            var message = string.Join(Environment.NewLine, messages);
+            SetStatus(LanguageKeys.InvalidRequestStatus);
+            foreach (var item in exception.Errors)
+            {
+                AppendLog(DescribeText(item));
+            }
+
+            _dialogs.ShowError(Text(LanguageKeys.InvalidRequestTitle, Name), message);
         }
         catch (MergeOutputConflictException exception)
         {
-            StatusMessage = "输出路径正被其他模型组占用";
-            AppendLog(exception.Message);
-            _dialogs.ShowError($"{Name} 输出冲突", $"另一个模型组正在写入：\n{exception.OutputPath}\n\n请等待其完成，或选择不同的输出文件名。");
+            SetStatus(LanguageKeys.OutputConflictStatus);
+            AppendLog(LanguageKeys.OutputConflictBody, exception.OutputPath);
+            _dialogs.ShowError(
+                Text(LanguageKeys.OutputConflictTitle, Name),
+                Text(LanguageKeys.OutputConflictBody, exception.OutputPath));
+        }
+        catch (ModelPartReadException exception)
+        {
+            SetStatus(LanguageKeys.MergeFailedStatus);
+            AppendLog(LanguageKeys.ModelPartReadError, exception.FilePath, exception.FormatName);
+            _dialogs.ShowError(
+                Text(LanguageKeys.MergeFailedTitle, Name),
+                Text(LanguageKeys.ModelPartReadError, exception.FilePath, exception.FormatName));
         }
         catch (Exception exception)
         {
-            StatusMessage = "合并失败";
-            AppendLog(exception.ToString());
-            _dialogs.ShowError($"{Name} 合并失败", exception.Message);
+            SetStatus(LanguageKeys.MergeFailedStatus);
+            AppendLiteralLog(exception.ToString());
+            _dialogs.ShowError(Text(LanguageKeys.MergeFailedTitle, Name), exception.Message);
         }
         finally
         {
@@ -341,6 +370,11 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         RaisePropertyChanged(nameof(IsManualRootMode));
         RefreshRootMarkers();
         OnMergeStateChanged();
+    }
+
+    public void Dispose()
+    {
+        _language.PropertyChanged -= Language_PropertyChanged;
     }
 
     private void AddNextPart()
@@ -373,12 +407,12 @@ internal sealed class MergeGroupViewModel : ViewModelBase
     {
         if (result.Status != AddPartStatus.Added)
         {
-            _dialogs.ShowInformation("无法添加部件", Describe(result.Status));
+            _dialogs.ShowInformation(Text(LanguageKeys.AddFailedTitle), Describe(result.Status));
             return;
         }
 
         RefreshSlots();
-        StatusMessage = $"已添加 {PartCount} 个部件";
+        SetStatus(LanguageKeys.AddedStatus, PartCount);
     }
 
     private void RemovePart(object? parameter)
@@ -386,7 +420,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         if (parameter is PartSlotViewModel slot && _plan.RemovePart(slot.Index))
         {
             RefreshSlots();
-            StatusMessage = $"已移除部件，当前 {PartCountText}";
+            SetStatus(LanguageKeys.RemovedStatus, PartCountText);
         }
     }
 
@@ -395,7 +429,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         _plan.ClearParts();
         LastOutputPath = null;
         RefreshSlots();
-        StatusMessage = "部件列表已清空";
+        SetStatus(LanguageKeys.ClearedStatus);
         ProgressValue = 0;
     }
 
@@ -421,7 +455,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             RaisePropertyChanged(nameof(IsAutomaticRoot));
             RaisePropertyChanged(nameof(IsManualRootMode));
             RefreshRootMarkers();
-            StatusMessage = $"已将 {slot.FileName} 设为根模型";
+            SetStatus(LanguageKeys.ManualRootStatus, slot.FileName);
         }
     }
 
@@ -433,17 +467,11 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         }
 
         _plan.SetRootMode(mode);
-
         RaisePropertyChanged(nameof(RootSelectionMode));
         RaisePropertyChanged(nameof(IsAutomaticRoot));
         RaisePropertyChanged(nameof(IsManualRootMode));
         RefreshRootMarkers();
         StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private MergeRequest BuildRequest(bool overwrite)
-    {
-        return _plan.CreateRequest(overwrite);
     }
 
     private bool? ConfirmKnownOverwrite()
@@ -460,14 +488,19 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             return false;
         }
 
-        return _dialogs.Confirm("覆盖输出文件", $"{Name} 的文件已存在：\n{outputPath}\n\n是否覆盖？") ? true : null;
+        return _dialogs.Confirm(
+            Text(LanguageKeys.OverwriteTitle),
+            Text(LanguageKeys.OverwritePrompt, Name, outputPath))
+            ? true
+            : null;
     }
 
     private void OnProgress(MergeProgress progress)
     {
         ProgressValue = progress.Percentage;
-        StatusMessage = $"{Describe(progress.Stage)}：{progress.Message}";
-        AppendLog(StatusMessage);
+        var message = DescribeText(progress);
+        SetStatus(message);
+        AppendLog(message);
     }
 
     private void RefreshSlots()
@@ -533,32 +566,89 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         _mergeCommand.RaiseCanExecuteChanged();
     }
 
+    private void SetStatus(string key, params object?[] arguments) =>
+        SetStatus(LocalizedText.FromKey(key, arguments));
 
-    private void AppendLog(string message)
+    private void SetStatus(LocalizedText status)
     {
-        _log.Append('[').Append(DateTime.Now.ToString("HH:mm:ss")).Append("] ").AppendLine(message);
-        LogText = _log.ToString();
+        _status = status;
+        RaisePropertyChanged(nameof(StatusMessage));
     }
 
-    private static string Describe(AddPartStatus status) => status switch
+    private void AppendLog(string key, params object?[] arguments) =>
+        AppendLog(LocalizedText.FromKey(key, arguments));
+
+    private void AppendLiteralLog(string message) => AppendLog(LocalizedText.FromLiteral(message));
+
+    private void AppendLog(LocalizedText message)
     {
-        AddPartStatus.InvalidPath => "文件路径无效",
-        AddPartStatus.FileNotFound => "文件不存在",
-        AddPartStatus.NotCastFile => "仅支持 .cast 文件",
-        AddPartStatus.Duplicate => "该部件已添加",
-        AddPartStatus.CollectionFull => "该组已达到 16 个部件上限",
-        _ => "已添加"
+        _log.Add(new LogEntry(DateTime.Now, message));
+        RaisePropertyChanged(nameof(LogText));
+    }
+
+    private string Text(string key, params object?[] arguments) => _language.Format(key, arguments);
+
+    private string Describe(AddPartStatus status) => Text(status switch
+    {
+        AddPartStatus.InvalidPath => LanguageKeys.AddPartInvalidPath,
+        AddPartStatus.FileNotFound => LanguageKeys.AddPartMissing,
+        AddPartStatus.NotCastFile => LanguageKeys.AddPartNotCast,
+        AddPartStatus.Duplicate => LanguageKeys.AddPartDuplicate,
+        AddPartStatus.CollectionFull => LanguageKeys.AddPartFull,
+        _ => LanguageKeys.AddPartSucceeded
+    });
+
+    private string Describe(MergeValidationError error) => DescribeText(error).Render(_language);
+
+    private LocalizedText DescribeText(MergeValidationError error) => error.Code switch
+    {
+        MergeValidationErrorCode.InvalidPartCount => LocalizedText.FromKey(LanguageKeys.ValidationInvalidPartCount),
+        MergeValidationErrorCode.InvalidPath => LocalizedText.FromKey(LanguageKeys.ValidationInvalidPath, error.FilePath ?? string.Empty),
+        MergeValidationErrorCode.MissingFile => LocalizedText.FromKey(LanguageKeys.ValidationMissingFile, error.FilePath ?? string.Empty),
+        MergeValidationErrorCode.UnsupportedExtension => LocalizedText.FromKey(LanguageKeys.ValidationUnsupportedExtension, error.FilePath ?? string.Empty),
+        MergeValidationErrorCode.DuplicateFile => LocalizedText.FromKey(LanguageKeys.ValidationDuplicateFile, error.FilePath ?? string.Empty),
+        MergeValidationErrorCode.InvalidOutputDirectory => LocalizedText.FromKey(LanguageKeys.ValidationInvalidOutputDirectory),
+        MergeValidationErrorCode.InvalidOutputFileName => LocalizedText.FromKey(LanguageKeys.ValidationInvalidOutputFileName),
+        MergeValidationErrorCode.OutputAlreadyExists => LocalizedText.FromKey(LanguageKeys.ValidationOutputAlreadyExists, error.FilePath ?? string.Empty),
+        MergeValidationErrorCode.ManualRootNotSelected => LocalizedText.FromKey(LanguageKeys.ValidationManualRootNotSelected),
+        _ => LocalizedText.FromLiteral(error.Message)
     };
 
-    private static string Describe(MergeStage stage) => stage switch
+    private string Describe(MergeWarning warning) => Text(
+        warning.Code == MergeWarningCode.NoAttachmentBone
+            ? LanguageKeys.WarningNoAttachmentBone
+            : LanguageKeys.WarningUnconnectedHierarchy,
+        warning.ModelName,
+        warning.RootModelName);
+
+    private static LocalizedText DescribeText(MergeProgress progress) => progress.Code switch
     {
-        MergeStage.Validating => "正在检查",
-        MergeStage.Loading => "正在读取",
-        MergeStage.SelectingRoot => "正在识别根模型",
-        MergeStage.Merging => "正在合并",
-        MergeStage.Saving => "正在保存",
-        MergeStage.Verifying => "正在验证",
-        MergeStage.Completed => "已完成",
-        _ => "处理中"
+        MergeProgressCode.ValidatingRequest => LocalizedText.FromKey(LanguageKeys.ProgressValidating),
+        MergeProgressCode.LoadingFile => LocalizedText.FromKey(LanguageKeys.ProgressLoading, progress.Subject ?? string.Empty),
+        MergeProgressCode.SelectingRootModel => LocalizedText.FromKey(LanguageKeys.ProgressSelectingRoot),
+        MergeProgressCode.MergingModel => LocalizedText.FromKey(LanguageKeys.ProgressMerging, progress.Subject ?? string.Empty),
+        MergeProgressCode.SavingFile => LocalizedText.FromKey(LanguageKeys.ProgressSaving, progress.Subject ?? string.Empty),
+        MergeProgressCode.VerifyingCast => LocalizedText.FromKey(LanguageKeys.ProgressVerifying),
+        MergeProgressCode.SavedFile => LocalizedText.FromKey(LanguageKeys.ProgressCompleted, progress.Subject ?? string.Empty),
+        _ => LocalizedText.FromKey(LanguageKeys.ProgressGeneric)
     };
+
+    private void Language_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not nameof(ILanguageCatalog.Language) and not "Item[]")
+        {
+            return;
+        }
+
+        RaisePropertyChanged(nameof(Name));
+        RaisePropertyChanged(nameof(SummaryText));
+        RaisePropertyChanged(nameof(StatusMessage));
+        RaisePropertyChanged(nameof(LogText));
+        foreach (var slot in Slots)
+        {
+            slot.RefreshLanguage();
+        }
+    }
+
+    private sealed record LogEntry(DateTime Timestamp, LocalizedText Message);
 }

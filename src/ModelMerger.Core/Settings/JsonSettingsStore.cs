@@ -89,10 +89,14 @@ public sealed class JsonSettingsStore(string settingsPath) : ISettingsStore
         var rootMode = Enum.IsDefined(settings.RootSelectionMode)
             ? settings.RootSelectionMode
             : Merging.RootSelectionMode.Automatic;
+        AppLanguage? language = settings.UiLanguage is { } requestedLanguage && Enum.IsDefined(requestedLanguage)
+            ? requestedLanguage
+            : null;
         var bounds = IsValid(settings.WindowBounds) ? settings.WindowBounds : null;
         return settings with
         {
-            SchemaVersion = 1,
+            SchemaVersion = 2,
+            UiLanguage = language,
             PreferredOutputDirectory = outputDirectory,
             RememberOutputDirectory = rememberOutput,
             RootSelectionMode = rootMode,

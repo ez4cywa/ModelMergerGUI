@@ -47,7 +47,7 @@ public sealed class ModelMergeService : IModelMergeService
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        progress?.Report(new MergeProgress(MergeStage.Validating, 0, 1, "Validating merge request"));
+        progress?.Report(new MergeProgress(MergeStage.Validating, 0, 1, MergeProgressCode.ValidatingRequest));
         var validated = Validate(request);
 
         return await Task.Run(
@@ -208,7 +208,8 @@ public sealed class ModelMergeService : IModelMergeService
                 MergeStage.Loading,
                 index,
                 sortedInputs.Length,
-                $"Loading {Path.GetFileName(path)}"));
+                MergeProgressCode.LoadingFile,
+                Path.GetFileName(path)));
             try
             {
                 loaded.Add(new LoadedPart(path, _loaders[Path.GetExtension(path)].Load(path, cancellationToken)));
@@ -222,13 +223,11 @@ public sealed class ModelMergeService : IModelMergeService
                 var formatName = string.Equals(Path.GetExtension(path), ".cast", StringComparison.OrdinalIgnoreCase)
                     ? "Cast"
                     : "SEModel";
-                throw new InvalidDataException(
-                    $"Unable to read {Path.GetFileName(path)}. The file is not a valid or readable {formatName} model. {exception.Message}",
-                    exception);
+                throw new ModelPartReadException(path, formatName, exception);
             }
         }
 
-        progress?.Report(new MergeProgress(MergeStage.SelectingRoot, 0, 1, "Selecting root model"));
+        progress?.Report(new MergeProgress(MergeStage.SelectingRoot, 0, 1, MergeProgressCode.SelectingRootModel));
         var rootPart = request.RootSelectionMode == RootSelectionMode.Manual
             ? loaded.Single(part => string.Equals(part.FilePath, request.ManualRootFile, StringComparison.OrdinalIgnoreCase))
             : GetRootPart(loaded);
@@ -248,7 +247,7 @@ public sealed class ModelMergeService : IModelMergeService
         }
 
         var merged = new HashSet<LoadedPart> { rootPart };
-        var warnings = new List<string>();
+        var warnings = new List<MergeWarning>();
         var mergeTotal = loaded.Count - 1;
 
         while (merged.Count < loaded.Count)
@@ -273,14 +272,18 @@ public sealed class ModelMergeService : IModelMergeService
 
                 if (model.Bones.Count > 0 && !rootModel.HasBone(model.Bones[0].Name))
                 {
-                    warnings.Add($"{model.Name} shares no attachment bone with {rootModel.Name}; it was merged without repositioning.");
+                    warnings.Add(new MergeWarning(
+                        MergeWarningCode.NoAttachmentBone,
+                        model.Name,
+                        rootModel.Name));
                 }
 
                 progress?.Report(new MergeProgress(
                     MergeStage.Merging,
                     merged.Count - 1,
                     mergeTotal,
-                    $"Merging {model.Name}"));
+                    MergeProgressCode.MergingModel,
+                    model.Name));
                 MergeModel(rootModel, model, cancellationToken);
                 merged.Add(part);
                 progressed = true;
@@ -292,7 +295,10 @@ public sealed class ModelMergeService : IModelMergeService
             }
 
             var stuck = loaded.First(part => !merged.Contains(part));
-            warnings.Add($"{stuck.Model.Name} could not connect to the current hierarchy; it was merged without repositioning.");
+            warnings.Add(new MergeWarning(
+                MergeWarningCode.UnconnectedHierarchy,
+                stuck.Model.Name,
+                rootModel.Name));
             MergeModel(rootModel, stuck.Model, cancellationToken);
             merged.Add(stuck);
         }
@@ -303,16 +309,16 @@ public sealed class ModelMergeService : IModelMergeService
             $".{Path.GetFileNameWithoutExtension(outputFileName)}.{Guid.NewGuid():N}.tmp.cast");
         try
         {
-            progress?.Report(new MergeProgress(MergeStage.Saving, 0, 1, $"Saving {outputFileName}"));
+            progress?.Report(new MergeProgress(MergeStage.Saving, 0, 1, MergeProgressCode.SavingFile, outputFileName));
             rootModel.Save(temporaryPath);
             cancellationToken.ThrowIfCancellationRequested();
 
-            progress?.Report(new MergeProgress(MergeStage.Verifying, 0, 1, "Verifying saved Cast model"));
+            progress?.Report(new MergeProgress(MergeStage.Verifying, 0, 1, MergeProgressCode.VerifyingCast));
             CastModelLoader.Verify(temporaryPath);
             cancellationToken.ThrowIfCancellationRequested();
 
             File.Move(temporaryPath, outputPath, request.Overwrite);
-            progress?.Report(new MergeProgress(MergeStage.Completed, 1, 1, $"Saved {outputFileName}"));
+            progress?.Report(new MergeProgress(MergeStage.Completed, 1, 1, MergeProgressCode.SavedFile, outputFileName));
         }
         finally
         {

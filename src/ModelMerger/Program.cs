@@ -43,7 +43,7 @@ internal static class Program
 
             foreach (var warning in result.Warnings)
             {
-                Write("WARNING", warning, ConsoleColor.DarkYellow);
+                Write("WARNING", Describe(warning), ConsoleColor.DarkYellow);
             }
 
             Write("DONE", $"Saved {result.PartCount} part(s) to {result.OutputPath}");
@@ -110,6 +110,28 @@ internal static class Program
 
     private sealed class ConsoleMergeProgress : IProgress<MergeProgress>
     {
-        public void Report(MergeProgress value) => Write(value.Stage.ToString().ToUpperInvariant(), value.Message);
+        public void Report(MergeProgress value) =>
+            Write(value.Stage.ToString().ToUpperInvariant(), Describe(value));
     }
+
+    private static string Describe(MergeProgress progress) => progress.Code switch
+    {
+        MergeProgressCode.ValidatingRequest => "Validating merge request",
+        MergeProgressCode.LoadingFile => $"Loading {progress.Subject}",
+        MergeProgressCode.SelectingRootModel => "Selecting root model",
+        MergeProgressCode.MergingModel => $"Merging {progress.Subject}",
+        MergeProgressCode.SavingFile => $"Saving {progress.Subject}",
+        MergeProgressCode.VerifyingCast => "Verifying saved Cast model",
+        MergeProgressCode.SavedFile => $"Saved {progress.Subject}",
+        _ => "Processing"
+    };
+
+    private static string Describe(MergeWarning warning) => warning.Code switch
+    {
+        MergeWarningCode.NoAttachmentBone =>
+            $"{warning.ModelName} shares no attachment bone with {warning.RootModelName}; it was merged without repositioning.",
+        MergeWarningCode.UnconnectedHierarchy =>
+            $"{warning.ModelName} could not connect to the current hierarchy; it was merged without repositioning.",
+        _ => $"Merge warning for {warning.ModelName}."
+    };
 }

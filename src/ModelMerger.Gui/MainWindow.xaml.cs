@@ -1,5 +1,6 @@
 using ModelMerger.Core.Merging;
 using ModelMerger.Core.Settings;
+using ModelMerger.Gui.Localization;
 using ModelMerger.Gui.Services;
 using ModelMerger.Gui.ViewModels;
 using System.ComponentModel;
@@ -9,6 +10,7 @@ namespace ModelMerger.Gui;
 
 public partial class MainWindow : Window
 {
+    private readonly ILanguageCatalog _language = LanguageCatalog.Current;
     private readonly MainWindowViewModel _viewModel;
     private bool _initialized;
     private bool _closingAfterSave;
@@ -19,8 +21,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModel = new MainWindowViewModel(
             JsonSettingsStore.CreateDefault(),
-            new UserDialogService(),
-            new MergeTaskScheduler(maximumConcurrency: 2));
+            new UserDialogService(_language),
+            new MergeTaskScheduler(maximumConcurrency: 2),
+            _language);
         _viewModel.DefaultsRestored += (_, _) => ResetWindowBounds();
         DataContext = _viewModel;
     }
@@ -73,7 +76,11 @@ public partial class MainWindow : Window
         if (_viewModel.IsAnyBusy)
         {
             e.Cancel = true;
-            MessageBox.Show("请先取消所有正在运行或等待的合并任务，再关闭窗口。", "正在合并", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(
+                _language[LanguageKeys.CloseBusyMessage],
+                _language[LanguageKeys.CloseBusyTitle],
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
             return;
         }
 
@@ -90,7 +97,11 @@ public partial class MainWindow : Window
         {
             IsEnabled = true;
             _savingBeforeClose = false;
-            MessageBox.Show("已有合并任务启动，请先取消任务再关闭。", "正在合并", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(
+                _language[LanguageKeys.CloseRaceMessage],
+                _language[LanguageKeys.CloseBusyTitle],
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
             return;
         }
 

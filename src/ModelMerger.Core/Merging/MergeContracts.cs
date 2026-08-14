@@ -25,14 +25,37 @@ public enum MergeStage
     Completed
 }
 
+public enum MergeProgressCode
+{
+    ValidatingRequest,
+    LoadingFile,
+    SelectingRootModel,
+    MergingModel,
+    SavingFile,
+    VerifyingCast,
+    SavedFile
+}
+
 public sealed record MergeProgress(
     MergeStage Stage,
     int Current,
     int Total,
-    string Message)
+    MergeProgressCode Code,
+    string? Subject = null)
 {
     public double Percentage => Total <= 0 ? 0 : Math.Clamp(Current * 100d / Total, 0, 100);
 }
+
+public enum MergeWarningCode
+{
+    NoAttachmentBone,
+    UnconnectedHierarchy
+}
+
+public sealed record MergeWarning(
+    MergeWarningCode Code,
+    string ModelName,
+    string RootModelName);
 
 public sealed record MergeResult(
     string OutputPath,
@@ -40,7 +63,7 @@ public sealed record MergeResult(
     int PartCount,
     int BoneCount,
     int MeshCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<MergeWarning> Warnings);
 
 public interface IModelMergeService
 {
@@ -69,4 +92,17 @@ public sealed class MergeValidationException(IReadOnlyList<MergeValidationError>
     : Exception("The merge request is invalid.")
 {
     public IReadOnlyList<MergeValidationError> Errors { get; } = errors;
+}
+
+public sealed class ModelPartReadException(
+    string filePath,
+    string formatName,
+    Exception innerException)
+    : Exception(
+        $"Unable to read {Path.GetFileName(filePath)}. The file is not a valid or readable {formatName} model. {innerException.Message}",
+        innerException)
+{
+    public string FilePath { get; } = filePath;
+
+    public string FormatName { get; } = formatName;
 }

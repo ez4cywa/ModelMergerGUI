@@ -1,8 +1,11 @@
 using ModelMerger.Core.Merging;
 using ModelMerger.Core.Settings;
 using ModelMerger.Gui.Commands;
+using ModelMerger.Gui.Localization;
 using ModelMerger.Gui.Services;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Input;
 
 namespace ModelMerger.Gui.ViewModels;
@@ -12,6 +15,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly ISettingsStore _settingsStore;
     private readonly IUserDialogService _dialogs;
     private readonly IMergeTaskScheduler _scheduler;
+    private readonly ILanguageCatalog _language;
     private readonly RelayCommand _addGroupCommand;
     private readonly RelayCommand _removeGroupCommand;
     private readonly RelayCommand _cancelAllCommand;
@@ -21,17 +25,20 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
     private string? _preferredOutputDirectory;
     private bool _rememberOutputDirectory;
     private bool _isMergingAll;
-    private string _workspaceStatus = "创建模型组并添加部件";
+    private LocalizedText _workspaceStatus = LocalizedText.FromKey(LanguageKeys.WorkspaceInitial);
     private RootSelectionMode _defaultRootMode = RootSelectionMode.Automatic;
 
     public MainWindowViewModel(
         ISettingsStore settingsStore,
         IUserDialogService dialogs,
-        IMergeTaskScheduler scheduler)
+        IMergeTaskScheduler scheduler,
+        ILanguageCatalog? languageCatalog = null)
     {
         _settingsStore = settingsStore;
         _dialogs = dialogs;
         _scheduler = scheduler;
+        _language = languageCatalog ?? LanguageCatalog.Current;
+        _language.PropertyChanged += Language_PropertyChanged;
         Groups = [];
         _addGroupCommand = new RelayCommand(_ => AddGroup());
         _removeGroupCommand = new RelayCommand(RemoveGroup, parameter =>
@@ -44,6 +51,12 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
     public event EventHandler? DefaultsRestored;
 
     public ObservableCollection<MergeGroupViewModel> Groups { get; }
+
+    public IReadOnlyList<LanguageOption> LanguageOptions { get; } =
+    [
+        new(AppLanguage.ChineseSimplified, "中文"),
+        new(AppLanguage.English, "English")
+    ];
 
     public ICommand AddGroupCommand => _addGroupCommand;
 
@@ -81,19 +94,22 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         set => SetProperty(ref _rememberOutputDirectory, value);
     }
 
-    public string WorkspaceStatus
+    public AppLanguage SelectedLanguage
     {
-        get => _workspaceStatus;
-        private set => SetProperty(ref _workspaceStatus, value);
+        get => _language.Language;
+        set => _language.SetLanguage(value);
     }
 
-    public string ConcurrencyText => $"最多 {_scheduler.MaximumConcurrency} 组并行";
+    public string WorkspaceStatus => _workspaceStatus.Render(_language);
+
+    public string ConcurrencyText => Text(LanguageKeys.Concurrency, _scheduler.MaximumConcurrency);
 
     public WindowBounds? SavedWindowBounds { get; private set; }
 
     public async Task InitializeAsync()
     {
         var settings = await _settingsStore.LoadAsync();
+        _language.SetLanguage(settings.UiLanguage ?? _language.Language);
         RememberOutputDirectory = settings.RememberOutputDirectory;
         _preferredOutputDirectory = settings.RememberOutputDirectory && Directory.Exists(settings.PreferredOutputDirectory)
             ? settings.PreferredOutputDirectory
@@ -111,6 +127,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
             var rootMode = Groups.FirstOrDefault()?.RootSelectionMode ?? _defaultRootMode;
             var settings = new AppSettings
             {
+                UiLanguage = SelectedLanguage,
                 PreferredOutputDirectory = RememberOutputDirectory ? _preferredOutputDirectory : null,
                 RememberOutputDirectory = RememberOutputDirectory,
                 RootSelectionMode = rootMode,
@@ -121,20 +138,31 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
             _defaultRootMode = rootMode;
             if (showConfirmation)
             {
-                WorkspaceStatus = "设置已保存；部件文件路径不会被记录";
-                _dialogs.ShowInformation("保存设置", "已保存输出目录、首组根模型模式和窗口位置。\n不会保存各组的模型文件路径。");
+                SetWorkspaceStatus(LanguageKeys.SettingsSavedStatus);
+                _dialogs.ShowInformation(
+                    Text(LanguageKeys.SettingsSavedTitle),
+                    Text(LanguageKeys.SettingsSavedMessage));
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             if (showConfirmation)
             {
-                _dialogs.ShowError("无法保存设置", exception.Message);
+                _dialogs.ShowError(Text(LanguageKeys.SettingsSaveFailedTitle), exception.Message);
             }
         }
     }
 
-    public void Dispose() => _scheduler.Dispose();
+    public void Dispose()
+    {
+        _language.PropertyChanged -= Language_PropertyChanged;
+        foreach (var group in Groups)
+        {
+            group.Dispose();
+        }
+
+        _scheduler.Dispose();
+    }
 
     private void AddGroup()
     {
@@ -143,7 +171,8 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
             _scheduler,
             _dialogs,
             _preferredOutputDirectory,
-            _defaultRootMode);
+            _defaultRootMode,
+            _language);
         group.StateChanged += Group_StateChanged;
         group.OutputDirectoryChosen += Group_OutputDirectoryChosen;
         Groups.Add(group);
@@ -161,6 +190,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         group.StateChanged -= Group_StateChanged;
         group.OutputDirectoryChosen -= Group_OutputDirectoryChosen;
         Groups.Remove(group);
+        group.Dispose();
         RaisePropertyChanged(nameof(GroupCount));
         RefreshWorkspaceState();
     }
@@ -174,7 +204,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
 
         IsMergingAll = true;
-        WorkspaceStatus = $"已启动 {readyGroups.Length} 个组；{ConcurrencyText}";
+        SetWorkspaceStatus(LanguageKeys.BatchStarted, readyGroups.Length, ConcurrencyText);
         try
         {
             await Task.WhenAll(readyGroups.Select(group => group.MergeAsync()));
@@ -182,7 +212,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         finally
         {
             IsMergingAll = false;
-            WorkspaceStatus = $"批量处理结束，共检查 {readyGroups.Length} 个组";
+            SetWorkspaceStatus(LanguageKeys.BatchFinished, readyGroups.Length);
         }
     }
 
@@ -193,7 +223,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
             group.Cancel();
         }
 
-        WorkspaceStatus = "正在取消所有运行和等待中的组";
+        SetWorkspaceStatus(LanguageKeys.CancelAllStatus);
     }
 
     private async Task RestoreDefaultsAsync()
@@ -204,20 +234,21 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            _dialogs.ShowError("无法恢复默认设置", exception.Message);
+            _dialogs.ShowError(Text(LanguageKeys.RestoreFailedTitle), exception.Message);
             return;
         }
 
         RememberOutputDirectory = false;
         _preferredOutputDirectory = null;
         _defaultRootMode = RootSelectionMode.Automatic;
+        _language.SetLanguage(LanguageCatalog.ResolveInitialLanguage(CultureInfo.CurrentUICulture));
         foreach (var group in Groups)
         {
             group.ResetPreferences(null, RootSelectionMode.Automatic);
         }
 
         SavedWindowBounds = null;
-        WorkspaceStatus = "已恢复默认设置；现有模型组和部件未被清除";
+        SetWorkspaceStatus(LanguageKeys.RestoreDoneStatus);
         DefaultsRestored?.Invoke(this, EventArgs.Empty);
     }
 
@@ -235,9 +266,14 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         RaisePropertyChanged(nameof(IsAnyBusy));
         if (!IsMergingAll)
         {
-            WorkspaceStatus = IsAnyBusy
-                ? $"正在处理 {RunningGroupCount} 个组；{ConcurrencyText}"
-                : $"共 {GroupCount} 个组，{ReadyGroupCount} 个已就绪";
+            if (IsAnyBusy)
+            {
+                SetWorkspaceStatus(LanguageKeys.WorkspaceProcessing, RunningGroupCount, ConcurrencyText);
+            }
+            else
+            {
+                SetWorkspaceStatus(LanguageKeys.WorkspaceSummary, GroupCount, ReadyGroupCount);
+            }
         }
 
         _addGroupCommand.RaiseCanExecuteChanged();
@@ -246,4 +282,26 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         _mergeAllCommand.RaiseCanExecuteChanged();
         _restoreDefaultsCommand.RaiseCanExecuteChanged();
     }
+
+    private void SetWorkspaceStatus(string key, params object?[] arguments)
+    {
+        _workspaceStatus = LocalizedText.FromKey(key, arguments);
+        RaisePropertyChanged(nameof(WorkspaceStatus));
+    }
+
+    private string Text(string key, params object?[] arguments) => _language.Format(key, arguments);
+
+    private void Language_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not nameof(ILanguageCatalog.Language) and not "Item[]")
+        {
+            return;
+        }
+
+        RaisePropertyChanged(nameof(SelectedLanguage));
+        RaisePropertyChanged(nameof(WorkspaceStatus));
+        RaisePropertyChanged(nameof(ConcurrencyText));
+    }
+
+    internal sealed record LanguageOption(AppLanguage Value, string DisplayName);
 }
