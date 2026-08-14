@@ -12,7 +12,7 @@ namespace ModelMerger.Gui.ViewModels;
 
 internal sealed class MergeGroupViewModel : ViewModelBase
 {
-    private readonly IMergeExecutionQueue _executionQueue;
+    private readonly IMergeTaskScheduler _scheduler;
     private readonly IUserDialogService _dialogs;
     private readonly MergeGroupPlan _plan;
     private readonly StringBuilder _log = new();
@@ -25,7 +25,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
     private readonly RelayCommand _cancelCommand;
     private readonly RelayCommand _openOutputCommand;
     private readonly AsyncRelayCommand _mergeCommand;
-    private CancellationTokenSource? _mergeCancellation;
+    private MergeTaskHandle? _mergeTask;
     private string _statusMessage = "添加 2 至 16 个 Cast 部件";
     private string _logText = string.Empty;
     private string? _lastOutputPath;
@@ -35,13 +35,13 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public MergeGroupViewModel(
         int number,
-        IMergeExecutionQueue executionQueue,
+        IMergeTaskScheduler scheduler,
         IUserDialogService dialogs,
         string? preferredOutputDirectory,
         RootSelectionMode defaultRootMode)
     {
         Number = number;
-        _executionQueue = executionQueue;
+        _scheduler = scheduler;
         _dialogs = dialogs;
         _plan = new MergeGroupPlan(preferredOutputDirectory, defaultRootMode);
         Slots = new ObservableCollection<PartSlotViewModel>(
@@ -262,7 +262,6 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         IsExpanded = true;
         ProgressValue = 0;
         LastOutputPath = null;
-        _mergeCancellation = new CancellationTokenSource();
         StatusMessage = "等待可用的并发处理位置";
         AppendLog($"{Name} 已加入队列，共 {PartCount} 个部件");
         var progress = new Progress<MergeProgress>(OnProgress);
@@ -271,7 +270,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             MergeResult result;
             try
             {
-                result = await _executionQueue.EnqueueAsync(request, progress, _mergeCancellation.Token);
+                _mergeTask = _scheduler.Schedule(request, progress);
+                result = await _mergeTask.Completion;
             }
             catch (MergeValidationException exception) when (
                 exception.Errors.Any(error => error.Code == MergeValidationErrorCode.OutputAlreadyExists))
@@ -283,7 +283,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase
                     return;
                 }
 
-                result = await _executionQueue.EnqueueAsync(request with { Overwrite = true }, progress, _mergeCancellation.Token);
+                _mergeTask = _scheduler.Schedule(request with { Overwrite = true }, progress);
+                result = await _mergeTask.Completion;
             }
 
             LastOutputPath = result.OutputPath;
@@ -309,6 +310,12 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             AppendLog(message);
             _dialogs.ShowError($"{Name} 无法开始合并", message);
         }
+        catch (MergeOutputConflictException exception)
+        {
+            StatusMessage = "输出路径正被其他模型组占用";
+            AppendLog(exception.Message);
+            _dialogs.ShowError($"{Name} 输出冲突", $"另一个模型组正在写入：\n{exception.OutputPath}\n\n请等待其完成，或选择不同的输出文件名。");
+        }
         catch (Exception exception)
         {
             StatusMessage = "合并失败";
@@ -317,13 +324,12 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         }
         finally
         {
-            _mergeCancellation.Dispose();
-            _mergeCancellation = null;
+            _mergeTask = null;
             IsBusy = false;
         }
     }
 
-    public void Cancel() => _mergeCancellation?.Cancel();
+    public void Cancel() => _mergeTask?.Cancel();
 
     public void ResetPreferences(string? preferredOutputDirectory, RootSelectionMode defaultRootMode)
     {

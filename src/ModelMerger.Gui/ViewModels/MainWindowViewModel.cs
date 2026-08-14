@@ -9,11 +9,9 @@ namespace ModelMerger.Gui.ViewModels;
 
 internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
-    private const int MaximumConcurrentGroups = 2;
-
     private readonly ISettingsStore _settingsStore;
     private readonly IUserDialogService _dialogs;
-    private readonly MergeExecutionQueue _executionQueue;
+    private readonly IMergeTaskScheduler _scheduler;
     private readonly RelayCommand _addGroupCommand;
     private readonly RelayCommand _removeGroupCommand;
     private readonly RelayCommand _cancelAllCommand;
@@ -26,11 +24,14 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
     private string _workspaceStatus = "创建模型组并添加部件";
     private RootSelectionMode _defaultRootMode = RootSelectionMode.Automatic;
 
-    public MainWindowViewModel(ISettingsStore settingsStore, IUserDialogService dialogs)
+    public MainWindowViewModel(
+        ISettingsStore settingsStore,
+        IUserDialogService dialogs,
+        IMergeTaskScheduler scheduler)
     {
         _settingsStore = settingsStore;
         _dialogs = dialogs;
-        _executionQueue = new MergeExecutionQueue(new ModelMergeService(), MaximumConcurrentGroups);
+        _scheduler = scheduler;
         Groups = [];
         _addGroupCommand = new RelayCommand(_ => AddGroup());
         _removeGroupCommand = new RelayCommand(RemoveGroup, parameter =>
@@ -86,7 +87,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref _workspaceStatus, value);
     }
 
-    public string ConcurrencyText => $"最多 {MaximumConcurrentGroups} 组并行";
+    public string ConcurrencyText => $"最多 {_scheduler.MaximumConcurrency} 组并行";
 
     public WindowBounds? SavedWindowBounds { get; private set; }
 
@@ -133,13 +134,13 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public void Dispose() => _executionQueue.Dispose();
+    public void Dispose() => _scheduler.Dispose();
 
     private void AddGroup()
     {
         var group = new MergeGroupViewModel(
             _nextGroupNumber++,
-            _executionQueue,
+            _scheduler,
             _dialogs,
             _preferredOutputDirectory,
             _defaultRootMode);

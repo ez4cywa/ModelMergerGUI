@@ -1,3 +1,4 @@
+using ModelMerger.Core.Merging;
 using ModelMerger.Core.Settings;
 using ModelMerger.Gui.Services;
 using ModelMerger.Gui.ViewModels;
@@ -18,7 +19,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModel = new MainWindowViewModel(
             JsonSettingsStore.CreateDefault(),
-            new UserDialogService());
+            new UserDialogService(),
+            new MergeTaskScheduler(maximumConcurrency: 2));
         _viewModel.DefaultsRestored += (_, _) => ResetWindowBounds();
         DataContext = _viewModel;
     }

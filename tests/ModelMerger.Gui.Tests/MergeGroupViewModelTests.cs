@@ -25,7 +25,7 @@ public sealed class MergeGroupViewModelTests : IDisposable
         var dialogs = new RecordingDialogService(first, second);
         var viewModel = new MergeGroupViewModel(
             1,
-            new UnusedExecutionQueue(),
+            new UnusedTaskScheduler(),
             dialogs,
             preferredOutputDirectory: null,
             RootSelectionMode.Automatic);
@@ -75,11 +75,16 @@ public sealed class MergeGroupViewModelTests : IDisposable
         }
     }
 
-    private sealed class UnusedExecutionQueue : IMergeExecutionQueue
+    private sealed class UnusedTaskScheduler : IMergeTaskScheduler
     {
-        public Task<MergeResult> EnqueueAsync(
+        public int MaximumConcurrency => 1;
+
+        public MergeTaskHandle Schedule(
             MergeRequest request,
-            IProgress<MergeProgress>? progress = null,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            IProgress<MergeProgress>? progress = null) => throw new NotSupportedException();
+
+        public void Dispose()
+        {
+        }
     }
 }

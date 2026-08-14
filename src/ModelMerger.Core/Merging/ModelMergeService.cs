@@ -6,6 +6,18 @@ namespace ModelMerger.Core.Merging;
 
 public sealed class ModelMergeService : IModelMergeService
 {
+    private readonly IMergeOutputClaims _outputClaims;
+
+    public ModelMergeService()
+        : this(new MergeOutputClaims())
+    {
+    }
+
+    internal ModelMergeService(IMergeOutputClaims outputClaims)
+    {
+        _outputClaims = outputClaims;
+    }
+
     public async Task<MergeResult> MergeAsync(
         MergeRequest request,
         IProgress<MergeProgress>? progress = null,
@@ -156,7 +168,7 @@ public sealed class ModelMergeService : IModelMergeService
         return extension.Length == 0 ? $"{name}.cast" : name;
     }
 
-    private static MergeResult Merge(
+    private MergeResult Merge(
         ValidatedMergeRequest request,
         IProgress<MergeProgress>? progress,
         CancellationToken cancellationToken)
@@ -196,6 +208,7 @@ public sealed class ModelMergeService : IModelMergeService
         var rootModel = rootPart.Model;
         var outputFileName = request.OutputFileName ?? $"{rootModel.Name}.cast";
         var outputPath = Path.Combine(request.OutputDirectory, outputFileName);
+        using var outputClaim = _outputClaims.Claim(outputPath);
         if (File.Exists(outputPath) && !request.Overwrite)
         {
             throw new MergeValidationException(
