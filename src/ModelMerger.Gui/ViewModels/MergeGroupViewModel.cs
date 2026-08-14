@@ -1,4 +1,5 @@
 using ModelMerger.Core.Merging;
+using ModelMerger.Core.Planning;
 using ModelMerger.Core.Selection;
 using ModelMerger.Gui.Commands;
 using ModelMerger.Gui.Services;
@@ -13,7 +14,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 {
     private readonly IMergeExecutionQueue _executionQueue;
     private readonly IUserDialogService _dialogs;
-    private readonly ModelPartCollection _parts = new();
+    private readonly MergeGroupPlan _plan;
     private readonly StringBuilder _log = new();
     private readonly RelayCommand _addNextCommand;
     private readonly RelayCommand _addOrReplaceCommand;
@@ -25,19 +26,12 @@ internal sealed class MergeGroupViewModel : ViewModelBase
     private readonly RelayCommand _openOutputCommand;
     private readonly AsyncRelayCommand _mergeCommand;
     private CancellationTokenSource? _mergeCancellation;
-    private string _outputDirectory = string.Empty;
-    private string _outputFileName = string.Empty;
     private string _statusMessage = "添加 2 至 16 个 Cast 部件";
     private string _logText = string.Empty;
-    private string? _manualRootFile;
     private string? _lastOutputPath;
-    private string? _lastInputDirectory;
     private bool _isBusy;
     private bool _isExpanded = true;
-    private bool _outputDirectoryWasChosen;
-    private bool _settingDefaultOutput;
     private double _progressValue;
-    private RootSelectionMode _rootSelectionMode;
 
     public MergeGroupViewModel(
         int number,
@@ -49,15 +43,9 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         Number = number;
         _executionQueue = executionQueue;
         _dialogs = dialogs;
-        _rootSelectionMode = defaultRootMode;
+        _plan = new MergeGroupPlan(preferredOutputDirectory, defaultRootMode);
         Slots = new ObservableCollection<PartSlotViewModel>(
             Enumerable.Range(0, ModelPartCollection.MaximumParts).Select(index => new PartSlotViewModel(index)));
-
-        if (Directory.Exists(preferredOutputDirectory))
-        {
-            _outputDirectory = preferredOutputDirectory!;
-            _outputDirectoryWasChosen = true;
-        }
 
         _addNextCommand = new RelayCommand(_ => AddNextPart(), _ => !IsBusy && PartCount < ModelPartCollection.MaximumParts);
         _addOrReplaceCommand = new RelayCommand(AddOrReplacePart, parameter => !IsBusy && parameter is PartSlotViewModel);
@@ -98,7 +86,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public ICommand MergeCommand => _mergeCommand;
 
-    public int PartCount => _parts.Count;
+    public int PartCount => _plan.State.PartCount;
 
     public string PartCountText => $"{PartCount} / {ModelPartCollection.MaximumParts}";
 
@@ -108,7 +96,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             ? $"{PartCountText} · 已就绪"
             : $"{PartCountText} · 至少需要 2 个部件";
 
-    public bool CanMerge => _parts.CanMerge && !IsBusy && !string.IsNullOrWhiteSpace(OutputDirectory);
+    public bool CanMerge => _plan.State.IsReady && !IsBusy;
 
     public bool IsEditable => !IsBusy;
 
@@ -120,17 +108,19 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public string OutputDirectory
     {
-        get => _outputDirectory;
+        get => _plan.State.OutputDirectory;
         set
         {
-            if (!SetProperty(ref _outputDirectory, value ?? string.Empty))
+            var previous = _plan.State.OutputDirectory;
+            _plan.ChooseOutputDirectory(value);
+            if (string.Equals(previous, _plan.State.OutputDirectory, StringComparison.Ordinal))
             {
                 return;
             }
 
-            if (!_settingDefaultOutput && !string.IsNullOrWhiteSpace(value))
+            RaisePropertyChanged();
+            if (_plan.State.HasExplicitOutputDirectory && !string.IsNullOrWhiteSpace(value))
             {
-                _outputDirectoryWasChosen = true;
                 OutputDirectoryChosen?.Invoke(this, value);
             }
 
@@ -140,15 +130,23 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public string OutputFileName
     {
-        get => _outputFileName;
-        set => SetProperty(ref _outputFileName, value ?? string.Empty);
+        get => _plan.State.OutputFileName;
+        set
+        {
+            var previous = _plan.State.OutputFileName;
+            _plan.SetOutputFileName(value);
+            if (!string.Equals(previous, _plan.State.OutputFileName, StringComparison.Ordinal))
+            {
+                RaisePropertyChanged();
+            }
+        }
     }
 
-    public RootSelectionMode RootSelectionMode => _rootSelectionMode;
+    public RootSelectionMode RootSelectionMode => _plan.State.RootSelectionMode;
 
     public bool IsAutomaticRoot
     {
-        get => _rootSelectionMode == RootSelectionMode.Automatic;
+        get => RootSelectionMode == RootSelectionMode.Automatic;
         set
         {
             if (value)
@@ -160,7 +158,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public bool IsManualRootMode
     {
-        get => _rootSelectionMode == RootSelectionMode.Manual;
+        get => RootSelectionMode == RootSelectionMode.Manual;
         set
         {
             if (value)
@@ -224,11 +222,10 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         var added = 0;
         foreach (var file in files)
         {
-            var result = _parts.TryAdd(file);
+            var result = _plan.AddPart(file);
             if (result.Status == AddPartStatus.Added)
             {
                 added++;
-                RememberInputDirectory(result.FilePath);
             }
             else
             {
@@ -330,31 +327,22 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     public void ResetPreferences(string? preferredOutputDirectory, RootSelectionMode defaultRootMode)
     {
-        _outputDirectoryWasChosen = Directory.Exists(preferredOutputDirectory);
-        if (_outputDirectoryWasChosen)
-        {
-            SetDefaultOutputDirectory(preferredOutputDirectory!);
-        }
-        else if (_parts.Count > 0)
-        {
-            SetDefaultOutputDirectory(Path.Combine(Path.GetDirectoryName(_parts.Paths[0])!, "Merged Models"));
-        }
-        else
-        {
-            SetDefaultOutputDirectory(string.Empty);
-        }
-
-        OutputFileName = string.Empty;
-        _manualRootFile = null;
-        SetRootMode(defaultRootMode);
+        _plan.ResetPreferences(preferredOutputDirectory, defaultRootMode);
+        RaisePropertyChanged(nameof(OutputDirectory));
+        RaisePropertyChanged(nameof(OutputFileName));
+        RaisePropertyChanged(nameof(RootSelectionMode));
+        RaisePropertyChanged(nameof(IsAutomaticRoot));
+        RaisePropertyChanged(nameof(IsManualRootMode));
+        RefreshRootMarkers();
+        OnMergeStateChanged();
     }
 
     private void AddNextPart()
     {
-        var file = _dialogs.PickCastFile(GetInitialInputDirectory());
+        var file = _dialogs.PickCastFile(_plan.State.RecentInputDirectory);
         if (file is not null)
         {
-            HandleAddResult(_parts.TryAdd(file));
+            HandleAddResult(_plan.AddPart(file));
         }
     }
 
@@ -365,14 +353,14 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             return;
         }
 
-        var initialDirectory = slot.IsOccupied ? Path.GetDirectoryName(slot.FilePath) : GetInitialInputDirectory();
+        var initialDirectory = slot.IsOccupied ? Path.GetDirectoryName(slot.FilePath) : _plan.State.RecentInputDirectory;
         var file = _dialogs.PickCastFile(initialDirectory);
         if (file is null)
         {
             return;
         }
 
-        HandleAddResult(slot.IsOccupied ? _parts.TryReplace(slot.Index, file) : _parts.TryAdd(file));
+        HandleAddResult(slot.IsOccupied ? _plan.ReplacePart(slot.Index, file) : _plan.AddPart(file));
     }
 
     private void HandleAddResult(AddPartResult result)
@@ -383,14 +371,13 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             return;
         }
 
-        RememberInputDirectory(result.FilePath);
         RefreshSlots();
         StatusMessage = $"已添加 {PartCount} 个部件";
     }
 
     private void RemovePart(object? parameter)
     {
-        if (parameter is PartSlotViewModel slot && _parts.RemoveAt(slot.Index))
+        if (parameter is PartSlotViewModel slot && _plan.RemovePart(slot.Index))
         {
             RefreshSlots();
             StatusMessage = $"已移除部件，当前 {PartCountText}";
@@ -399,14 +386,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     private void ClearParts()
     {
-        _parts.Clear();
-        _manualRootFile = null;
+        _plan.ClearParts();
         LastOutputPath = null;
-        if (!_outputDirectoryWasChosen)
-        {
-            SetDefaultOutputDirectory(string.Empty);
-        }
-
         RefreshSlots();
         StatusMessage = "部件列表已清空";
         ProgressValue = 0;
@@ -428,25 +409,26 @@ internal sealed class MergeGroupViewModel : ViewModelBase
             return;
         }
 
-        _manualRootFile = slot.FilePath;
-        SetRootMode(RootSelectionMode.Manual);
-        RefreshRootMarkers();
-        StatusMessage = $"已将 {slot.FileName} 设为根模型";
+        if (_plan.SetManualRoot(slot.Index))
+        {
+            RaisePropertyChanged(nameof(RootSelectionMode));
+            RaisePropertyChanged(nameof(IsAutomaticRoot));
+            RaisePropertyChanged(nameof(IsManualRootMode));
+            RefreshRootMarkers();
+            StatusMessage = $"已将 {slot.FileName} 设为根模型";
+        }
     }
 
     private void SetRootMode(RootSelectionMode mode)
     {
-        if (_rootSelectionMode == mode)
+        if (RootSelectionMode == mode)
         {
             return;
         }
 
-        _rootSelectionMode = mode;
-        if (mode == RootSelectionMode.Manual && _manualRootFile is null && _parts.Count > 0)
-        {
-            _manualRootFile = _parts.Paths[0];
-        }
+        _plan.SetRootMode(mode);
 
+        RaisePropertyChanged(nameof(RootSelectionMode));
         RaisePropertyChanged(nameof(IsAutomaticRoot));
         RaisePropertyChanged(nameof(IsManualRootMode));
         RefreshRootMarkers();
@@ -455,13 +437,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     private MergeRequest BuildRequest(bool overwrite)
     {
-        return new MergeRequest(
-            _parts.Paths.ToArray(),
-            OutputDirectory,
-            string.IsNullOrWhiteSpace(OutputFileName) ? null : OutputFileName.Trim(),
-            _rootSelectionMode,
-            _rootSelectionMode == RootSelectionMode.Manual ? _manualRootFile : null,
-            overwrite);
+        return _plan.CreateRequest(overwrite);
     }
 
     private bool? ConfirmKnownOverwrite()
@@ -490,56 +466,30 @@ internal sealed class MergeGroupViewModel : ViewModelBase
 
     private void RefreshSlots()
     {
+        var state = _plan.State;
         for (var index = 0; index < Slots.Count; index++)
         {
-            Slots[index].FilePath = index < _parts.Count ? _parts.Paths[index] : null;
-        }
-
-        if (_manualRootFile is not null && !_parts.Paths.Contains(_manualRootFile, StringComparer.OrdinalIgnoreCase))
-        {
-            _manualRootFile = null;
-        }
-
-        if (_rootSelectionMode == RootSelectionMode.Manual && _manualRootFile is null && _parts.Count > 0)
-        {
-            _manualRootFile = _parts.Paths[0];
-        }
-
-        if (!_outputDirectoryWasChosen && _parts.Count > 0)
-        {
-            var parent = Path.GetDirectoryName(_parts.Paths[0]);
-            if (parent is not null)
-            {
-                SetDefaultOutputDirectory(Path.Combine(parent, "Merged Models"));
-            }
+            Slots[index].FilePath = index < state.PartCount ? state.PartFiles[index] : null;
         }
 
         RefreshRootMarkers();
         RaisePropertyChanged(nameof(PartCount));
         RaisePropertyChanged(nameof(PartCountText));
+        RaisePropertyChanged(nameof(OutputDirectory));
+        RaisePropertyChanged(nameof(RootSelectionMode));
+        RaisePropertyChanged(nameof(IsAutomaticRoot));
+        RaisePropertyChanged(nameof(IsManualRootMode));
         OnMergeStateChanged();
     }
 
     private void RefreshRootMarkers()
     {
+        var state = _plan.State;
         foreach (var slot in Slots)
         {
-            slot.IsManualRoot = _rootSelectionMode == RootSelectionMode.Manual &&
+            slot.IsManualRoot = state.RootSelectionMode == RootSelectionMode.Manual &&
                                 slot.FilePath is not null &&
-                                string.Equals(slot.FilePath, _manualRootFile, StringComparison.OrdinalIgnoreCase);
-        }
-    }
-
-    private void SetDefaultOutputDirectory(string path)
-    {
-        _settingDefaultOutput = true;
-        try
-        {
-            OutputDirectory = path;
-        }
-        finally
-        {
-            _settingDefaultOutput = false;
+                                string.Equals(slot.FilePath, state.ManualRootFile, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -577,24 +527,6 @@ internal sealed class MergeGroupViewModel : ViewModelBase
         _mergeCommand.RaiseCanExecuteChanged();
     }
 
-    private string? GetInitialInputDirectory()
-    {
-        if (Directory.Exists(_lastInputDirectory))
-        {
-            return _lastInputDirectory;
-        }
-
-        return _parts.Count > 0 ? Path.GetDirectoryName(_parts.Paths[^1]) : null;
-    }
-
-    private void RememberInputDirectory(string? filePath)
-    {
-        var directory = string.IsNullOrWhiteSpace(filePath) ? null : Path.GetDirectoryName(filePath);
-        if (Directory.Exists(directory))
-        {
-            _lastInputDirectory = directory;
-        }
-    }
 
     private void AppendLog(string message)
     {
