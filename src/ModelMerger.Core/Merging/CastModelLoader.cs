@@ -7,6 +7,8 @@ internal sealed class CastModelLoader : IModelPartLoader
 {
     public string Extension => ".cast";
 
+    public string FormatName => "Cast";
+
     public Model Load(string filePath, CancellationToken cancellationToken)
     {
         var result = new Model(Path.GetFileNameWithoutExtension(filePath));

@@ -5,26 +5,34 @@ using ModelMerger.Gui.Services;
 using ModelMerger.Gui.ViewModels;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace ModelMerger.Gui;
 
 public partial class MainWindow : Window
 {
     private readonly ILanguageCatalog _language = LanguageCatalog.Current;
+    private readonly DispatcherTimer _fileValidityTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly MainWindowViewModel _viewModel;
     private bool _initialized;
     private bool _closingAfterSave;
     private bool _savingBeforeClose;
 
     public MainWindow()
+        : this(JsonSettingsStore.CreateDefault())
+    {
+    }
+
+    internal MainWindow(ISettingsStore settingsStore)
     {
         InitializeComponent();
         _viewModel = new MainWindowViewModel(
-            JsonSettingsStore.CreateDefault(),
+            settingsStore,
             new UserDialogService(_language),
             new MergeTaskScheduler(maximumConcurrency: 2),
             _language);
         _viewModel.DefaultsRestored += (_, _) => ResetWindowBounds();
+        _fileValidityTimer.Tick += (_, _) => _viewModel.RefreshFileValidity();
         DataContext = _viewModel;
     }
 
@@ -38,6 +46,7 @@ public partial class MainWindow : Window
         _initialized = true;
         await _viewModel.InitializeAsync();
         ApplySavedWindowBounds(_viewModel.SavedWindowBounds);
+        _fileValidityTimer.Start();
     }
 
     private void Group_DragOver(object sender, DragEventArgs e)
@@ -69,6 +78,7 @@ public partial class MainWindow : Window
     {
         if (_closingAfterSave)
         {
+            _fileValidityTimer.Stop();
             _viewModel.Dispose();
             return;
         }
@@ -106,7 +116,7 @@ public partial class MainWindow : Window
         }
 
         _closingAfterSave = true;
-        Close();
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(Close));
     }
 
     private WindowBounds GetWindowBounds()

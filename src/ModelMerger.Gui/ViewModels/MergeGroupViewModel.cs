@@ -33,6 +33,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
     private string? _lastOutputPath;
     private bool _isBusy;
     private bool _isExpanded = true;
+    private bool _lastKnownPartFilesValid = true;
     private double _progressValue;
 
     public MergeGroupViewModel(
@@ -360,6 +361,28 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
 
     public void Cancel() => _mergeTask?.Cancel();
 
+    public void RefreshFileValidity()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        foreach (var slot in Slots)
+        {
+            slot.RefreshValidity();
+        }
+
+        var filesValid = ArePartFilesValid(_plan.State.PartFiles);
+        if (filesValid == _lastKnownPartFilesValid)
+        {
+            return;
+        }
+
+        _lastKnownPartFilesValid = filesValid;
+        OnMergeStateChanged();
+    }
+
     public void ResetPreferences(string? preferredOutputDirectory, RootSelectionMode defaultRootMode)
     {
         _plan.ResetPreferences(preferredOutputDirectory, defaultRootMode);
@@ -511,6 +534,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
             Slots[index].FilePath = index < state.PartCount ? state.PartFiles[index] : null;
         }
 
+        _lastKnownPartFilesValid = ArePartFilesValid(state.PartFiles);
+
         RefreshRootMarkers();
         RaisePropertyChanged(nameof(PartCount));
         RaisePropertyChanged(nameof(PartCountText));
@@ -520,6 +545,11 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
         RaisePropertyChanged(nameof(IsManualRootMode));
         OnMergeStateChanged();
     }
+
+    private static bool ArePartFilesValid(IEnumerable<string> partFiles) =>
+        partFiles.All(path =>
+            File.Exists(path) &&
+            string.Equals(Path.GetExtension(path), ".cast", StringComparison.OrdinalIgnoreCase));
 
     private void RefreshRootMarkers()
     {

@@ -90,8 +90,11 @@ public sealed class MergeTaskScheduler : IMergeTaskScheduler, IDisposable
 {
     private readonly IModelMergeService _mergeService;
     private readonly SemaphoreSlim _slots;
-    private readonly ConcurrentDictionary<Guid, MergeTaskHandle> _tasks = new();
+    private readonly IMergeOutputClaims _outputClaims = MergeOutputClaims.Shared;
+    private readonly object _lifecycleGate = new();
+    private readonly Dictionary<Guid, MergeTaskHandle> _tasks = [];
     private int _disposed;
+    private int _slotsDisposed;
 
     public MergeTaskScheduler(int maximumConcurrency = 2)
         : this(new ModelMergeService(), maximumConcurrency)
@@ -115,24 +118,43 @@ public sealed class MergeTaskScheduler : IMergeTaskScheduler, IDisposable
 
     public MergeTaskHandle Schedule(MergeRequest request, IProgress<MergeProgress>? progress = null)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ArgumentNullException.ThrowIfNull(request);
-        var handle = new MergeTaskHandle(request);
-        _tasks[handle.Id] = handle;
+        MergeTaskHandle handle;
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
+            handle = new MergeTaskHandle(request);
+            _tasks.Add(handle.Id, handle);
+        }
+
         _ = ExecuteAsync(handle, progress);
         return handle;
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        MergeTaskHandle[] tasks;
+        var disposeSlots = false;
+        lock (_lifecycleGate)
         {
-            return;
+            if (_disposed != 0)
+            {
+                return;
+            }
+
+            _disposed = 1;
+            tasks = _tasks.Values.ToArray();
+            disposeSlots = TryReserveSlotDisposalWhenIdle();
         }
 
-        foreach (var task in _tasks.Values)
+        foreach (var task in tasks)
         {
             task.Cancel();
+        }
+
+        if (disposeSlots)
+        {
+            _slots.Dispose();
         }
     }
 
@@ -144,9 +166,17 @@ public sealed class MergeTaskScheduler : IMergeTaskScheduler, IDisposable
             await _slots.WaitAsync(handle.CancellationToken).ConfigureAwait(false);
             enteredSlot = true;
             handle.MarkRunning();
-            var result = await _mergeService
-                .MergeAsync(handle.Request, progress, handle.CancellationToken)
+            var prepared = await _mergeService
+                .PrepareAsync(handle.Request, progress, handle.CancellationToken)
                 .ConfigureAwait(false);
+            MergeResult result;
+            using (_outputClaims.Claim(prepared.OutputPath))
+            {
+                result = await prepared
+                    .ExecuteAsync(progress, handle.CancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             handle.MarkSucceeded(result);
         }
         catch (OperationCanceledException) when (handle.CancellationToken.IsCancellationRequested)
@@ -159,13 +189,34 @@ public sealed class MergeTaskScheduler : IMergeTaskScheduler, IDisposable
         }
         finally
         {
+            var disposeSlots = false;
             if (enteredSlot)
             {
                 _slots.Release();
             }
 
-            _tasks.TryRemove(handle.Id, out _);
+            lock (_lifecycleGate)
+            {
+                _tasks.Remove(handle.Id);
+                disposeSlots = TryReserveSlotDisposalWhenIdle();
+            }
+
+            if (disposeSlots)
+            {
+                _slots.Dispose();
+            }
         }
+    }
+
+    private bool TryReserveSlotDisposalWhenIdle()
+    {
+        if (_disposed == 0 || _tasks.Count > 0 || _slotsDisposed != 0)
+        {
+            return false;
+        }
+
+        _slotsDisposed = 1;
+        return true;
     }
 }
 
@@ -182,6 +233,8 @@ internal interface IMergeOutputClaims
 
 internal sealed class MergeOutputClaims : IMergeOutputClaims
 {
+    public static IMergeOutputClaims Shared { get; } = new MergeOutputClaims();
+
     private readonly ConcurrentDictionary<string, byte> _claimedPaths =
         new(StringComparer.OrdinalIgnoreCase);
 

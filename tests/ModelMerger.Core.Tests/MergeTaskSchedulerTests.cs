@@ -56,6 +56,67 @@ public sealed class MergeTaskSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Cancel_WhileRunning_CancelsOperationAndReleasesSlot()
+    {
+        var mergeService = new CountingMergeService();
+        using var scheduler = new MergeTaskScheduler(mergeService, maximumConcurrency: 1);
+        var running = scheduler.Schedule(CreateRequest(1));
+        await mergeService.WaitUntilStartedAsync(1);
+
+        running.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running.Completion);
+        Assert.Equal(MergeTaskState.Cancelled, running.State);
+        Assert.Equal(0, mergeService.ActiveCount);
+
+        var replacement = scheduler.Schedule(CreateRequest(2));
+        mergeService.ReleaseAll();
+        await replacement.Completion;
+        Assert.Equal(MergeTaskState.Succeeded, replacement.State);
+        Assert.Equal(2, mergeService.StartedCount);
+    }
+
+    [Fact]
+    public async Task Dispose_RacingWithSchedule_EitherRejectsOrCancelsTheTask()
+    {
+        for (var iteration = 0; iteration < 25; iteration++)
+        {
+            var scheduler = new MergeTaskScheduler(new CountingMergeService(), maximumConcurrency: 1);
+            using var start = new Barrier(2);
+            MergeTaskHandle? handle = null;
+            Exception? scheduleException = null;
+            var schedule = Task.Run(() =>
+            {
+                start.SignalAndWait();
+                try
+                {
+                    handle = scheduler.Schedule(CreateRequest(iteration));
+                }
+                catch (Exception exception)
+                {
+                    scheduleException = exception;
+                }
+            });
+            var dispose = Task.Run(() =>
+            {
+                start.SignalAndWait();
+                scheduler.Dispose();
+            });
+
+            await Task.WhenAll(schedule, dispose);
+            if (handle is null)
+            {
+                Assert.IsType<ObjectDisposedException>(scheduleException);
+                continue;
+            }
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => handle.Completion.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(MergeTaskState.Cancelled, handle.State);
+        }
+    }
+
+    [Fact]
     public async Task Schedule_WithSameOutputPath_RejectsSecondTaskBeforeMeshMerge()
     {
         var bodyPath = Path.Combine(_directory, "body.cast");
@@ -84,6 +145,29 @@ public sealed class MergeTaskSchedulerTests : IDisposable
         Assert.Equal(MergeTaskState.Failed, second.State);
         releaseFirst.Set();
         await first.Completion;
+    }
+
+    [Fact]
+    public async Task Schedule_AcrossSchedulersWithSameOutput_UsesSharedClaimBeforeExecute()
+    {
+        var outputPath = Path.Combine(_directory, "prepared-shared.cast");
+        var mergeService = new PreparedBlockingMergeService(outputPath);
+        using var firstScheduler = new MergeTaskScheduler(mergeService, maximumConcurrency: 1);
+        using var secondScheduler = new MergeTaskScheduler(mergeService, maximumConcurrency: 1);
+        var first = firstScheduler.Schedule(CreateRequest(1));
+        await mergeService.WaitUntilExecuteStartedAsync();
+
+        var second = secondScheduler.Schedule(CreateRequest(2));
+
+        var exception = await Assert.ThrowsAsync<MergeOutputConflictException>(() => second.Completion);
+        Assert.Equal(outputPath, exception.OutputPath);
+        Assert.Equal(1, mergeService.ExecuteStartedCount);
+        mergeService.Release();
+        await first.Completion;
+
+        var retryAfterCompletion = secondScheduler.Schedule(CreateRequest(3));
+        await retryAfterCompletion.Completion;
+        Assert.Equal(2, mergeService.ExecuteStartedCount);
     }
 
     public void Dispose()
@@ -146,6 +230,18 @@ public sealed class MergeTaskSchedulerTests : IDisposable
 
         public int StartedCount => Volatile.Read(ref _startedCount);
 
+        public int ActiveCount => Volatile.Read(ref _activeCount);
+
+        public Task<IPreparedMergeOperation> PrepareAsync(
+            MergeRequest request,
+            IProgress<MergeProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var outputPath = Path.Combine(request.OutputDirectory, request.OutputFileName!);
+            return Task.FromResult<IPreparedMergeOperation>(new Operation(this, request, outputPath));
+        }
+
         public async Task<MergeResult> MergeAsync(
             MergeRequest request,
             IProgress<MergeProgress>? progress = null,
@@ -191,6 +287,63 @@ public sealed class MergeTaskSchedulerTests : IDisposable
                 {
                     return;
                 }
+            }
+        }
+
+        private sealed class Operation(
+            CountingMergeService owner,
+            MergeRequest request,
+            string outputPath) : IPreparedMergeOperation
+        {
+            public string OutputPath { get; } = Path.GetFullPath(outputPath);
+
+            public Task<MergeResult> ExecuteAsync(
+                IProgress<MergeProgress>? progress = null,
+                CancellationToken cancellationToken = default) =>
+                owner.MergeAsync(request, progress, cancellationToken);
+        }
+    }
+
+    private sealed class PreparedBlockingMergeService(string outputPath) : IModelMergeService
+    {
+        private readonly TaskCompletionSource _executeStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly string _outputPath = Path.GetFullPath(outputPath);
+        private int _executeStartedCount;
+
+        public int ExecuteStartedCount => Volatile.Read(ref _executeStartedCount);
+
+        public Task<IPreparedMergeOperation> PrepareAsync(
+            MergeRequest request,
+            IProgress<MergeProgress>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IPreparedMergeOperation>(new Operation(this, request));
+
+        public Task<MergeResult> MergeAsync(
+            MergeRequest request,
+            IProgress<MergeProgress>? progress = null,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task WaitUntilExecuteStartedAsync() =>
+            _executeStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        public void Release() => _release.TrySetResult();
+
+        private sealed class Operation(PreparedBlockingMergeService owner, MergeRequest request)
+            : IPreparedMergeOperation
+        {
+            public string OutputPath => owner._outputPath;
+
+            public async Task<MergeResult> ExecuteAsync(
+                IProgress<MergeProgress>? progress = null,
+                CancellationToken cancellationToken = default)
+            {
+                Interlocked.Increment(ref owner._executeStartedCount);
+                owner._executeStarted.TrySetResult();
+                await owner._release.Task.WaitAsync(cancellationToken);
+                return new MergeResult(OutputPath, "root", request.InputFiles.Count, 0, 0, []);
             }
         }
     }

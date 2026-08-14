@@ -21,40 +21,40 @@ public sealed class MainWindowVisualSmokeTests
         {
             try
             {
-                var window = new MainWindow
-                {
-                    Left = -20000,
-                    Top = -20000,
-                    Width = 1280,
-                    Height = 900,
-                    ShowActivated = false,
-                    ShowInTaskbar = false
-                };
-                window.Show();
-
                 var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                 timer.Tick += (_, _) =>
                 {
                     timer.Stop();
-                    window.UpdateLayout();
-                    _ = Render(window);
                     foreach (var language in new[] { AppLanguage.ChineseSimplified, AppLanguage.English })
                     {
                         LanguageCatalog.Current.SetLanguage(language);
+                        var window = new MainWindow(new MemorySettingsStore())
+                        {
+                            Left = -20000,
+                            Top = -20000,
+                            Width = 1280,
+                            Height = 900,
+                            ShowActivated = false,
+                            ShowInTaskbar = false
+                        };
+                        window.Show();
                         Dispatcher.CurrentDispatcher.Invoke(
                             DispatcherPriority.ContextIdle,
                             new Action(() => { }));
                         window.UpdateLayout();
+                        _ = Render(window);
                         var bitmap = Render(window);
                         Assert.True(bitmap.PixelWidth >= 800);
                         Assert.True(bitmap.PixelHeight >= 600);
                         SaveWhenRequested(bitmap, language);
                         renderedLanguages.Add(language);
+                        window.Close();
+                        Dispatcher.CurrentDispatcher.Invoke(
+                            DispatcherPriority.ContextIdle,
+                            new Action(() => { }));
                     }
 
                     LanguageCatalog.Current.SetLanguage(originalLanguage);
-                    (window.DataContext as IDisposable)?.Dispose();
-                    window.Hide();
                     Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
                 };
                 timer.Start();
@@ -101,5 +101,14 @@ public sealed class MainWindowVisualSmokeTests
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         encoder.Save(stream);
+    }
+
+    private sealed class MemorySettingsStore : ISettingsStore
+    {
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AppSettings());
+
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

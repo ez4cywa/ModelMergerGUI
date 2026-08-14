@@ -23,7 +23,9 @@ public sealed class MainWindowViewModelTests
         await viewModel.InitializeAsync();
 
         Assert.Equal(AppLanguage.English, viewModel.SelectedLanguage);
+        Assert.Equal("Cast Model Merger", viewModel.AppTitle);
         viewModel.SelectedLanguage = AppLanguage.ChineseSimplified;
+        Assert.Equal("Cast 模型合并器", viewModel.AppTitle);
         await viewModel.SaveSettingsAsync(windowBounds: null, showConfirmation: false);
         Assert.Equal(AppLanguage.ChineseSimplified, store.Saved!.UiLanguage);
     }

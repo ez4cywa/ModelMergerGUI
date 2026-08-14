@@ -84,6 +84,29 @@ public sealed class MergeGroupViewModelTests : IDisposable
         Assert.Contains("was queued", viewModel.LogText);
     }
 
+    [Fact]
+    public void RefreshFileValidity_WhenSelectedFileWasDeleted_DisablesMergeAndMarksSlot()
+    {
+        var first = CreateCastFile("validity-first.cast");
+        var second = CreateCastFile("validity-second.cast");
+        using var viewModel = new MergeGroupViewModel(
+            1,
+            new UnusedTaskScheduler(),
+            new RecordingDialogService(first, second),
+            preferredOutputDirectory: null,
+            RootSelectionMode.Automatic,
+            new LanguageCatalog(AppLanguage.English));
+        viewModel.AddNextCommand.Execute(null);
+        viewModel.AddNextCommand.Execute(null);
+        Assert.True(viewModel.CanMerge);
+
+        File.Delete(second);
+        viewModel.RefreshFileValidity();
+
+        Assert.False(viewModel.CanMerge);
+        Assert.True(viewModel.Slots[1].IsInvalid);
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);
@@ -136,6 +159,15 @@ public sealed class MergeGroupViewModelTests : IDisposable
 
     private sealed class CompletedMergeService : IModelMergeService
     {
+        public Task<IPreparedMergeOperation> PrepareAsync(
+            MergeRequest request,
+            IProgress<MergeProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IPreparedMergeOperation>(new Operation(request));
+        }
+
         public Task<MergeResult> MergeAsync(
             MergeRequest request,
             IProgress<MergeProgress>? progress = null,
@@ -148,6 +180,25 @@ public sealed class MergeGroupViewModelTests : IDisposable
                 1,
                 1,
                 []));
+        }
+
+        private sealed class Operation(MergeRequest request) : IPreparedMergeOperation
+        {
+            public string OutputPath { get; } = Path.Combine(request.OutputDirectory, "merged.cast");
+
+            public Task<MergeResult> ExecuteAsync(
+                IProgress<MergeProgress>? progress = null,
+                CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(new MergeResult(
+                    OutputPath,
+                    "root",
+                    request.InputFiles.Count,
+                    1,
+                    1,
+                    []));
+            }
         }
     }
 }

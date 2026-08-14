@@ -16,6 +16,8 @@ public sealed record MergeGroupPlanState(
 
     public bool IsReady =>
         PartCount >= ModelPartCollection.MinimumParts &&
+        PartFiles.All(path =>
+            File.Exists(path) && string.Equals(Path.GetExtension(path), ".cast", StringComparison.OrdinalIgnoreCase)) &&
         !string.IsNullOrWhiteSpace(OutputDirectory) &&
         (RootSelectionMode == RootSelectionMode.Automatic ||
          ManualRootFile is not null && PartFiles.Contains(ManualRootFile, StringComparer.OrdinalIgnoreCase));

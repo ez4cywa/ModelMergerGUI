@@ -90,6 +90,21 @@ public sealed class MergeGroupPlanTests : IDisposable
         Assert.Equal(replacement, plan.CreateRequest().ManualRootFile);
     }
 
+    [Fact]
+    public void SelectedPartDeletedAfterSelection_MakesPlanNotReady()
+    {
+        var first = CreateCastFile("source", "body.cast");
+        var second = CreateCastFile("source", "head.cast");
+        var plan = new MergeGroupPlan();
+        plan.AddPart(first);
+        plan.AddPart(second);
+
+        File.Delete(second);
+
+        Assert.False(plan.State.IsReady);
+        Assert.Throws<InvalidOperationException>(() => plan.CreateRequest());
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);

@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:ModelMerger.Gui.ViewModels"
         xmlns:loc="clr-namespace:ModelMerger.Gui.Localization"
         mc:Ignorable="d"
-        Title="{Binding [AppTitle], Source={x:Static loc:LanguageCatalog.Current}}"
+        Title="{Binding AppTitle}"
         Width="1280"
         Height="900"
         MinWidth="1000"
@@ -149,9 +149,9 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="{Binding [AppTitle], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="28" FontWeight="Bold" />
+                <TextBlock Text="{Binding AppTitle}" FontSize="28" FontWeight="Bold" />
                 <TextBlock Margin="0,4,0,0"
-                           Text="{Binding [AppSubtitle], Source={x:Static loc:LanguageCatalog.Current}}"
+                           Text="{Binding AppSubtitle}"
                            Foreground="{StaticResource MutedForegroundBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -305,6 +305,14 @@
                                                                             Visibility="Collapsed">
                                                                         <TextBlock Text="{Binding [RootBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="10" Foreground="#92400E" />
                                                                     </Border>
+                                                                    <Border x:Name="InvalidBadge"
+                                                                            HorizontalAlignment="Center"
+                                                                            Padding="6,2"
+                                                                            CornerRadius="7"
+                                                                            Background="#FEE2E2"
+                                                                            Visibility="Collapsed">
+                                                                        <TextBlock Text="{Binding [FileMissingBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="10" Foreground="#B91C1C" />
+                                                                    </Border>
                                                                 </Grid>
                                                                 <Button Grid.Row="1"
                                                                         Padding="0"
@@ -363,6 +371,11 @@
                                                             <DataTrigger Binding="{Binding IsManualRoot}" Value="True">
                                                                 <Setter TargetName="RootBadge" Property="Visibility" Value="Visible" />
                                                                 <Setter TargetName="SlotBorder" Property="BorderBrush" Value="#D97706" />
+                                                                <Setter TargetName="SlotBorder" Property="BorderThickness" Value="2" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsInvalid}" Value="True">
+                                                                <Setter TargetName="InvalidBadge" Property="Visibility" Value="Visible" />
+                                                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="#DC2626" />
                                                                 <Setter TargetName="SlotBorder" Property="BorderThickness" Value="2" />
                                                             </DataTrigger>
                                                         </DataTemplate.Triggers>

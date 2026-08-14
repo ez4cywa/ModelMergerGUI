@@ -68,6 +68,10 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
     public ICommand RestoreDefaultsCommand => _restoreDefaultsCommand;
 
+    public string AppTitle => Text(LanguageKeys.AppTitle);
+
+    public string AppSubtitle => Text(LanguageKeys.AppSubtitle);
+
     public int GroupCount => Groups.Count;
 
     public int ReadyGroupCount => Groups.Count(group => group.CanMerge);
@@ -150,6 +154,14 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
             {
                 _dialogs.ShowError(Text(LanguageKeys.SettingsSaveFailedTitle), exception.Message);
             }
+        }
+    }
+
+    public void RefreshFileValidity()
+    {
+        foreach (var group in Groups)
+        {
+            group.RefreshFileValidity();
         }
     }
 
@@ -299,6 +311,8 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
 
         RaisePropertyChanged(nameof(SelectedLanguage));
+        RaisePropertyChanged(nameof(AppTitle));
+        RaisePropertyChanged(nameof(AppSubtitle));
         RaisePropertyChanged(nameof(WorkspaceStatus));
         RaisePropertyChanged(nameof(ConcurrencyText));
     }

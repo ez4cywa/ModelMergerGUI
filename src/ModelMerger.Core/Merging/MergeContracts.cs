@@ -67,8 +67,22 @@ public sealed record MergeResult(
 
 public interface IModelMergeService
 {
+    Task<IPreparedMergeOperation> PrepareAsync(
+        MergeRequest request,
+        IProgress<MergeProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
     Task<MergeResult> MergeAsync(
         MergeRequest request,
+        IProgress<MergeProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPreparedMergeOperation
+{
+    string OutputPath { get; }
+
+    Task<MergeResult> ExecuteAsync(
         IProgress<MergeProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }

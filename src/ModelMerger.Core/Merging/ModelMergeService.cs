@@ -9,38 +9,30 @@ public sealed class ModelMergeService : IModelMergeService
     private readonly IReadOnlyDictionary<string, IModelPartLoader> _loaders;
     private readonly int _minimumParts;
     private readonly int _maximumParts;
-    private readonly IMergeOutputClaims _outputClaims;
+    private readonly IMergeOutputClaims _directInvocationClaims = MergeOutputClaims.Shared;
 
     public ModelMergeService()
-        : this([new CastModelLoader()], ModelPartCollection.MinimumParts, ModelPartCollection.MaximumParts, new MergeOutputClaims())
-    {
-    }
-
-    internal ModelMergeService(IMergeOutputClaims outputClaims)
-        : this([new CastModelLoader()], ModelPartCollection.MinimumParts, ModelPartCollection.MaximumParts, outputClaims)
+        : this([new CastModelLoader()], ModelPartCollection.MinimumParts, ModelPartCollection.MaximumParts)
     {
     }
 
     private ModelMergeService(
         IEnumerable<IModelPartLoader> loaders,
         int minimumParts,
-        int maximumParts,
-        IMergeOutputClaims outputClaims)
+        int maximumParts)
     {
         _loaders = loaders.ToDictionary(loader => loader.Extension, StringComparer.OrdinalIgnoreCase);
         _minimumParts = minimumParts;
         _maximumParts = maximumParts;
-        _outputClaims = outputClaims;
     }
 
     public static ModelMergeService CreateForCommandLine() =>
         new(
             [new CastModelLoader(), new SeModelLoader()],
             minimumParts: 1,
-            maximumParts: int.MaxValue,
-            new MergeOutputClaims());
+            maximumParts: int.MaxValue);
 
-    public async Task<MergeResult> MergeAsync(
+    public async Task<IPreparedMergeOperation> PrepareAsync(
         MergeRequest request,
         IProgress<MergeProgress>? progress = null,
         CancellationToken cancellationToken = default)
@@ -50,9 +42,19 @@ public sealed class ModelMergeService : IModelMergeService
         progress?.Report(new MergeProgress(MergeStage.Validating, 0, 1, MergeProgressCode.ValidatingRequest));
         var validated = Validate(request);
 
-        return await Task.Run(
-            () => Merge(validated, progress, cancellationToken),
+        return await Task.Run<IPreparedMergeOperation>(
+            () => Prepare(validated, progress, cancellationToken),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<MergeResult> MergeAsync(
+        MergeRequest request,
+        IProgress<MergeProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = await PrepareAsync(request, progress, cancellationToken).ConfigureAwait(false);
+        using var outputClaim = _directInvocationClaims.Claim(prepared.OutputPath);
+        return await prepared.ExecuteAsync(progress, cancellationToken).ConfigureAwait(false);
     }
 
     private ValidatedMergeRequest Validate(MergeRequest request)
@@ -192,7 +194,7 @@ public sealed class ModelMergeService : IModelMergeService
         return extension.Length == 0 ? $"{name}.cast" : name;
     }
 
-    private MergeResult Merge(
+    private IPreparedMergeOperation Prepare(
         ValidatedMergeRequest request,
         IProgress<MergeProgress>? progress,
         CancellationToken cancellationToken)
@@ -212,7 +214,8 @@ public sealed class ModelMergeService : IModelMergeService
                 Path.GetFileName(path)));
             try
             {
-                loaded.Add(new LoadedPart(path, _loaders[Path.GetExtension(path)].Load(path, cancellationToken)));
+                var loader = _loaders[Path.GetExtension(path)];
+                loaded.Add(new LoadedPart(path, loader.Load(path, cancellationToken)));
             }
             catch (OperationCanceledException)
             {
@@ -220,10 +223,7 @@ public sealed class ModelMergeService : IModelMergeService
             }
             catch (Exception exception)
             {
-                var formatName = string.Equals(Path.GetExtension(path), ".cast", StringComparison.OrdinalIgnoreCase)
-                    ? "Cast"
-                    : "SEModel";
-                throw new ModelPartReadException(path, formatName, exception);
+                throw new ModelPartReadException(path, _loaders[Path.GetExtension(path)].FormatName, exception);
             }
         }
 
@@ -234,7 +234,34 @@ public sealed class ModelMergeService : IModelMergeService
         var rootModel = rootPart.Model;
         var outputFileName = request.OutputFileName ?? $"{rootModel.Name}.cast";
         var outputPath = Path.Combine(request.OutputDirectory, outputFileName);
-        using var outputClaim = _outputClaims.Claim(outputPath);
+        if (File.Exists(outputPath) && !request.Overwrite)
+        {
+            throw new MergeValidationException(
+            [
+                new MergeValidationError(
+                    MergeValidationErrorCode.OutputAlreadyExists,
+                    "The output file already exists. Confirm overwrite before merging again.",
+                    outputPath)
+            ]);
+        }
+
+        return new PreparedMergeOperation(
+            this,
+            new PreparedMergeData(request, loaded, rootPart, outputFileName, outputPath));
+    }
+
+    private MergeResult ExecutePrepared(
+        PreparedMergeData prepared,
+        IProgress<MergeProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var request = prepared.Request;
+        var loaded = prepared.LoadedParts;
+        var rootPart = prepared.RootPart;
+        var rootModel = rootPart.Model;
+        var outputFileName = prepared.OutputFileName;
+        var outputPath = prepared.OutputPath;
+        cancellationToken.ThrowIfCancellationRequested();
         if (File.Exists(outputPath) && !request.Overwrite)
         {
             throw new MergeValidationException(
@@ -479,6 +506,36 @@ public sealed class ModelMergeService : IModelMergeService
         RootSelectionMode RootSelectionMode,
         string? ManualRootFile,
         bool Overwrite);
+
+    private sealed record PreparedMergeData(
+        ValidatedMergeRequest Request,
+        IReadOnlyList<LoadedPart> LoadedParts,
+        LoadedPart RootPart,
+        string OutputFileName,
+        string OutputPath);
+
+    private sealed class PreparedMergeOperation(
+        ModelMergeService owner,
+        PreparedMergeData prepared) : IPreparedMergeOperation
+    {
+        private int _executed;
+
+        public string OutputPath => prepared.OutputPath;
+
+        public Task<MergeResult> ExecuteAsync(
+            IProgress<MergeProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref _executed, 1) != 0)
+            {
+                throw new InvalidOperationException("A prepared merge operation can only be executed once.");
+            }
+
+            return Task.Run(
+                () => owner.ExecutePrepared(prepared, progress, cancellationToken),
+                cancellationToken);
+        }
+    }
 
     private sealed record LoadedPart(string FilePath, Model Model);
 }

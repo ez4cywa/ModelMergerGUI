@@ -125,6 +125,7 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.AddNext] = "添加下一个",
         [LanguageKeys.Clear] = "清空",
         [LanguageKeys.RootBadge] = "根",
+        [LanguageKeys.FileMissingBadge] = "文件丢失",
         [LanguageKeys.SetAsRoot] = "设为根",
         [LanguageKeys.Remove] = "移除",
         [LanguageKeys.GroupSettings] = "本组设置",
@@ -223,9 +224,9 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.ValidationInvalidOutputFileName] = "输出文件名无效，且必须使用 .cast 扩展名。",
         [LanguageKeys.ValidationOutputAlreadyExists] = "输出文件已存在：{0}",
         [LanguageKeys.ValidationManualRootNotSelected] = "手动根模型必须是本组已选部件。",
-        [LanguageKeys.WarningNoAttachmentBone] = "{0} 与 {1} 没有共同的连接骨骼；已在不重新定位的情况下合并。",
-        [LanguageKeys.WarningUnconnectedHierarchy] = "{0} 无法连接到当前层级；已在不重新定位的情况下合并。",
-        [LanguageKeys.ModelPartReadError] = "无法读取模型部件：{0}\n文件格式：{1}"
+        [LanguageKeys.WarningNoAttachmentBone] = "{0} 与 {1} 没有共同的连接骨骼；已在不重新定位的情况下合并。请检查根模型选择和连接骨骼名称。",
+        [LanguageKeys.WarningUnconnectedHierarchy] = "{0} 无法连接到当前层级；已在不重新定位的情况下合并。请尝试手动选择根模型或修正骨骼层级。",
+        [LanguageKeys.ModelPartReadError] = "无法读取模型部件：{0}\n文件格式：{1}\n请重新导出模型，或替换损坏的文件。"
     };
 
     private static IReadOnlyDictionary<string, string> English() => new Dictionary<string, string>
@@ -244,6 +245,7 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.AddNext] = "Add next",
         [LanguageKeys.Clear] = "Clear",
         [LanguageKeys.RootBadge] = "Root",
+        [LanguageKeys.FileMissingBadge] = "Missing",
         [LanguageKeys.SetAsRoot] = "Set root",
         [LanguageKeys.Remove] = "Remove",
         [LanguageKeys.GroupSettings] = "Group settings",
@@ -342,9 +344,9 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.ValidationInvalidOutputFileName] = "The output file name is invalid and must use the .cast extension.",
         [LanguageKeys.ValidationOutputAlreadyExists] = "The output file already exists: {0}",
         [LanguageKeys.ValidationManualRootNotSelected] = "The manual root must be one of this group's selected parts.",
-        [LanguageKeys.WarningNoAttachmentBone] = "{0} shares no attachment bone with {1}; it was merged without repositioning.",
-        [LanguageKeys.WarningUnconnectedHierarchy] = "{0} could not connect to the current hierarchy; it was merged without repositioning.",
-        [LanguageKeys.ModelPartReadError] = "Unable to read model part: {0}\nFormat: {1}"
+        [LanguageKeys.WarningNoAttachmentBone] = "{0} shares no attachment bone with {1}; it was merged without repositioning. Check the root selection and attachment bone names.",
+        [LanguageKeys.WarningUnconnectedHierarchy] = "{0} could not connect to the current hierarchy; it was merged without repositioning. Try selecting the root manually or fix the bone hierarchy.",
+        [LanguageKeys.ModelPartReadError] = "Unable to read model part: {0}\nFormat: {1}\nRe-export the model or replace the damaged file."
     };
 
     [GeneratedRegex(@"\{(\d+)(?:[^}]*)\}")]

@@ -16,6 +16,7 @@ internal static class LanguageKeys
     public const string AddNext = nameof(AddNext);
     public const string Clear = nameof(Clear);
     public const string RootBadge = nameof(RootBadge);
+    public const string FileMissingBadge = nameof(FileMissingBadge);
     public const string SetAsRoot = nameof(SetAsRoot);
     public const string Remove = nameof(Remove);
     public const string GroupSettings = nameof(GroupSettings);
@@ -121,7 +122,7 @@ internal static class LanguageKeys
     public static IReadOnlyList<string> All { get; } =
     [
         AppTitle, AppSubtitle, Language, NewGroup, SaveSettings, RestoreDefaults, StartGroup, Cancel, DeleteGroup,
-        ModelParts, ModelPartsHint, AddNext, Clear, RootBadge, SetAsRoot, Remove, GroupSettings, RootModel,
+        ModelParts, ModelPartsHint, AddNext, Clear, RootBadge, FileMissingBadge, SetAsRoot, Remove, GroupSettings, RootModel,
         Automatic, Manual, ManualRootHint, OutputFolder, OutputFolderHelp, Browse, OutputFileNameOptional,
         OutputFileNameHelp, OutputFileHint, GroupStatus, RunLog, OpenGroupOutput, Attribution, RememberOutput,
         RememberOutputHint, CancelAll, MergeAllReady, PickCastTitle, CastFilter, PickOutputTitle, WorkspaceInitial,

@@ -8,6 +8,8 @@ internal sealed class SeModelLoader : IModelPartLoader
 {
     public string Extension => ".semodel";
 
+    public string FormatName => "SEModel";
+
     public Model Load(string filePath, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

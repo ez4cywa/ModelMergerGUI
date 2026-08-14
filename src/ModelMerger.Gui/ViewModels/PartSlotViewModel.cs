@@ -21,6 +21,7 @@ internal sealed class PartSlotViewModel(int index, ILanguageCatalog language) : 
             if (SetProperty(ref _filePath, value))
             {
                 RaisePropertyChanged(nameof(IsOccupied));
+                RaisePropertyChanged(nameof(IsInvalid));
                 RaisePropertyChanged(nameof(FileName));
                 RaisePropertyChanged(nameof(DirectoryName));
                 RaisePropertyChanged(nameof(AccessibleName));
@@ -29,6 +30,8 @@ internal sealed class PartSlotViewModel(int index, ILanguageCatalog language) : 
     }
 
     public bool IsOccupied => !string.IsNullOrWhiteSpace(FilePath);
+
+    public bool IsInvalid => IsOccupied && !File.Exists(FilePath);
 
     public string FileName => IsOccupied ? Path.GetFileName(FilePath) ?? string.Empty : language[LanguageKeys.AddPart];
 
@@ -49,5 +52,10 @@ internal sealed class PartSlotViewModel(int index, ILanguageCatalog language) : 
         RaisePropertyChanged(nameof(FileName));
         RaisePropertyChanged(nameof(DirectoryName));
         RaisePropertyChanged(nameof(AccessibleName));
+    }
+
+    public void RefreshValidity()
+    {
+        RaisePropertyChanged(nameof(IsInvalid));
     }
 }
