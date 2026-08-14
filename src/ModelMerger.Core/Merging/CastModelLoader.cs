@@ -3,9 +3,11 @@ using PhilLibX.Mathematics;
 
 namespace ModelMerger.Core.Merging;
 
-internal static class CastModelLoader
+internal sealed class CastModelLoader : IModelPartLoader
 {
-    public static Model Load(string filePath, CancellationToken cancellationToken)
+    public string Extension => ".cast";
+
+    public Model Load(string filePath, CancellationToken cancellationToken)
     {
         var result = new Model(Path.GetFileNameWithoutExtension(filePath));
         var castFile = Cast.CastFile.Load(filePath);

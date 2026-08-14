@@ -6,17 +6,39 @@ namespace ModelMerger.Core.Merging;
 
 public sealed class ModelMergeService : IModelMergeService
 {
+    private readonly IReadOnlyDictionary<string, IModelPartLoader> _loaders;
+    private readonly int _minimumParts;
+    private readonly int _maximumParts;
     private readonly IMergeOutputClaims _outputClaims;
 
     public ModelMergeService()
-        : this(new MergeOutputClaims())
+        : this([new CastModelLoader()], ModelPartCollection.MinimumParts, ModelPartCollection.MaximumParts, new MergeOutputClaims())
     {
     }
 
     internal ModelMergeService(IMergeOutputClaims outputClaims)
+        : this([new CastModelLoader()], ModelPartCollection.MinimumParts, ModelPartCollection.MaximumParts, outputClaims)
     {
+    }
+
+    private ModelMergeService(
+        IEnumerable<IModelPartLoader> loaders,
+        int minimumParts,
+        int maximumParts,
+        IMergeOutputClaims outputClaims)
+    {
+        _loaders = loaders.ToDictionary(loader => loader.Extension, StringComparer.OrdinalIgnoreCase);
+        _minimumParts = minimumParts;
+        _maximumParts = maximumParts;
         _outputClaims = outputClaims;
     }
+
+    public static ModelMergeService CreateForCommandLine() =>
+        new(
+            [new CastModelLoader(), new SeModelLoader()],
+            minimumParts: 1,
+            maximumParts: int.MaxValue,
+            new MergeOutputClaims());
 
     public async Task<MergeResult> MergeAsync(
         MergeRequest request,
@@ -33,16 +55,18 @@ public sealed class ModelMergeService : IModelMergeService
             cancellationToken).ConfigureAwait(false);
     }
 
-    private static ValidatedMergeRequest Validate(MergeRequest request)
+    private ValidatedMergeRequest Validate(MergeRequest request)
     {
         var errors = new List<MergeValidationError>();
         var inputFiles = request.InputFiles ?? [];
 
-        if (inputFiles.Count is < ModelPartCollection.MinimumParts or > ModelPartCollection.MaximumParts)
+        if (inputFiles.Count < _minimumParts || inputFiles.Count > _maximumParts)
         {
             errors.Add(new MergeValidationError(
                 MergeValidationErrorCode.InvalidPartCount,
-                $"A merge requires {ModelPartCollection.MinimumParts} to {ModelPartCollection.MaximumParts} Cast parts."));
+                _maximumParts == int.MaxValue
+                    ? $"A merge requires at least {_minimumParts} model part."
+                    : $"A merge requires {_minimumParts} to {_maximumParts} model parts."));
         }
 
         var normalizedInputs = new List<string>(inputFiles.Count);
@@ -69,11 +93,11 @@ public sealed class ModelMergeService : IModelMergeService
             }
 
             normalizedInputs.Add(fullPath);
-            if (!string.Equals(Path.GetExtension(fullPath), ".cast", StringComparison.OrdinalIgnoreCase))
+            if (!_loaders.ContainsKey(Path.GetExtension(fullPath)))
             {
                 errors.Add(new MergeValidationError(
                     MergeValidationErrorCode.UnsupportedExtension,
-                    "Only .cast model parts can be merged in the GUI.",
+                    $"Supported model formats: {string.Join(", ", _loaders.Keys.OrderBy(extension => extension))}.",
                     fullPath));
             }
             else if (!File.Exists(fullPath))
@@ -125,7 +149,7 @@ public sealed class ModelMergeService : IModelMergeService
             {
                 errors.Add(new MergeValidationError(
                     MergeValidationErrorCode.ManualRootNotSelected,
-                    "The manual root must be one of the selected Cast parts.",
+                    "The manual root must be one of the selected model parts.",
                     manualRoot));
             }
         }
@@ -187,7 +211,7 @@ public sealed class ModelMergeService : IModelMergeService
                 $"Loading {Path.GetFileName(path)}"));
             try
             {
-                loaded.Add(new LoadedPart(path, CastModelLoader.Load(path, cancellationToken)));
+                loaded.Add(new LoadedPart(path, _loaders[Path.GetExtension(path)].Load(path, cancellationToken)));
             }
             catch (OperationCanceledException)
             {
@@ -195,8 +219,11 @@ public sealed class ModelMergeService : IModelMergeService
             }
             catch (Exception exception)
             {
+                var formatName = string.Equals(Path.GetExtension(path), ".cast", StringComparison.OrdinalIgnoreCase)
+                    ? "Cast"
+                    : "SEModel";
                 throw new InvalidDataException(
-                    $"Unable to read {Path.GetFileName(path)}. The file is not a valid or readable Cast model. {exception.Message}",
+                    $"Unable to read {Path.GetFileName(path)}. The file is not a valid or readable {formatName} model. {exception.Message}",
                     exception);
             }
         }

@@ -2,6 +2,8 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <AssemblyTitle>ModelMerger</AssemblyTitle>
     <Description>Model File Merger</Description>
@@ -14,11 +16,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="icon.ico" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PhilLibX\PhilLibX.csproj" />
-    <ProjectReference Include="..\SELibDotNet\src\SELib\SELib.csproj" />
+    <ProjectReference Include="..\ModelMerger.Core\ModelMerger.Core.csproj" />
   </ItemGroup>
 </Project>
