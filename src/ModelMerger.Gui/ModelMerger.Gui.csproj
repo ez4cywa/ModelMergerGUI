@@ -15,7 +15,7 @@
     <SelfContained>true</SelfContained>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>Cast Model Merger GUI</Product>
     <Description>Merge 2 to 16 Cast model parts with a visual Windows interface.</Description>
     <Company>ModelMerger contributors</Company>

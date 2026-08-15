@@ -118,6 +118,27 @@ internal static class LanguageKeys
     public const string WarningNoAttachmentBone = nameof(WarningNoAttachmentBone);
     public const string WarningUnconnectedHierarchy = nameof(WarningUnconnectedHierarchy);
     public const string ModelPartReadError = nameof(ModelPartReadError);
+    public const string Preview = nameof(Preview);
+    public const string PreviewMerged = nameof(PreviewMerged);
+    public const string PreviewWindowTitle = nameof(PreviewWindowTitle);
+    public const string PreviewHeader = nameof(PreviewHeader);
+    public const string PreviewLoading = nameof(PreviewLoading);
+    public const string PreviewInstructions = nameof(PreviewInstructions);
+    public const string PreviewRotateLeft = nameof(PreviewRotateLeft);
+    public const string PreviewRotateRight = nameof(PreviewRotateRight);
+    public const string PreviewZoomIn = nameof(PreviewZoomIn);
+    public const string PreviewZoomOut = nameof(PreviewZoomOut);
+    public const string PreviewResetView = nameof(PreviewResetView);
+    public const string PreviewClose = nameof(PreviewClose);
+    public const string PreviewStats = nameof(PreviewStats);
+    public const string PreviewDisplayedStats = nameof(PreviewDisplayedStats);
+    public const string PreviewSimplified = nameof(PreviewSimplified);
+    public const string PreviewErrorTitle = nameof(PreviewErrorTitle);
+    public const string PreviewErrorInvalidPath = nameof(PreviewErrorInvalidPath);
+    public const string PreviewErrorMissingFile = nameof(PreviewErrorMissingFile);
+    public const string PreviewErrorUnsupportedFormat = nameof(PreviewErrorUnsupportedFormat);
+    public const string PreviewErrorUnreadableModel = nameof(PreviewErrorUnreadableModel);
+    public const string PreviewErrorNoGeometry = nameof(PreviewErrorNoGeometry);
 
     public static IReadOnlyList<string> All { get; } =
     [
@@ -141,6 +162,10 @@ internal static class LanguageKeys
         ValidationMissingFile, ValidationUnsupportedExtension, ValidationDuplicateFile,
         ValidationInvalidOutputDirectory, ValidationInvalidOutputFileName, ValidationOutputAlreadyExists,
         ValidationManualRootNotSelected, WarningNoAttachmentBone, WarningUnconnectedHierarchy,
-        ModelPartReadError
+        ModelPartReadError, Preview, PreviewMerged, PreviewWindowTitle, PreviewHeader, PreviewLoading,
+        PreviewInstructions, PreviewRotateLeft, PreviewRotateRight, PreviewZoomIn, PreviewZoomOut,
+        PreviewResetView, PreviewClose, PreviewStats, PreviewDisplayedStats, PreviewSimplified,
+        PreviewErrorTitle, PreviewErrorInvalidPath, PreviewErrorMissingFile, PreviewErrorUnsupportedFormat,
+        PreviewErrorUnreadableModel, PreviewErrorNoGeometry
     ];
 }

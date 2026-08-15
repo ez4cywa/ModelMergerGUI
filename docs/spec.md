@@ -23,6 +23,7 @@
 - Within each group, subsequent part dialogs start in the directory of the most recently accepted part.
 - Drag-and-drop can add multiple parts up to the remaining capacity.
 - A filled slot shows its file name and validation state and can be removed or replaced.
+- A filled slot can open an interactive 3D preview without changing the selected file or merge plan.
 - Reject duplicates, missing files, non-Cast files, and additions beyond slot 16 without disturbing accepted slots.
 - Disable merging until at least two valid parts are selected.
 
@@ -39,6 +40,9 @@
 - Remove temporary output after failure or cancellation.
 - Show actionable warnings for disconnected skeletons and actionable errors for invalid Cast files.
 - Each group has independent inputs, root selection, output, progress, cancellation, log, and result.
+- A completed group can preview its merged Cast output directly from the group status card.
+- Preview loading and geometry preparation run away from the UI thread. Large models are sampled to a bounded triangle count for display only; source and output files remain unchanged.
+- Preview interaction supports mouse drag rotation, wheel zoom, visible rotate/zoom/reset controls, keyboard alternatives, and Escape/Close dismissal.
 - Core exposes structured progress, warning, validation, read-error, and output-conflict semantics so each presentation adapter can localize them.
 
 ## Saved settings

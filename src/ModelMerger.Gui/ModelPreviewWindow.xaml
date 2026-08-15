@@ -1,0 +1,209 @@
+<Window x:Class="ModelMerger.Gui.ModelPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:ModelMerger.Gui.Localization"
+        Title="{Binding WindowTitle}"
+        Width="960"
+        Height="720"
+        MinWidth="720"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC"
+        FontFamily="Segoe UI"
+        FontSize="14"
+        Loaded="Window_Loaded"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        Closed="Window_Closed">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="PreviewButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#EFF6FF" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#2563EB" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#2563EB" />
+                                <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="22,18,22,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="{Binding Header}"
+                           FontSize="23"
+                           FontWeight="Bold"
+                           Foreground="#0F172A" />
+                <TextBlock Margin="0,3,0,0"
+                           Text="{Binding FileName}"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="#64748B"
+                           ToolTip="{Binding FilePath}" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Content="{Binding [PreviewClose], Source={x:Static loc:LanguageCatalog.Current}}"
+                    AutomationProperties.Name="{Binding [PreviewClose], Source={x:Static loc:LanguageCatalog.Current}}"
+                    Click="Close_Click"
+                    Style="{StaticResource PreviewButtonStyle}" />
+        </Grid>
+
+        <Border x:Name="PreviewSurface"
+                Grid.Row="1"
+                Background="#0F172A"
+                BorderBrush="#334155"
+                BorderThickness="1"
+                CornerRadius="12"
+                ClipToBounds="True"
+                Focusable="False"
+                MouseLeftButtonDown="PreviewSurface_MouseLeftButtonDown"
+                MouseLeftButtonUp="PreviewSurface_MouseLeftButtonUp"
+                MouseMove="PreviewSurface_MouseMove"
+                MouseWheel="PreviewSurface_MouseWheel"
+                LostMouseCapture="PreviewSurface_LostMouseCapture">
+            <Grid>
+                <Grid.Background>
+                    <RadialGradientBrush Center="0.5,0.42" GradientOrigin="0.5,0.42" RadiusX="0.76" RadiusY="0.76">
+                        <GradientStop Color="#243B5A" Offset="0" />
+                        <GradientStop Color="#0F172A" Offset="1" />
+                    </RadialGradientBrush>
+                </Grid.Background>
+
+                <Viewport3D x:Name="Viewport" ClipToBounds="True">
+                    <Viewport3D.Camera>
+                        <PerspectiveCamera x:Name="Camera" FieldOfView="42" UpDirection="0,1,0" />
+                    </Viewport3D.Camera>
+                    <ModelVisual3D x:Name="SceneVisual" />
+                </Viewport3D>
+
+                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Margin="16"
+                        Padding="12,9"
+                        CornerRadius="8"
+                        Background="#D90F172A"
+                        BorderBrush="#475569"
+                        BorderThickness="1"
+                        Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Statistics}" Foreground="White" FontWeight="SemiBold" />
+                        <TextBlock Margin="0,2,0,0" Text="{Binding DisplayStatistics}" Foreground="#CBD5E1" FontSize="12" />
+                        <TextBlock Margin="0,5,0,0"
+                                   MaxWidth="580"
+                                   Text="{Binding SimplificationNotice}"
+                                   TextWrapping="Wrap"
+                                   Foreground="#FDE68A"
+                                   FontSize="12"
+                                   Visibility="{Binding IsSimplified, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#E60F172A"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="310">
+                        <ProgressBar Height="5" IsIndeterminate="True" Foreground="#60A5FA" />
+                        <TextBlock Margin="0,14,0,0"
+                                   Text="{Binding LoadingText}"
+                                   TextAlignment="Center"
+                                   Foreground="White" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#F20F172A"
+                        Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="470">
+                        <TextBlock Text="{Binding ErrorTitle}"
+                                   TextAlignment="Center"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Foreground="White" />
+                        <TextBlock Margin="0,10,0,18"
+                                   Text="{Binding ErrorMessage}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Foreground="#CBD5E1" />
+                        <Button Content="{Binding [PreviewClose], Source={x:Static loc:LanguageCatalog.Current}}"
+                                AutomationProperties.Name="{Binding [PreviewClose], Source={x:Static loc:LanguageCatalog.Current}}"
+                                Click="Close_Click"
+                                Style="{StaticResource PreviewButtonStyle}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="{Binding Instructions}"
+                       TextWrapping="Wrap"
+                       Foreground="#64748B" />
+            <WrapPanel Grid.Row="1" Margin="0,10,0,0" HorizontalAlignment="Center">
+                <Button x:Name="RotateLeftButton"
+                        Margin="0,0,8,0"
+                        Content="{Binding [PreviewRotateLeft], Source={x:Static loc:LanguageCatalog.Current}}"
+                        AutomationProperties.Name="{Binding [PreviewRotateLeft], Source={x:Static loc:LanguageCatalog.Current}}"
+                        IsEnabled="{Binding HasPreview}"
+                        Click="RotateLeft_Click"
+                        Style="{StaticResource PreviewButtonStyle}" />
+                <Button Margin="0,0,8,0"
+                        Content="{Binding [PreviewRotateRight], Source={x:Static loc:LanguageCatalog.Current}}"
+                        AutomationProperties.Name="{Binding [PreviewRotateRight], Source={x:Static loc:LanguageCatalog.Current}}"
+                        IsEnabled="{Binding HasPreview}"
+                        Click="RotateRight_Click"
+                        Style="{StaticResource PreviewButtonStyle}" />
+                <Button Margin="0,0,8,0"
+                        Content="{Binding [PreviewZoomIn], Source={x:Static loc:LanguageCatalog.Current}}"
+                        AutomationProperties.Name="{Binding [PreviewZoomIn], Source={x:Static loc:LanguageCatalog.Current}}"
+                        IsEnabled="{Binding HasPreview}"
+                        Click="ZoomIn_Click"
+                        Style="{StaticResource PreviewButtonStyle}" />
+                <Button Margin="0,0,8,0"
+                        Content="{Binding [PreviewZoomOut], Source={x:Static loc:LanguageCatalog.Current}}"
+                        AutomationProperties.Name="{Binding [PreviewZoomOut], Source={x:Static loc:LanguageCatalog.Current}}"
+                        IsEnabled="{Binding HasPreview}"
+                        Click="ZoomOut_Click"
+                        Style="{StaticResource PreviewButtonStyle}" />
+                <Button Content="{Binding [PreviewResetView], Source={x:Static loc:LanguageCatalog.Current}}"
+                        AutomationProperties.Name="{Binding [PreviewResetView], Source={x:Static loc:LanguageCatalog.Current}}"
+                        IsEnabled="{Binding HasPreview}"
+                        Click="ResetView_Click"
+                        Style="{StaticResource PreviewButtonStyle}" />
+            </WrapPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -226,7 +226,28 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.ValidationManualRootNotSelected] = "手动根模型必须是本组已选部件。",
         [LanguageKeys.WarningNoAttachmentBone] = "{0} 与 {1} 没有共同的连接骨骼；已在不重新定位的情况下合并。请检查根模型选择和连接骨骼名称。",
         [LanguageKeys.WarningUnconnectedHierarchy] = "{0} 无法连接到当前层级；已在不重新定位的情况下合并。请尝试手动选择根模型或修正骨骼层级。",
-        [LanguageKeys.ModelPartReadError] = "无法读取模型部件：{0}\n文件格式：{1}\n请重新导出模型，或替换损坏的文件。"
+        [LanguageKeys.ModelPartReadError] = "无法读取模型部件：{0}\n文件格式：{1}\n请重新导出模型，或替换损坏的文件。",
+        [LanguageKeys.Preview] = "预览",
+        [LanguageKeys.PreviewMerged] = "预览合并模型",
+        [LanguageKeys.PreviewWindowTitle] = "{0} · 模型预览",
+        [LanguageKeys.PreviewHeader] = "模型预览",
+        [LanguageKeys.PreviewLoading] = "正在后台读取并准备模型…",
+        [LanguageKeys.PreviewInstructions] = "按住鼠标左键拖动旋转，滚轮缩放；也可使用按钮或键盘方向键、+、−。",
+        [LanguageKeys.PreviewRotateLeft] = "向左旋转",
+        [LanguageKeys.PreviewRotateRight] = "向右旋转",
+        [LanguageKeys.PreviewZoomIn] = "放大",
+        [LanguageKeys.PreviewZoomOut] = "缩小",
+        [LanguageKeys.PreviewResetView] = "重置视角",
+        [LanguageKeys.PreviewClose] = "关闭",
+        [LanguageKeys.PreviewStats] = "{0} 个网格 · {1:N0} 个顶点 · {2:N0} 个三角面",
+        [LanguageKeys.PreviewDisplayedStats] = "当前显示 {0:N0} / {1:N0} 个三角面",
+        [LanguageKeys.PreviewSimplified] = "为保持预览流畅，画面已自动抽样；源文件和合并输出不会被修改。",
+        [LanguageKeys.PreviewErrorTitle] = "无法预览模型",
+        [LanguageKeys.PreviewErrorInvalidPath] = "模型路径无效，请重新选择文件。",
+        [LanguageKeys.PreviewErrorMissingFile] = "模型文件已不存在，请重新选择或重新执行合并。",
+        [LanguageKeys.PreviewErrorUnsupportedFormat] = "预览仅支持 .cast 模型。",
+        [LanguageKeys.PreviewErrorUnreadableModel] = "无法读取此 Cast 模型。请重新导出模型或替换损坏的文件。",
+        [LanguageKeys.PreviewErrorNoGeometry] = "此模型没有可显示的网格几何体。"
     };
 
     private static IReadOnlyDictionary<string, string> English() => new Dictionary<string, string>
@@ -346,7 +367,28 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.ValidationManualRootNotSelected] = "The manual root must be one of this group's selected parts.",
         [LanguageKeys.WarningNoAttachmentBone] = "{0} shares no attachment bone with {1}; it was merged without repositioning. Check the root selection and attachment bone names.",
         [LanguageKeys.WarningUnconnectedHierarchy] = "{0} could not connect to the current hierarchy; it was merged without repositioning. Try selecting the root manually or fix the bone hierarchy.",
-        [LanguageKeys.ModelPartReadError] = "Unable to read model part: {0}\nFormat: {1}\nRe-export the model or replace the damaged file."
+        [LanguageKeys.ModelPartReadError] = "Unable to read model part: {0}\nFormat: {1}\nRe-export the model or replace the damaged file.",
+        [LanguageKeys.Preview] = "Preview",
+        [LanguageKeys.PreviewMerged] = "Preview merged model",
+        [LanguageKeys.PreviewWindowTitle] = "{0} · Model preview",
+        [LanguageKeys.PreviewHeader] = "Model preview",
+        [LanguageKeys.PreviewLoading] = "Loading and preparing the model in the background…",
+        [LanguageKeys.PreviewInstructions] = "Drag with the left mouse button to rotate and use the wheel to zoom; buttons and arrow, +, − keys also work.",
+        [LanguageKeys.PreviewRotateLeft] = "Rotate left",
+        [LanguageKeys.PreviewRotateRight] = "Rotate right",
+        [LanguageKeys.PreviewZoomIn] = "Zoom in",
+        [LanguageKeys.PreviewZoomOut] = "Zoom out",
+        [LanguageKeys.PreviewResetView] = "Reset view",
+        [LanguageKeys.PreviewClose] = "Close",
+        [LanguageKeys.PreviewStats] = "{0} meshes · {1:N0} vertices · {2:N0} triangles",
+        [LanguageKeys.PreviewDisplayedStats] = "Displaying {0:N0} / {1:N0} triangles",
+        [LanguageKeys.PreviewSimplified] = "The view was sampled to stay responsive; the source file and merged output are unchanged.",
+        [LanguageKeys.PreviewErrorTitle] = "Unable to preview model",
+        [LanguageKeys.PreviewErrorInvalidPath] = "The model path is invalid. Select the file again.",
+        [LanguageKeys.PreviewErrorMissingFile] = "The model file no longer exists. Select it again or rerun the merge.",
+        [LanguageKeys.PreviewErrorUnsupportedFormat] = "Preview supports .cast models only.",
+        [LanguageKeys.PreviewErrorUnreadableModel] = "This Cast model could not be read. Re-export it or replace the damaged file.",
+        [LanguageKeys.PreviewErrorNoGeometry] = "This model has no mesh geometry to display."
     };
 
     [GeneratedRegex(@"\{(\d+)(?:[^}]*)\}")]

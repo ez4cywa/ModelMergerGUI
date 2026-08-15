@@ -42,6 +42,7 @@ public sealed class MainWindowVisualSmokeTests
                             DispatcherPriority.ContextIdle,
                             new Action(() => { }));
                         window.UpdateLayout();
+                        PumpDispatcher(TimeSpan.FromMilliseconds(100));
                         _ = Render(window);
                         var bitmap = Render(window);
                         Assert.True(bitmap.PixelWidth >= 800);
@@ -85,6 +86,22 @@ public sealed class MainWindowVisualSmokeTests
             PixelFormats.Pbgra32);
         bitmap.Render(element);
         return bitmap;
+    }
+
+    private static void PumpDispatcher(TimeSpan duration)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = duration
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        Dispatcher.PushFrame(frame);
     }
 
     private static void SaveWhenRequested(BitmapSource bitmap, AppLanguage language)

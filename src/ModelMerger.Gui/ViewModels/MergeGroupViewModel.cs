@@ -16,6 +16,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
 {
     private readonly IMergeTaskScheduler _scheduler;
     private readonly IUserDialogService _dialogs;
+    private readonly IModelPreviewDialogService _previewDialogs;
     private readonly ILanguageCatalog _language;
     private readonly MergeGroupPlan _plan;
     private readonly List<LogEntry> _log = [];
@@ -27,6 +28,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
     private readonly RelayCommand _setManualRootCommand;
     private readonly RelayCommand _cancelCommand;
     private readonly RelayCommand _openOutputCommand;
+    private readonly RelayCommand _previewPartCommand;
+    private readonly RelayCommand _previewOutputCommand;
     private readonly AsyncRelayCommand _mergeCommand;
     private MergeTaskHandle? _mergeTask;
     private LocalizedText _status = LocalizedText.FromKey(LanguageKeys.StatusInitial);
@@ -42,12 +45,14 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
         IUserDialogService dialogs,
         string? preferredOutputDirectory,
         RootSelectionMode defaultRootMode,
-        ILanguageCatalog? languageCatalog = null)
+        ILanguageCatalog? languageCatalog = null,
+        IModelPreviewDialogService? previewDialogs = null)
     {
         Number = number;
         _scheduler = scheduler;
         _dialogs = dialogs;
         _language = languageCatalog ?? LanguageCatalog.Current;
+        _previewDialogs = previewDialogs ?? new ModelPreviewDialogService(_language);
         _language.PropertyChanged += Language_PropertyChanged;
         _plan = new MergeGroupPlan(preferredOutputDirectory, defaultRootMode);
         Slots = new ObservableCollection<PartSlotViewModel>(
@@ -62,6 +67,12 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
         _setManualRootCommand = new RelayCommand(SetManualRoot, parameter => !IsBusy && parameter is PartSlotViewModel slot && slot.IsOccupied);
         _cancelCommand = new RelayCommand(_ => Cancel(), _ => IsBusy);
         _openOutputCommand = new RelayCommand(_ => OpenLastOutput(), _ => LastOutputPath is not null && File.Exists(LastOutputPath));
+        _previewPartCommand = new RelayCommand(
+            PreviewPart,
+            parameter => parameter is PartSlotViewModel { FilePath: not null } slot && File.Exists(slot.FilePath));
+        _previewOutputCommand = new RelayCommand(
+            _ => PreviewOutput(),
+            _ => LastOutputPath is not null && File.Exists(LastOutputPath));
         _mergeCommand = new AsyncRelayCommand(MergeAsync, () => CanMerge);
     }
 
@@ -90,6 +101,10 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
     public ICommand CancelCommand => _cancelCommand;
 
     public ICommand OpenOutputCommand => _openOutputCommand;
+
+    public ICommand PreviewPartCommand => _previewPartCommand;
+
+    public ICommand PreviewOutputCommand => _previewOutputCommand;
 
     public ICommand MergeCommand => _mergeCommand;
 
@@ -221,6 +236,7 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
             if (SetProperty(ref _lastOutputPath, value))
             {
                 _openOutputCommand.RaiseCanExecuteChanged();
+                _previewOutputCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -372,6 +388,10 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
         {
             slot.RefreshValidity();
         }
+
+        _previewPartCommand.RaiseCanExecuteChanged();
+        _openOutputCommand.RaiseCanExecuteChanged();
+        _previewOutputCommand.RaiseCanExecuteChanged();
 
         var filesValid = ArePartFilesValid(_plan.State.PartFiles);
         if (filesValid == _lastKnownPartFilesValid)
@@ -576,6 +596,22 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
         Process.Start(startInfo);
     }
 
+    private void PreviewPart(object? parameter)
+    {
+        if (parameter is PartSlotViewModel { FilePath: not null } slot && File.Exists(slot.FilePath))
+        {
+            _previewDialogs.Show(slot.FilePath);
+        }
+    }
+
+    private void PreviewOutput()
+    {
+        if (LastOutputPath is not null && File.Exists(LastOutputPath))
+        {
+            _previewDialogs.Show(LastOutputPath);
+        }
+    }
+
     private void OnMergeStateChanged()
     {
         RaisePropertyChanged(nameof(CanMerge));
@@ -594,6 +630,8 @@ internal sealed class MergeGroupViewModel : ViewModelBase, IDisposable
         _setManualRootCommand.RaiseCanExecuteChanged();
         _cancelCommand.RaiseCanExecuteChanged();
         _mergeCommand.RaiseCanExecuteChanged();
+        _previewPartCommand.RaiseCanExecuteChanged();
+        _previewOutputCommand.RaiseCanExecuteChanged();
     }
 
     private void SetStatus(string key, params object?[] arguments) =>

@@ -15,3 +15,7 @@ The merge engine combines loaded model parts using one root-selection and geomet
 ## Language catalog
 
 The language catalog maps structured application meaning to user-facing text for one culture. Chinese and English are two real language adapters at the same presentation seam.
+
+## Model preview
+
+A model preview is a bounded, read-only projection of Cast mesh geometry for interactive display. Core owns loading, statistics, validation, and triangle sampling; WPF owns camera controls and rendering. Preview sampling never changes the selected part or merged output.

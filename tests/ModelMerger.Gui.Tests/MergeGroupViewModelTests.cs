@@ -107,6 +107,63 @@ public sealed class MergeGroupViewModelTests : IDisposable
         Assert.True(viewModel.Slots[1].IsInvalid);
     }
 
+    [Fact]
+    public void RefreshFileValidity_WhenOneOfTwoMissingFilesReturns_ReenablesItsPreview()
+    {
+        var first = CreateCastFile("restored-first.cast");
+        var second = CreateCastFile("restored-second.cast");
+        using var viewModel = new MergeGroupViewModel(
+            1,
+            new UnusedTaskScheduler(),
+            new RecordingDialogService(first, second),
+            preferredOutputDirectory: null,
+            RootSelectionMode.Automatic,
+            new LanguageCatalog(AppLanguage.English));
+        viewModel.AddNextCommand.Execute(null);
+        viewModel.AddNextCommand.Execute(null);
+        File.Delete(first);
+        File.Delete(second);
+        viewModel.RefreshFileValidity();
+        Assert.False(viewModel.PreviewPartCommand.CanExecute(viewModel.Slots[0]));
+
+        File.WriteAllText(first, string.Empty);
+        viewModel.RefreshFileValidity();
+
+        Assert.True(viewModel.PreviewPartCommand.CanExecute(viewModel.Slots[0]));
+        Assert.False(viewModel.CanMerge);
+    }
+
+    [Fact]
+    public async Task PreviewCommands_OpenSelectedPartAndMergedOutput()
+    {
+        var first = CreateCastFile("preview-first.cast");
+        var second = CreateCastFile("preview-second.cast");
+        var previews = new RecordingPreviewDialogService();
+        using var scheduler = new MergeTaskScheduler(new CompletedMergeService(), 1);
+        using var viewModel = new MergeGroupViewModel(
+            1,
+            scheduler,
+            new RecordingDialogService(first, second),
+            preferredOutputDirectory: null,
+            RootSelectionMode.Automatic,
+            new LanguageCatalog(AppLanguage.English),
+            previews);
+        viewModel.AddNextCommand.Execute(null);
+        viewModel.AddNextCommand.Execute(null);
+
+        viewModel.PreviewPartCommand.Execute(viewModel.Slots[0]);
+        await viewModel.MergeAsync();
+        viewModel.PreviewOutputCommand.Execute(null);
+
+        Assert.Equal(first, previews.Paths[0]);
+        var mergedPath = Path.Combine(_directory, "Merged Models", "merged.cast");
+        Assert.Equal(mergedPath, previews.Paths[1]);
+
+        File.Delete(mergedPath);
+        viewModel.RefreshFileValidity();
+        Assert.False(viewModel.PreviewOutputCommand.CanExecute(null));
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);
@@ -157,6 +214,13 @@ public sealed class MergeGroupViewModelTests : IDisposable
         }
     }
 
+    private sealed class RecordingPreviewDialogService : IModelPreviewDialogService
+    {
+        public List<string> Paths { get; } = [];
+
+        public void Show(string filePath) => Paths.Add(filePath);
+    }
+
     private sealed class CompletedMergeService : IModelMergeService
     {
         public Task<IPreparedMergeOperation> PrepareAsync(
@@ -191,6 +255,8 @@ public sealed class MergeGroupViewModelTests : IDisposable
                 CancellationToken cancellationToken = default)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                Directory.CreateDirectory(Path.GetDirectoryName(OutputPath)!);
+                File.WriteAllText(OutputPath, string.Empty);
                 return Task.FromResult(new MergeResult(
                     OutputPath,
                     "root",

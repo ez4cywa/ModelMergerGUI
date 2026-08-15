@@ -16,6 +16,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly IUserDialogService _dialogs;
     private readonly IMergeTaskScheduler _scheduler;
     private readonly ILanguageCatalog _language;
+    private readonly IModelPreviewDialogService _previewDialogs;
     private readonly RelayCommand _addGroupCommand;
     private readonly RelayCommand _removeGroupCommand;
     private readonly RelayCommand _cancelAllCommand;
@@ -32,12 +33,14 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         ISettingsStore settingsStore,
         IUserDialogService dialogs,
         IMergeTaskScheduler scheduler,
-        ILanguageCatalog? languageCatalog = null)
+        ILanguageCatalog? languageCatalog = null,
+        IModelPreviewDialogService? previewDialogs = null)
     {
         _settingsStore = settingsStore;
         _dialogs = dialogs;
         _scheduler = scheduler;
         _language = languageCatalog ?? LanguageCatalog.Current;
+        _previewDialogs = previewDialogs ?? new ModelPreviewDialogService(_language);
         _language.PropertyChanged += Language_PropertyChanged;
         Groups = [];
         _addGroupCommand = new RelayCommand(_ => AddGroup());
@@ -184,7 +187,8 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
             _dialogs,
             _preferredOutputDirectory,
             _defaultRootMode,
-            _language);
+            _language,
+            _previewDialogs);
         group.StateChanged += Group_StateChanged;
         group.OutputDirectoryChosen += Group_OutputDirectoryChosen;
         Groups.Add(group);

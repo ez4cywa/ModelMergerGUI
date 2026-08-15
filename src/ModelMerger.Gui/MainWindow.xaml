@@ -346,6 +346,13 @@
                                                                             Orientation="Horizontal"
                                                                             HorizontalAlignment="Center"
                                                                             Visibility="Collapsed">
+                                                                    <Button Content="{Binding [Preview], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                            AutomationProperties.Name="{Binding [Preview], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                            Command="{Binding DataContext.PreviewPartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            Style="{StaticResource LinkButtonStyle}"
+                                                                            FontSize="10"
+                                                                            Foreground="#1D4ED8" />
                                                                     <Button Content="{Binding [SetAsRoot], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                             Command="{Binding DataContext.SetManualRootCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
@@ -450,10 +457,17 @@
                                                                  FontFamily="Consolas"
                                                                  FontSize="11" />
                                                     </Expander>
-                                                    <Button Margin="0,9,0,0"
-                                                            Content="{Binding [OpenGroupOutput], Source={x:Static loc:LanguageCatalog.Current}}"
-                                                            Command="{Binding OpenOutputCommand}"
-                                                            Style="{StaticResource SecondaryButtonStyle}" />
+                                                    <StackPanel Margin="0,9,0,0">
+                                                        <Button Content="{Binding [PreviewMerged], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                AutomationProperties.Name="{Binding [PreviewMerged], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                Command="{Binding PreviewOutputCommand}"
+                                                                Style="{StaticResource SecondaryButtonStyle}" />
+                                                        <Button Margin="0,7,0,0"
+                                                                Content="{Binding [OpenGroupOutput], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                AutomationProperties.Name="{Binding [OpenGroupOutput], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                                Command="{Binding OpenOutputCommand}"
+                                                                Style="{StaticResource SecondaryButtonStyle}" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>
