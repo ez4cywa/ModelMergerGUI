@@ -26,7 +26,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         {
             PreferredOutputDirectory = outputPath,
             RememberOutputDirectory = true,
-            UiLanguage = AppLanguage.English,
+            UiLanguage = AppLanguage.Russian,
             RootSelectionMode = RootSelectionMode.Manual,
             WindowBounds = new WindowBounds(100, 120, 1120, 760)
         };

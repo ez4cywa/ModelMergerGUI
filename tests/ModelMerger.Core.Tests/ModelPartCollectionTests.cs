@@ -15,9 +15,10 @@ public sealed class ModelPartCollectionTests : IDisposable
     }
 
     [Fact]
-    public void Add_ValidCastFilesOneAtATime_StopsAtSixteen()
+    public void Add_ValidCastFilesOneAtATime_StopsAtFifteen()
     {
         var parts = new ModelPartCollection();
+        Assert.Equal(15, ModelPartCollection.MaximumParts);
 
         for (var index = 1; index <= ModelPartCollection.MaximumParts; index++)
         {
@@ -28,7 +29,7 @@ public sealed class ModelPartCollectionTests : IDisposable
             Assert.Equal(index, parts.Count);
         }
 
-        var rejected = parts.TryAdd(CreateFile("part-17.cast"));
+        var rejected = parts.TryAdd(CreateFile("part-16.cast"));
 
         Assert.Equal(AddPartStatus.CollectionFull, rejected.Status);
         Assert.Equal(ModelPartCollection.MaximumParts, parts.Count);

@@ -31,8 +31,8 @@ public sealed class ModelMergeServiceValidationTests : IDisposable
 
     [Theory]
     [InlineData(0)]
-    [InlineData(17)]
-    public async Task MergeAsync_WithPartCountOutsideTwoToSixteen_RejectsTheRequest(int count)
+    [InlineData(16)]
+    public async Task MergeAsync_WithPartCountOutsideTwoToFifteen_RejectsTheRequest(int count)
     {
         var inputs = Enumerable.Range(1, count)
             .Select(index =>

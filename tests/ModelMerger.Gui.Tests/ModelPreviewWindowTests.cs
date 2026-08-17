@@ -33,7 +33,7 @@ public sealed class ModelPreviewWindowTests
     }
 
     [Fact]
-    public void ModelPreviewWindow_RendersGeometryInChineseAndEnglish()
+    public void ModelPreviewWindow_RendersGeometryInAllFiveLanguages()
     {
         var originalLanguage = LanguageCatalog.Current.Language;
         Exception? failure = null;
@@ -42,7 +42,7 @@ public sealed class ModelPreviewWindowTests
         {
             try
             {
-                foreach (var language in new[] { AppLanguage.ChineseSimplified, AppLanguage.English })
+                foreach (var language in SupportedLanguageTestData.All)
                 {
                     LanguageCatalog.Current.SetLanguage(language);
                     var window = new ModelPreviewWindow(
@@ -88,7 +88,7 @@ public sealed class ModelPreviewWindowTests
 
         Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "WPF model preview test timed out.");
         Assert.Null(failure);
-        Assert.Equal([AppLanguage.ChineseSimplified, AppLanguage.English], renderedLanguages);
+        Assert.Equal(SupportedLanguageTestData.All, renderedLanguages);
     }
 
     private static ModelPreviewData CreatePreview()
@@ -154,7 +154,7 @@ public sealed class ModelPreviewWindowTests
         }
 
         Directory.CreateDirectory(outputDirectory);
-        var suffix = language == AppLanguage.English ? "en" : "zh";
+        var suffix = SupportedLanguageTestData.GetFileSuffix(language);
         using var stream = File.Create(Path.Combine(outputDirectory, $"model-preview-{suffix}.png"));
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

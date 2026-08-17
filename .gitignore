@@ -357,3 +357,8 @@ MigrationBackup/
 .ionide/
 # Local release artifacts
 /artifacts/
+
+# MiSans may be embedded in application builds but may not be redistributed as
+# standalone font files. Run scripts/Install-MiSans.ps1 to obtain the official files.
+/src/ModelMerger.Gui/Assets/Fonts/*.ttf
+/src/ModelMerger.Gui/Assets/Fonts/MiSans-License.pdf

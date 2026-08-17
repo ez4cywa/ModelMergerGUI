@@ -7,13 +7,15 @@
         xmlns:loc="clr-namespace:ModelMerger.Gui.Localization"
         mc:Ignorable="d"
         Title="{Binding AppTitle}"
-        Width="1280"
-        Height="900"
+        Width="1240"
+        Height="820"
         MinWidth="1000"
-        MinHeight="720"
+        MinHeight="680"
         WindowStartupLocation="CenterScreen"
+        HorizontalContentAlignment="Stretch"
+        VerticalContentAlignment="Stretch"
         Background="#F8FAFC"
-        FontFamily="Segoe UI"
+        FontFamily="{Binding InterfaceFontFamily, Source={x:Static loc:LanguageCatalog.Current}}"
         FontSize="14"
         Loaded="Window_Loaded"
         Closing="Window_Closing">
@@ -109,8 +111,8 @@
         </Style>
 
         <Style x:Key="LinkButtonStyle" TargetType="Button">
-            <Setter Property="Padding" Value="7,4" />
-            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="3,2" />
+            <Setter Property="MinHeight" Value="26" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
@@ -152,6 +154,7 @@
                 <TextBlock Text="{Binding AppTitle}" FontSize="28" FontWeight="Bold" />
                 <TextBlock Margin="0,4,0,0"
                            Text="{Binding AppSubtitle}"
+                           TextWrapping="Wrap"
                            Foreground="{StaticResource MutedForegroundBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -160,6 +163,7 @@
                                FontSize="11"
                                Foreground="{StaticResource MutedForegroundBrush}" />
                     <ComboBox MinWidth="92"
+                              AutomationProperties.Name="{Binding [Language], Source={x:Static loc:LanguageCatalog.Current}}"
                               ItemsSource="{Binding LanguageOptions}"
                               DisplayMemberPath="DisplayName"
                               SelectedValuePath="Value"
@@ -215,6 +219,7 @@
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding SummaryText}"
                                                    VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
                                                    Foreground="{StaticResource MutedForegroundBrush}" />
                                         <Button Grid.Column="3"
                                                 Content="{Binding [StartGroup], Source={x:Static loc:LanguageCatalog.Current}}"
@@ -233,11 +238,11 @@
                                     </Grid>
                                 </Expander.Header>
 
-                                <Grid Margin="18,0,18,18" Height="565">
+                                <Grid Margin="18,0,18,18" Height="480">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" MinWidth="560" />
-                                        <ColumnDefinition Width="18" />
-                                        <ColumnDefinition Width="340" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="320" />
                                     </Grid.ColumnDefinitions>
 
                                     <Border Grid.Column="0"
@@ -260,6 +265,7 @@
                                                     <TextBlock Text="{Binding [ModelParts], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding [ModelPartsHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                FontSize="12"
+                                                               TextWrapping="Wrap"
                                                                Foreground="{StaticResource MutedForegroundBrush}" />
                                                 </StackPanel>
                                                 <Button Grid.Column="1"
@@ -275,7 +281,7 @@
                                             <ItemsControl Grid.Row="1" ItemsSource="{Binding Slots}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
-                                                        <UniformGrid Columns="4" Rows="4" />
+                                                        <UniformGrid Columns="5" Rows="3" />
                                                     </ItemsPanelTemplate>
                                                 </ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
@@ -287,7 +293,7 @@
                                                                 BorderThickness="1"
                                                                 CornerRadius="8"
                                                                 ToolTip="{Binding FilePath}">
-                                                            <Grid Margin="9,7">
+                                                            <Grid Margin="7,6">
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="Auto" />
                                                                     <RowDefinition Height="*" />
@@ -337,13 +343,12 @@
                                                                                    Text="{Binding DirectoryName}"
                                                                                    TextAlignment="Center"
                                                                                    TextTrimming="CharacterEllipsis"
-                                                                                   FontSize="10"
+                                                                                   FontSize="11"
                                                                                    Foreground="{StaticResource MutedForegroundBrush}" />
                                                                     </StackPanel>
                                                                 </Button>
-                                                                <StackPanel x:Name="SlotActions"
+                                                                <WrapPanel x:Name="SlotActions"
                                                                             Grid.Row="2"
-                                                                            Orientation="Horizontal"
                                                                             HorizontalAlignment="Center"
                                                                             Visibility="Collapsed">
                                                                     <Button Content="{Binding [Preview], Source={x:Static loc:LanguageCatalog.Current}}"
@@ -365,7 +370,7 @@
                                                                             Style="{StaticResource LinkButtonStyle}"
                                                                             FontSize="10"
                                                                             Foreground="#B91C1C" />
-                                                                </StackPanel>
+                                                                </WrapPanel>
                                                             </Grid>
                                                         </Border>
                                                         <DataTemplate.Triggers>
@@ -392,7 +397,10 @@
                                         </Grid>
                                     </Border>
 
-                                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <ScrollViewer Grid.Column="2"
+                                                  HorizontalContentAlignment="Stretch"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
                                         <StackPanel>
                                             <Border Style="{StaticResource SectionCardStyle}"
                                                     Margin="0,0,0,12"
@@ -406,8 +414,12 @@
                                                     </WrapPanel>
                                                     <TextBlock Text="{Binding [ManualRootHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                FontSize="11"
+                                                               TextWrapping="Wrap"
                                                                Foreground="{StaticResource MutedForegroundBrush}" />
-                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [OutputFolder], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="SemiBold" />
+                                                    <TextBlock Margin="0,12,0,4"
+                                                               Text="{Binding [OutputFolder], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                               TextWrapping="Wrap"
+                                                               FontWeight="SemiBold" />
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -422,13 +434,17 @@
                                                                 Command="{Binding BrowseOutputCommand}"
                                                                 Style="{StaticResource SecondaryButtonStyle}" />
                                                     </Grid>
-                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="SemiBold" />
+                                                    <TextBlock Margin="0,12,0,4"
+                                                               Text="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}"
+                                                               TextWrapping="Wrap"
+                                                               FontWeight="SemiBold" />
                                                     <TextBox Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}"
                                                              AutomationProperties.Name="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}"
                                                              AutomationProperties.HelpText="{Binding [OutputFileNameHelp], Source={x:Static loc:LanguageCatalog.Current}}" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Text="{Binding [OutputFileHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                FontSize="11"
+                                                               TextWrapping="Wrap"
                                                                Foreground="{StaticResource MutedForegroundBrush}" />
                                                 </StackPanel>
                                             </Border>
@@ -454,7 +470,6 @@
                                                                  AcceptsReturn="True"
                                                                  VerticalScrollBarVisibility="Auto"
                                                                  HorizontalScrollBarVisibility="Auto"
-                                                                 FontFamily="Consolas"
                                                                  FontSize="11" />
                                                     </Expander>
                                                     <StackPanel Margin="0,9,0,0">
@@ -481,37 +496,50 @@
         </ScrollViewer>
 
         <Grid Grid.Row="2" Margin="0,14,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="14" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{Binding WorkspaceStatus}" AutomationProperties.LiveSetting="Polite" />
-                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                    <TextBlock Text="{Binding ConcurrencyText}" FontSize="12" Foreground="{StaticResource MutedForegroundBrush}" />
-                    <TextBlock Text="{Binding [Attribution], Source={x:Static loc:LanguageCatalog.Current}}"
-                               FontSize="12"
-                               Foreground="{StaticResource MutedForegroundBrush}" />
-                </StackPanel>
+            <TextBlock Grid.ColumnSpan="2"
+                       Text="{Binding WorkspaceStatus}"
+                       TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" />
+            <StackPanel Grid.Row="1"
+                        Margin="0,4,18,0"
+                        VerticalAlignment="Center"
+                        ClipToBounds="True">
+                <TextBlock Text="{Binding ConcurrencyText}"
+                           FontSize="12"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource MutedForegroundBrush}" />
+                <TextBlock Text="{Binding [Attribution], Source={x:Static loc:LanguageCatalog.Current}}"
+                           FontSize="12"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource MutedForegroundBrush}" />
             </StackPanel>
-            <CheckBox Grid.Column="1"
-                      Content="{Binding [RememberOutput], Source={x:Static loc:LanguageCatalog.Current}}"
-                      IsChecked="{Binding RememberOutputDirectory}"
-                      VerticalAlignment="Center"
-                      ToolTip="{Binding [RememberOutputHint], Source={x:Static loc:LanguageCatalog.Current}}" />
-            <Button Grid.Column="3"
-                    Content="{Binding [CancelAll], Source={x:Static loc:LanguageCatalog.Current}}"
-                    Command="{Binding CancelAllCommand}"
-                    Style="{StaticResource SecondaryButtonStyle}" />
-            <Button Grid.Column="5"
-                    MinWidth="210"
-                    Content="{Binding [MergeAllReady], Source={x:Static loc:LanguageCatalog.Current}}"
-                    Command="{Binding MergeAllCommand}"
-                    Style="{StaticResource PrimaryButtonStyle}" />
+            <WrapPanel Grid.Row="1"
+                       Grid.Column="1"
+                       Margin="0,6,0,0"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center">
+                <CheckBox Margin="0,0,14,0"
+                          Content="{Binding [RememberOutput], Source={x:Static loc:LanguageCatalog.Current}}"
+                          IsChecked="{Binding RememberOutputDirectory}"
+                          VerticalAlignment="Center"
+                          ToolTip="{Binding [RememberOutputHint], Source={x:Static loc:LanguageCatalog.Current}}" />
+                <Button Margin="0,0,10,0"
+                        Content="{Binding [CancelAll], Source={x:Static loc:LanguageCatalog.Current}}"
+                        Command="{Binding CancelAllCommand}"
+                        Style="{StaticResource SecondaryButtonStyle}" />
+                <Button MinWidth="210"
+                        Content="{Binding [MergeAllReady], Source={x:Static loc:LanguageCatalog.Current}}"
+                        Command="{Binding MergeAllCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+            </WrapPanel>
         </Grid>
     </Grid>
 </Window>

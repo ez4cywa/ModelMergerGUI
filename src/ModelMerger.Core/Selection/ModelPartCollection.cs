@@ -15,7 +15,7 @@ public sealed record AddPartResult(AddPartStatus Status, string? FilePath = null
 public sealed class ModelPartCollection
 {
     public const int MinimumParts = 2;
-    public const int MaximumParts = 16;
+    public const int MaximumParts = 15;
 
     private readonly List<string> _paths = [];
 

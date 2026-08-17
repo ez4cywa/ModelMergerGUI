@@ -2,12 +2,15 @@ using ModelMerger.Core.Settings;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Windows.Media;
 
 namespace ModelMerger.Gui.Localization;
 
 public interface ILanguageCatalog : INotifyPropertyChanged
 {
     AppLanguage Language { get; }
+
+    IReadOnlyList<LanguageOption> AvailableLanguages { get; }
 
     string this[string key] { get; }
 
@@ -16,10 +19,41 @@ public interface ILanguageCatalog : INotifyPropertyChanged
     void SetLanguage(AppLanguage language);
 }
 
+public sealed record LanguageOption(
+    AppLanguage Value,
+    string DisplayName,
+    string CultureName,
+    string FileSuffix);
+
 public sealed partial class LanguageCatalog : ILanguageCatalog
 {
+    private static readonly FontFamily MiSansFontFamily = new("./Assets/Fonts/#MiSans, Segoe UI");
+    private static readonly FontFamily SegoeUiFontFamily = new("Segoe UI");
+    private static readonly IReadOnlyList<LanguageDefinition> Definitions =
+    [
+        new(AppLanguage.ChineseSimplified, "中文", "zh-CN", "zh", MiSansFontFamily, Chinese),
+        new(AppLanguage.English, "English", "en-US", "en", SegoeUiFontFamily, English),
+        new(AppLanguage.French, "Français", "fr-FR", "fr", SegoeUiFontFamily, French),
+        new(AppLanguage.Russian, "Русский", "ru-RU", "ru", SegoeUiFontFamily, Russian),
+        new(AppLanguage.Spanish, "Español", "es-ES", "es", SegoeUiFontFamily, Spanish)
+    ];
+    private static readonly IReadOnlyDictionary<AppLanguage, LanguageDefinition> DefinitionsByLanguage =
+        Definitions.ToDictionary(definition => definition.Language);
+    private static readonly IReadOnlyDictionary<string, LanguageDefinition> DefinitionsByIsoCode =
+        Definitions.ToDictionary(
+            definition => CultureInfo.GetCultureInfo(definition.CultureName).TwoLetterISOLanguageName,
+            StringComparer.OrdinalIgnoreCase);
     private static readonly IReadOnlyDictionary<AppLanguage, IReadOnlyDictionary<string, string>> Resources =
-        CreateResources();
+        Definitions.ToDictionary(definition => definition.Language, definition => definition.CreateResources());
+
+    public static IReadOnlyList<LanguageOption> SupportedLanguages { get; } = Definitions
+        .Select(definition => new LanguageOption(
+            definition.Language,
+            definition.DisplayName,
+            definition.CultureName,
+            definition.FileSuffix))
+        .ToArray();
+
     private AppLanguage _language;
 
     static LanguageCatalog()
@@ -37,6 +71,10 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public AppLanguage Language => _language;
+
+    public IReadOnlyList<LanguageOption> AvailableLanguages => SupportedLanguages;
+
+    public FontFamily InterfaceFontFamily => GetDefinition(_language).FontFamily;
 
     public string this[string key] => Resources[_language].TryGetValue(key, out var value)
         ? value
@@ -59,16 +97,22 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
 
         _language = language;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InterfaceFontFamily)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
     }
 
     public static AppLanguage ResolveInitialLanguage(CultureInfo culture) =>
-        string.Equals(culture.TwoLetterISOLanguageName, "en", StringComparison.OrdinalIgnoreCase)
-            ? AppLanguage.English
+        DefinitionsByIsoCode.TryGetValue(culture.TwoLetterISOLanguageName, out var definition)
+            ? definition.Language
             : AppLanguage.ChineseSimplified;
 
-    private static CultureInfo GetCulture(AppLanguage language) => CultureInfo.GetCultureInfo(
-        language == AppLanguage.English ? "en-US" : "zh-CN");
+    private static CultureInfo GetCulture(AppLanguage language) =>
+        CultureInfo.GetCultureInfo(GetDefinition(language).CultureName);
+
+    private static LanguageDefinition GetDefinition(AppLanguage language) =>
+        DefinitionsByLanguage.TryGetValue(language, out var definition)
+            ? definition
+            : throw new ArgumentOutOfRangeException(nameof(language));
 
     private static void ValidateResources(
         IReadOnlyDictionary<AppLanguage, IReadOnlyDictionary<string, string>> resources)
@@ -87,32 +131,29 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
             }
         }
 
-        foreach (var key in LanguageKeys.All)
+        var reference = resources[AppLanguage.English];
+        foreach (var language in Enum.GetValues<AppLanguage>())
         {
-            var chinesePlaceholders = PlaceholderPattern().Matches(resources[AppLanguage.ChineseSimplified][key])
-                .Select(match => match.Groups[1].Value)
-                .ToArray();
-            var englishPlaceholders = PlaceholderPattern().Matches(resources[AppLanguage.English][key])
-                .Select(match => match.Groups[1].Value)
-                .ToArray();
-            if (!chinesePlaceholders.SequenceEqual(englishPlaceholders))
+            foreach (var key in LanguageKeys.All)
             {
-                throw new InvalidOperationException($"Placeholder mismatch for {key}.");
+                var expectedPlaceholders = PlaceholderPattern().Matches(reference[key])
+                    .Select(match => match.Groups[1].Value)
+                    .ToArray();
+                var actualPlaceholders = PlaceholderPattern().Matches(resources[language][key])
+                    .Select(match => match.Groups[1].Value)
+                    .ToArray();
+                if (!actualPlaceholders.SequenceEqual(expectedPlaceholders))
+                {
+                    throw new InvalidOperationException($"Placeholder mismatch for {language}.{key}.");
+                }
             }
         }
     }
 
-    private static IReadOnlyDictionary<AppLanguage, IReadOnlyDictionary<string, string>> CreateResources() =>
-        new Dictionary<AppLanguage, IReadOnlyDictionary<string, string>>
-        {
-            [AppLanguage.ChineseSimplified] = Chinese(),
-            [AppLanguage.English] = English()
-        };
-
     private static IReadOnlyDictionary<string, string> Chinese() => new Dictionary<string, string>
     {
         [LanguageKeys.AppTitle] = "Cast 模型合并器",
-        [LanguageKeys.AppSubtitle] = "按模型组管理和并发合并 Cast 部件；每组支持 2–16 个部件",
+        [LanguageKeys.AppSubtitle] = "按模型组管理和并发合并 Cast 部件；每组支持 2–15 个部件",
         [LanguageKeys.Language] = "界面语言",
         [LanguageKeys.NewGroup] = "新建模型组",
         [LanguageKeys.SaveSettings] = "保存设置",
@@ -142,7 +183,7 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.GroupStatus] = "本组状态",
         [LanguageKeys.RunLog] = "运行日志",
         [LanguageKeys.OpenGroupOutput] = "打开本组输出",
-        [LanguageKeys.Attribution] = " · 基于 Scobalula / echo000 ModelMerger · MIT License",
+        [LanguageKeys.Attribution] = " · 基于 Scobalula / echo000 ModelMerger · MIT License · 中文界面使用 MiSans 字体",
         [LanguageKeys.RememberOutput] = "记住最近选择的输出目录",
         [LanguageKeys.RememberOutputHint] = "保存设置后，作为新建模型组的默认输出目录",
         [LanguageKeys.CancelAll] = "取消全部",
@@ -167,14 +208,14 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.SummaryProcessing] = "{0} · 处理中",
         [LanguageKeys.SummaryReady] = "{0} · 已就绪",
         [LanguageKeys.SummaryNeedTwo] = "{0} · 至少需要 2 个部件",
-        [LanguageKeys.StatusInitial] = "添加 2 至 16 个 Cast 部件",
+        [LanguageKeys.StatusInitial] = "添加 2 至 15 个 Cast 部件",
         [LanguageKeys.DroppedPartialTitle] = "{0}：部分文件未添加",
         [LanguageKeys.DroppedPartialBody] = "已添加 {0} 个部件。\n\n{1}",
         [LanguageKeys.AddPartInvalidPath] = "文件路径无效",
         [LanguageKeys.AddPartMissing] = "文件不存在",
         [LanguageKeys.AddPartNotCast] = "仅支持 .cast 文件",
         [LanguageKeys.AddPartDuplicate] = "该部件已添加",
-        [LanguageKeys.AddPartFull] = "该组已达到 16 个部件上限",
+        [LanguageKeys.AddPartFull] = "该组已达到 15 个部件上限",
         [LanguageKeys.AddPartSucceeded] = "已添加",
         [LanguageKeys.AddedStatus] = "已添加 {0} 个部件",
         [LanguageKeys.QueueWaiting] = "等待可用的并发处理位置",
@@ -215,7 +256,7 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.ProgressVerifying] = "正在验证保存的 Cast 模型",
         [LanguageKeys.ProgressCompleted] = "已保存 {0}",
         [LanguageKeys.ProgressGeneric] = "处理中",
-        [LanguageKeys.ValidationInvalidPartCount] = "每个模型组需要 2 至 16 个部件。",
+        [LanguageKeys.ValidationInvalidPartCount] = "每个模型组需要 2 至 15 个部件。",
         [LanguageKeys.ValidationInvalidPath] = "模型部件路径无效：{0}",
         [LanguageKeys.ValidationMissingFile] = "模型部件不存在：{0}",
         [LanguageKeys.ValidationUnsupportedExtension] = "GUI 仅支持 .cast 模型部件：{0}",
@@ -253,7 +294,7 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
     private static IReadOnlyDictionary<string, string> English() => new Dictionary<string, string>
     {
         [LanguageKeys.AppTitle] = "Cast Model Merger",
-        [LanguageKeys.AppSubtitle] = "Manage and merge Cast parts in concurrent groups; 2–16 parts per group",
+        [LanguageKeys.AppSubtitle] = "Manage and merge Cast parts in concurrent groups; 2–15 parts per group",
         [LanguageKeys.Language] = "Language",
         [LanguageKeys.NewGroup] = "New group",
         [LanguageKeys.SaveSettings] = "Save settings",
@@ -308,14 +349,14 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.SummaryProcessing] = "{0} · Processing",
         [LanguageKeys.SummaryReady] = "{0} · Ready",
         [LanguageKeys.SummaryNeedTwo] = "{0} · At least 2 parts required",
-        [LanguageKeys.StatusInitial] = "Add 2 to 16 Cast parts",
+        [LanguageKeys.StatusInitial] = "Add 2 to 15 Cast parts",
         [LanguageKeys.DroppedPartialTitle] = "{0}: Some files were not added",
         [LanguageKeys.DroppedPartialBody] = "Added {0} parts.\n\n{1}",
         [LanguageKeys.AddPartInvalidPath] = "The file path is invalid",
         [LanguageKeys.AddPartMissing] = "The file does not exist",
         [LanguageKeys.AddPartNotCast] = "Only .cast files are supported",
         [LanguageKeys.AddPartDuplicate] = "This part has already been added",
-        [LanguageKeys.AddPartFull] = "This group has reached the 16-part limit",
+        [LanguageKeys.AddPartFull] = "This group has reached the 15-part limit",
         [LanguageKeys.AddPartSucceeded] = "Added",
         [LanguageKeys.AddedStatus] = "Added {0} parts",
         [LanguageKeys.QueueWaiting] = "Waiting for an available processing slot",
@@ -356,7 +397,7 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
         [LanguageKeys.ProgressVerifying] = "Verifying the saved Cast model",
         [LanguageKeys.ProgressCompleted] = "Saved {0}",
         [LanguageKeys.ProgressGeneric] = "Processing",
-        [LanguageKeys.ValidationInvalidPartCount] = "Each group requires 2 to 16 parts.",
+        [LanguageKeys.ValidationInvalidPartCount] = "Each group requires 2 to 15 parts.",
         [LanguageKeys.ValidationInvalidPath] = "The model part path is invalid: {0}",
         [LanguageKeys.ValidationMissingFile] = "The model part does not exist: {0}",
         [LanguageKeys.ValidationUnsupportedExtension] = "The GUI only supports .cast model parts: {0}",
@@ -393,4 +434,12 @@ public sealed partial class LanguageCatalog : ILanguageCatalog
 
     [GeneratedRegex(@"\{(\d+)(?:[^}]*)\}")]
     private static partial Regex PlaceholderPattern();
+
+    private sealed record LanguageDefinition(
+        AppLanguage Language,
+        string DisplayName,
+        string CultureName,
+        string FileSuffix,
+        FontFamily FontFamily,
+        Func<IReadOnlyDictionary<string, string>> CreateResources);
 }

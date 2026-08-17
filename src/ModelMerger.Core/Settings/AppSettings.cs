@@ -4,8 +4,11 @@ namespace ModelMerger.Core.Settings;
 
 public enum AppLanguage
 {
-    ChineseSimplified,
-    English
+    ChineseSimplified = 0,
+    English = 1,
+    French = 2,
+    Russian = 3,
+    Spanish = 4
 }
 
 public sealed record WindowBounds(double Left, double Top, double Width, double Height);

@@ -150,8 +150,8 @@ public partial class MainWindow : Window
 
     private void ResetWindowBounds()
     {
-        Width = 1280;
-        Height = 900;
+        Width = 1240;
+        Height = 820;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
     }
 }

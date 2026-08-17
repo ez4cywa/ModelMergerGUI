@@ -14,7 +14,7 @@ The merge engine combines loaded model parts using one root-selection and geomet
 
 ## Language catalog
 
-The language catalog maps structured application meaning to user-facing text for one culture. Chinese and English are two real language adapters at the same presentation seam.
+The language catalog maps structured application meaning to user-facing text for one culture. Simplified Chinese, English, French, Russian, and Spanish are real language adapters at the same presentation seam. The WPF layer also selects the interface font at this seam: embedded MiSans for Chinese and Segoe UI for the other supported languages.
 
 ## Model preview
 

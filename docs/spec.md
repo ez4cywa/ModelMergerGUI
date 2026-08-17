@@ -4,8 +4,8 @@
 
 - Build a Windows desktop GUI from `echo000/ModelMerger` using C# and .NET 8.
 - The GUI accepts Cast (`.cast`) model parts only.
-- A merge contains at least 2 and at most 16 unique, existing files.
-- Keep one bilingual executable with live Simplified Chinese / English switching.
+- A merge contains at least 2 and at most 15 unique, existing files.
+- Keep one multilingual executable with live Simplified Chinese, English, French, Russian, and Spanish switching.
 - Keep the upstream console entry point, but make it use the same Core merge engine as the GUI.
 - Preserve command-line drag-and-drop support for one or more `.cast` / `.semodel` inputs; output remains Cast.
 - Preserve the upstream MIT licence and author attribution.
@@ -17,14 +17,14 @@
 - A group can merge independently; “merge all ready groups” starts groups concurrently with a safe maximum of two active merges.
 - The scheduler owns queued, running, succeeded, failed, and cancelled task states; queued and running tasks can be cancelled.
 - Concurrent groups cannot claim the same resolved output path, and conflicts stop before mesh merge work.
-- Show 16 numbered slots in a 4 by 4 visual layout and an `n / 16` counter.
+- Show 15 numbered slots in a 5 by 3 visual layout and an `n / 15` counter.
 - An empty slot can add one part with a single-selection file dialog.
 - “Add next part” adds one file to the first empty slot.
 - Within each group, subsequent part dialogs start in the directory of the most recently accepted part.
 - Drag-and-drop can add multiple parts up to the remaining capacity.
 - A filled slot shows its file name and validation state and can be removed or replaced.
 - A filled slot can open an interactive 3D preview without changing the selected file or merge plan.
-- Reject duplicates, missing files, non-Cast files, and additions beyond slot 16 without disturbing accepted slots.
+- Reject duplicates, missing files, non-Cast files, and additions beyond slot 15 without disturbing accepted slots.
 - Disable merging until at least two valid parts are selected.
 
 ## Merge and output
@@ -55,14 +55,15 @@
 
 ## Localization
 
-- The user can switch between Simplified Chinese and English without restarting.
+- The user can switch between Simplified Chinese, English, French, Russian, and Spanish without restarting.
 - Static UI, existing group status, existing run logs, file dialogs, confirmations, validation errors, warnings, and completion messages update to the selected language.
-- On first launch, use the Windows UI language when it is Chinese or English; otherwise default to Simplified Chinese.
+- On first launch, use the Windows UI language when it is one of the five supported languages; otherwise default to Simplified Chinese.
 - Language resources have matching keys and format placeholders.
+- The Simplified Chinese interface uses embedded MiSans fonts and visibly acknowledges MiSans; other languages use Segoe UI.
 
 ## Distribution and acceptance
 
 - Produce an unpackaged, self-contained `win-x64` release.
 - The app must start without a separately installed .NET runtime.
 - Build and tests must pass.
-- Tests cover the merge-plan seam, scheduler lifecycle/concurrency/cancellation/output conflicts, shared Cast/SEModel engine, settings round-trip, structured merge semantics, language completeness and live rerendering, WPF rendering in both languages, cancellation cleanup, and a real synthetic Cast merge that is readable afterward.
+- Tests cover the merge-plan seam, scheduler lifecycle/concurrency/cancellation/output conflicts, shared Cast/SEModel engine, settings round-trip, structured merge semantics, five-language completeness and live rerendering, WPF rendering in all supported languages, cancellation cleanup, and a real synthetic Cast merge that is readable afterward.

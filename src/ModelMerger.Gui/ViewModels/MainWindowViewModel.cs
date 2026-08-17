@@ -55,11 +55,7 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<MergeGroupViewModel> Groups { get; }
 
-    public IReadOnlyList<LanguageOption> LanguageOptions { get; } =
-    [
-        new(AppLanguage.ChineseSimplified, "中文"),
-        new(AppLanguage.English, "English")
-    ];
+    public IReadOnlyList<LanguageOption> LanguageOptions => _language.AvailableLanguages;
 
     public ICommand AddGroupCommand => _addGroupCommand;
 
@@ -321,5 +317,4 @@ internal sealed class MainWindowViewModel : ViewModelBase, IDisposable
         RaisePropertyChanged(nameof(ConcurrencyText));
     }
 
-    internal sealed record LanguageOption(AppLanguage Value, string DisplayName);
 }

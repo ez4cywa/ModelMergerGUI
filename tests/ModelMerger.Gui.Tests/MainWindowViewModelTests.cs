@@ -22,6 +22,7 @@ public sealed class MainWindowViewModelTests
 
         await viewModel.InitializeAsync();
 
+        Assert.Equal(SupportedLanguageTestData.All, viewModel.LanguageOptions.Select(option => option.Value));
         Assert.Equal(AppLanguage.English, viewModel.SelectedLanguage);
         Assert.Equal("Cast Model Merger", viewModel.AppTitle);
         viewModel.SelectedLanguage = AppLanguage.ChineseSimplified;

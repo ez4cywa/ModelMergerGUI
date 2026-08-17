@@ -52,11 +52,11 @@ public sealed class MergeGroupViewModelTests : IDisposable
             RootSelectionMode.Automatic,
             catalog);
 
-        Assert.Equal("添加 2 至 16 个 Cast 部件", viewModel.StatusMessage);
+        Assert.Equal("添加 2 至 15 个 Cast 部件", viewModel.StatusMessage);
 
         catalog.SetLanguage(AppLanguage.English);
 
-        Assert.Equal("Add 2 to 16 Cast parts", viewModel.StatusMessage);
+        Assert.Equal("Add 2 to 15 Cast parts", viewModel.StatusMessage);
     }
 
     [Fact]

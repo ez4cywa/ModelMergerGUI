@@ -9,7 +9,7 @@
         MinHeight="520"
         WindowStartupLocation="CenterOwner"
         Background="#F8FAFC"
-        FontFamily="Segoe UI"
+        FontFamily="{Binding InterfaceFontFamily, Source={x:Static loc:LanguageCatalog.Current}}"
         FontSize="14"
         Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown"
