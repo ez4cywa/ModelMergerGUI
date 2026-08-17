@@ -2,6 +2,16 @@
 
 一个基于 [echo000/ModelMerger](https://github.com/echo000/ModelMerger) 的 Windows 图形界面工具。可同时管理多个模型组，每组把 2 至 15 个 Cast 模型部件合并为一个 `.cast` 文件。
 
+## 界面截图
+
+| 中文主界面 | English UI |
+| --- | --- |
+| ![Cast 模型合并器中文主界面](docs/images/v1.2.0/main-window-zh.png) | ![Cast Model Merger English interface](docs/images/v1.2.0/main-window-en.png) |
+
+### 模型预览
+
+![Cast 模型预览窗口](docs/images/v1.2.0/model-preview-zh.png)
+
 ## 下载
 
 从 v1.2.0 起，[Releases](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) 只提供不包含运行环境的 Windows x64 轻量免安装版：
