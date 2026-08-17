@@ -63,7 +63,7 @@
 
 ## Distribution and acceptance
 
-- Produce an unpackaged, self-contained `win-x64` release.
-- The app must start without a separately installed .NET runtime.
+- Starting with v1.2.0, publish only an unpackaged, framework-dependent `win-x64` release.
+- The release requires the Microsoft .NET 8 Desktop Runtime x64 and must document that prerequisite clearly.
 - Build and tests must pass.
 - Tests cover the merge-plan seam, scheduler lifecycle/concurrency/cancellation/output conflicts, shared Cast/SEModel engine, settings round-trip, structured merge semantics, five-language completeness and live rerendering, WPF rendering in all supported languages, cancellation cleanup, and a real synthetic Cast merge that is readable afterward.

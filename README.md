@@ -4,20 +4,19 @@
 
 ## 下载
 
-在 [Releases](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) 中提供两种 Windows x64 免安装版本：
+从 v1.2.0 起，[Releases](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) 只提供不包含运行环境的 Windows x64 轻量免安装版：
 
 | 版本 | 下载文件 | 运行环境 |
 | --- | --- | --- |
-| 完整免安装版 | `CastModelMerger.exe` | 已包含 .NET 运行环境，下载后直接运行 |
 | 轻量免安装版 | `CastModelMerger-portable-win-x64.exe` | 不包含运行环境，需要预先安装 **.NET 8 Desktop Runtime x64** |
 
-### 轻量免安装版需要的环境
+### 免安装版需要的环境
 
 - [受 .NET 8 支持的 64 位 Windows](https://github.com/dotnet/core/blob/main/release-notes/8.0/supported-os.md)。普通个人电脑建议使用 Windows 11 x64；Windows 10 或 Windows Server 请以微软当前支持列表为准。
 - [Microsoft .NET 8 Desktop Runtime（Windows x64）](https://dotnet.microsoft.com/download/dotnet/8.0)。请选择下载页面中的 **.NET Desktop Runtime → Windows → x64**；它已经包含基础 .NET Runtime，不需要再单独安装 SDK。
 - 必须安装 x64 Desktop Runtime；仅安装 x86 版本、普通 `.NET Runtime` 或 `ASP.NET Core Runtime` 不能满足本程序的 WPF 桌面运行环境。
 
-如果电脑缺少所需运行环境，双击轻量版时 .NET 启动器会显示缺少的框架、版本和架构，并提供下载入口。安装 .NET 8 Desktop Runtime x64 后，重新双击程序即可。也可以在命令提示符中运行 `dotnet --list-runtimes`，确认列表包含 `Microsoft.WindowsDesktop.App 8.`。
+如果电脑缺少所需运行环境，双击程序时 .NET 启动器会显示缺少的框架、版本和架构，并提供下载入口。安装 .NET 8 Desktop Runtime x64 后，重新双击程序即可。也可以在命令提示符中运行 `dotnet --list-runtimes`，确认列表包含 `Microsoft.WindowsDesktop.App 8.`。
 
 ## 功能
 
@@ -106,17 +105,7 @@ dotnet test .\tests\ModelMerger.Core.Tests\ModelMerger.Core.Tests.csproj -c Rele
 dotnet test .\tests\ModelMerger.Gui.Tests\ModelMerger.Gui.Tests.csproj -c Release
 ```
 
-生成无需安装 .NET Runtime 的 `win-x64` 单文件版本：
-
-```powershell
-dotnet publish .\src\ModelMerger.Gui\ModelMerger.Gui.csproj `
-  -c Release `
-  -r win-x64 `
-  --self-contained true `
-  -o .\artifacts\publish\win-x64
-```
-
-生成不包含运行环境、需要 .NET 8 Desktop Runtime x64 的轻量单文件版本：
+生成项目唯一发布类型——不包含运行环境、需要 .NET 8 Desktop Runtime x64 的轻量单文件版本：
 
 ```powershell
 dotnet publish .\src\ModelMerger.Gui\ModelMerger.Gui.csproj `
