@@ -73,6 +73,10 @@ public sealed class MainWindowVisualSmokeTests
                             window.FontFamily.Source,
                             StringComparison.OrdinalIgnoreCase);
                         AssertReadableTypography(window, viewModel);
+                        if (language == AppLanguage.ChineseSimplified)
+                        {
+                            AssertConsistentChineseFontWeight(window);
+                        }
                         _ = Render(window);
                         var bitmap = Render(window);
                         Assert.True(bitmap.PixelWidth >= 800);
@@ -204,6 +208,23 @@ public sealed class MainWindowVisualSmokeTests
             Assert.False(button.IsEnabled);
             Assert.Equal(expectedSecondaryColor, Assert.IsType<SolidColorBrush>(button.Foreground).Color);
         }
+    }
+
+    private static void AssertConsistentChineseFontWeight(MainWindow window)
+    {
+        var samples = FindVisualDescendants<TextBlock>(window)
+            .Where(textBlock => textBlock.IsVisible && !string.IsNullOrWhiteSpace(textBlock.Text))
+            .Select(textBlock => (Text: textBlock.Text, Weight: textBlock.FontWeight))
+            .Concat(FindVisualDescendants<ContentControl>(window)
+                .Where(control => control.IsVisible && control.Content is string text &&
+                                  !string.IsNullOrWhiteSpace(text))
+                .Select(control => (Text: (string)control.Content, Weight: control.FontWeight)))
+            .ToArray();
+
+        Assert.NotEmpty(samples);
+        Assert.All(samples, sample => Assert.Equal(
+            FontWeights.Medium.ToOpenTypeWeight(),
+            sample.Weight.ToOpenTypeWeight()));
     }
 
     private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject parent)

@@ -3,6 +3,7 @@ using ModelMerger.Core.Settings;
 using ModelMerger.Gui.Localization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -62,6 +63,10 @@ public sealed class ModelPreviewWindowTests
                     window.UpdateLayout();
 
                     Assert.Equal(1, window.RenderedMeshCount);
+                    if (language == AppLanguage.ChineseSimplified)
+                    {
+                        AssertConsistentChineseFontWeight(window);
+                    }
                     var bitmap = Render(window);
                     Assert.True(bitmap.PixelWidth >= 720);
                     Assert.True(bitmap.PixelHeight >= 520);
@@ -143,6 +148,41 @@ public sealed class ModelPreviewWindowTests
             PixelFormats.Pbgra32);
         bitmap.Render(element);
         return bitmap;
+    }
+
+    private static void AssertConsistentChineseFontWeight(ModelPreviewWindow window)
+    {
+        var samples = FindVisualDescendants<TextBlock>(window)
+            .Where(textBlock => textBlock.IsVisible && !string.IsNullOrWhiteSpace(textBlock.Text))
+            .Select(textBlock => (Text: textBlock.Text, Weight: textBlock.FontWeight))
+            .Concat(FindVisualDescendants<ContentControl>(window)
+                .Where(control => control.IsVisible && control.Content is string text &&
+                                  !string.IsNullOrWhiteSpace(text))
+                .Select(control => (Text: (string)control.Content, Weight: control.FontWeight)))
+            .ToArray();
+
+        Assert.NotEmpty(samples);
+        Assert.All(samples, sample => Assert.Equal(
+            FontWeights.Medium.ToOpenTypeWeight(),
+            sample.Weight.ToOpenTypeWeight()));
+    }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in FindVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private static void SaveWhenRequested(BitmapSource bitmap, AppLanguage language)

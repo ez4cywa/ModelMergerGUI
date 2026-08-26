@@ -69,7 +69,7 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="18,11" />
             <Setter Property="MinHeight" Value="44" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -144,7 +144,7 @@
             <Setter Property="Padding" Value="2,0" />
             <Setter Property="MinHeight" Value="22" />
             <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
@@ -183,7 +183,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="{Binding AppTitle}" FontSize="28" FontWeight="Bold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding AppTitle}" FontSize="28" FontWeight="Medium" TextWrapping="Wrap" />
                 <TextBlock Margin="0,4,0,0"
                            Text="{Binding AppSubtitle}"
                            Style="{StaticResource SecondaryTextStyle}"
@@ -244,9 +244,9 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="Medium" />
                                             <Border Margin="10,0,0,0" Padding="9,4" CornerRadius="10" Background="#DBEAFE">
-                                                <TextBlock Text="{Binding PartCountText}" FontSize="12" Foreground="#1D4ED8" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding PartCountText}" FontSize="12" Foreground="#1D4ED8" FontWeight="Medium" />
                                             </Border>
                                         </StackPanel>
                                         <TextBlock Grid.Column="2"
@@ -295,7 +295,7 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding [ModelParts], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding [ModelParts], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="Medium" />
                                                     <TextBlock Text="{Binding [ModelPartsHint], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                Style="{StaticResource SecondaryTextStyle}"
                                                                TextWrapping="Wrap" />
@@ -333,7 +333,7 @@
                                                                 </Grid.RowDefinitions>
                                                                 <Grid>
                                                                     <Border HorizontalAlignment="Left" Padding="6,2" CornerRadius="7" Background="#E2E8F0">
-                                                                        <TextBlock Text="{Binding NumberText}" FontSize="11" FontWeight="SemiBold" Foreground="#334155" />
+                                                                        <TextBlock Text="{Binding NumberText}" FontSize="11" FontWeight="Medium" Foreground="#334155" />
                                                                     </Border>
                                                                     <Border x:Name="RootBadge"
                                                                             HorizontalAlignment="Right"
@@ -341,7 +341,7 @@
                                                                             CornerRadius="7"
                                                                             Background="#FEF3C7"
                                                                             Visibility="Collapsed">
-                                                                        <TextBlock Text="{Binding [RootBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="11" FontWeight="SemiBold" Foreground="#92400E" />
+                                                                        <TextBlock Text="{Binding [RootBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="11" FontWeight="Medium" Foreground="#92400E" />
                                                                     </Border>
                                                                     <Border x:Name="InvalidBadge"
                                                                             HorizontalAlignment="Center"
@@ -349,7 +349,7 @@
                                                                             CornerRadius="7"
                                                                             Background="#FEE2E2"
                                                                             Visibility="Collapsed">
-                                                                        <TextBlock Text="{Binding [FileMissingBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="11" FontWeight="SemiBold" Foreground="#B91C1C" />
+                                                                        <TextBlock Text="{Binding [FileMissingBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="11" FontWeight="Medium" Foreground="#B91C1C" />
                                                                     </Border>
                                                                 </Grid>
                                                                 <Button Grid.Row="1"
@@ -369,7 +369,7 @@
                                                                         <TextBlock Text="{Binding FileName}"
                                                                                    TextAlignment="Center"
                                                                                    TextTrimming="CharacterEllipsis"
-                                                                                   FontWeight="SemiBold"
+                                                                                   FontWeight="Medium"
                                                                                    FontSize="13" />
                                                                         <TextBlock x:Name="DirectoryText"
                                                                                    Text="{Binding DirectoryName}"
@@ -434,8 +434,8 @@
                                                     Margin="0,0,0,12"
                                                     IsEnabled="{Binding IsEditable}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding [GroupSettings], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
-                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [RootModel], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding [GroupSettings], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="Medium" />
+                                                    <TextBlock Margin="0,12,0,4" Text="{Binding [RootModel], Source={x:Static loc:LanguageCatalog.Current}}" FontWeight="Medium" />
                                                     <WrapPanel>
                                                         <RadioButton Content="{Binding [Automatic], Source={x:Static loc:LanguageCatalog.Current}}" IsChecked="{Binding IsAutomaticRoot}" />
                                                         <RadioButton Content="{Binding [Manual], Source={x:Static loc:LanguageCatalog.Current}}" IsChecked="{Binding IsManualRootMode}" />
@@ -446,7 +446,7 @@
                                                     <TextBlock Margin="0,12,0,4"
                                                                Text="{Binding [OutputFolder], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                TextWrapping="Wrap"
-                                                               FontWeight="SemiBold" />
+                                                               FontWeight="Medium" />
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -464,7 +464,7 @@
                                                     <TextBlock Margin="0,12,0,4"
                                                                Text="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                TextWrapping="Wrap"
-                                                               FontWeight="SemiBold" />
+                                                               FontWeight="Medium" />
                                                     <TextBox Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}"
                                                              AutomationProperties.Name="{Binding [OutputFileNameOptional], Source={x:Static loc:LanguageCatalog.Current}}"
                                                              AutomationProperties.HelpText="{Binding [OutputFileNameHelp], Source={x:Static loc:LanguageCatalog.Current}}" />
@@ -477,7 +477,7 @@
 
                                             <Border Style="{StaticResource SectionCardStyle}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding [GroupStatus], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding [GroupStatus], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="Medium" />
                                                     <TextBlock Margin="0,9,0,7"
                                                                Text="{Binding StatusMessage}"
                                                                TextWrapping="Wrap"
