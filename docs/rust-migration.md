@@ -1,17 +1,30 @@
 # Rust merge-engine migration
 
-The application uses a guarded hybrid architecture. The WPF interface and the established C# merge engine remain available, while large Cast workloads are delegated to a native Rust worker.
+The application uses a guarded hybrid architecture. The WPF interface and the established C# merge and preview paths remain available, while large Cast workloads are delegated to a native Rust worker.
 
 ## Runtime routing
 
 - Inputs whose combined size is below 4 MiB use the C# engine, avoiding native-process startup overhead.
 - Inputs whose combined size is 4 MiB or greater use `model-merger-worker.exe` when it is installed beside the GUI executable.
+- Preview files below 2 MiB use the C# preview loader unless a lightweight CAST header probe finds a 32-bit face-index property. Files at or above 2 MiB and all 32-bit-index meshes use the Rust worker because the legacy loader cannot read those face buffers.
+- Rust preview geometry is transferred through a compact versioned binary payload rather than JSON float arrays. The worker owns and removes the temporary payload after acknowledgement, cancellation, or pipe closure.
 - If the worker is absent, adaptive mode safely falls back to C#.
 - `MODEL_MERGER_ENGINE=csharp` forces the established engine.
 - `MODEL_MERGER_ENGINE=rust` forces the Rust worker and reports a clear error if it is missing.
 - `MODEL_MERGER_RUST_WORKER=<absolute path>` selects a development worker binary.
 
 The worker communicates with `ModelMerger.Core` through a versioned, newline-delimited JSON protocol over standard input and output. Prepare and execute remain separate operations, preserving output-claim checks in the existing scheduler. Progress, warnings, cancellation, validation, and merge results are mapped back to the existing `IModelMergeService` contracts.
+
+Preview payload version 1 uses little-endian values and the following layout:
+
+| Field | Encoding |
+| --- | --- |
+| Magic, version, mesh count | `MMPV`, `u32`, `u32` |
+| Per-mesh counts | vertex count `u32`, index count `u32` |
+| Positions and normals | three `f32` values per vertex for each buffer |
+| Triangle indices | `u32` values |
+
+The Rust writer and C# reader keep the magic/version as named protocol constants and check cancellation every 4,096 values.
 
 ## Compatibility gates
 
@@ -27,6 +40,8 @@ On the local Windows x64 Release benchmark (15 parts, 20,000 triangles per part)
 
 These figures are a development-machine comparison, not a universal performance promise. Small kilobyte-scale models remain faster in-process, which is why adaptive routing retains the C# path below the threshold.
 
+For a 20,000-triangle preview, C# and Rust geometry hashes matched and the warm median was 68.2 ms for C# versus 43.5 ms for the Rust worker. A 50,000-triangle, 150,000-vertex model that the legacy loader cannot read completed in a warm Rust median of 81.1 ms. The first worker invocation includes process-start cost.
+
 ## Source layout
 
 ```text
@@ -35,4 +50,4 @@ rust/crates/model-merger-engine   Flat-buffer model representation and merge log
 rust/crates/model-merger-worker   Versioned NDJSON process boundary
 ```
 
-The GUI is not rewritten in Rust at this stage. Keeping the tested WPF UI avoids a high-risk full rewrite while still moving the memory- and CPU-intensive Cast path to Rust. A native GUI migration should be reconsidered only after the worker has accumulated real-world compatibility coverage.
+The GUI is not rewritten in this worker stage. Keeping the tested WPF UI provides a rollback baseline while the native application is implemented. The remaining path to a framework-independent Rust release is tracked in the [full Rust migration map](full-rust-migration.md).

@@ -1,6 +1,9 @@
 mod cast_model;
 mod domain;
 mod math;
+mod preview;
+
+pub use preview::{PreviewBounds, PreviewData, PreviewError, PreviewMesh, load_preview};
 
 use cast_codec::{CastFile, CodecError};
 use domain::{Model, check_cancelled, merge_model};

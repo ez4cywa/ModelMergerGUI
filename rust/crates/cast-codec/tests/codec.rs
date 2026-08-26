@@ -1,4 +1,4 @@
-use cast_codec::{CastFile, CastNode, CodecError, PropertyValues};
+use cast_codec::{CastFile, CastNode, CastProperty, CodecError, PropertyValues};
 use std::path::Path;
 
 #[test]
@@ -145,6 +145,34 @@ fn excessive_node_nesting_is_rejected() {
     .unwrap();
 
     assert_eq!(Err(CodecError::NestingTooDeep), CastFile::decode(&bytes));
+}
+
+#[test]
+fn cancellable_decode_stops_during_a_large_property() {
+    let bytes = CastFile {
+        version: 1,
+        flags: 0,
+        roots: vec![CastNode {
+            identifier: u32::from_le_bytes(*b"root"),
+            hash: 0,
+            properties: vec![CastProperty {
+                name: "data".to_owned(),
+                values: PropertyValues::Integer32(vec![0; 20_000]),
+            }],
+            children: Vec::new(),
+        }],
+    }
+    .encode()
+    .unwrap();
+    let mut checks = 0;
+
+    let error = CastFile::decode_with_cancel(&bytes, || {
+        checks += 1;
+        checks >= 5
+    })
+    .unwrap_err();
+
+    assert_eq!(CodecError::Cancelled, error);
 }
 
 fn child(parent: &CastNode, identifier: [u8; 4]) -> &CastNode {

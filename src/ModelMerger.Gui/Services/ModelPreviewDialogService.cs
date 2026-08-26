@@ -6,7 +6,7 @@ namespace ModelMerger.Gui.Services;
 
 internal sealed class ModelPreviewDialogService(ILanguageCatalog language) : IModelPreviewDialogService
 {
-    private readonly IModelPreviewService _previewService = new ModelPreviewService();
+    private readonly IModelPreviewService _previewService = ModelPreviewServiceFactory.CreateDefault();
 
     public void Show(string filePath)
     {

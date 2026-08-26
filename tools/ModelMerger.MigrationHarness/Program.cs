@@ -1,4 +1,5 @@
 using ModelMerger.Core.Merging;
+using ModelMerger.Core.Preview;
 using PhilLibX;
 using PhilLibX.Mathematics;
 using System.Buffers.Binary;
@@ -82,6 +83,40 @@ switch (args[0].ToLowerInvariant())
 
         return Compare(args[1], args[2]);
 
+    case "compare-preview":
+        if (args.Length != 5 ||
+            !int.TryParse(args[3], out var previewTriangleLimit) ||
+            !int.TryParse(args[4], out var previewIterations) ||
+            previewTriangleLimit < 1 ||
+            previewIterations < 1)
+        {
+            return Usage();
+        }
+
+        return await ComparePreviewAsync(
+            args[1],
+            args[2],
+            previewTriangleLimit,
+            previewIterations);
+
+    case "benchmark-preview-rust":
+        if (args.Length != 5 ||
+            !int.TryParse(args[3], out var rustPreviewTriangleLimit) ||
+            !int.TryParse(args[4], out var rustPreviewIterations) ||
+            rustPreviewTriangleLimit < 1 ||
+            rustPreviewIterations < 1)
+        {
+            return Usage();
+        }
+
+        await BenchmarkPreviewAsync(
+            new RustWorkerModelPreviewService(args[1]),
+            "rust-worker",
+            args[2],
+            rustPreviewTriangleLimit,
+            rustPreviewIterations);
+        return 0;
+
     default:
         return Usage();
 }
@@ -96,6 +131,8 @@ static int Usage()
           benchmark <input-directory> <part-count> <iterations> <output-directory>
           benchmark-rust <worker-exe> <input-directory> <part-count> <iterations> <output-directory>
           compare <left-cast-file> <right-cast-file>
+          compare-preview <worker-exe> <cast-file> <triangle-limit> <iterations>
+          benchmark-preview-rust <worker-exe> <cast-file> <triangle-limit> <iterations>
         """);
     return 2;
 }
@@ -287,6 +324,102 @@ static async Task BenchmarkAsync(
     }));
 }
 
+static async Task<int> ComparePreviewAsync(
+    string workerPath,
+    string filePath,
+    int triangleLimit,
+    int iterations)
+{
+    var engines = new (string Name, IModelPreviewService Service)[]
+    {
+        ("csharp", new ModelPreviewService()),
+        ("rust-worker", new RustWorkerModelPreviewService(workerPath))
+    };
+    JsonNode? baseline = null;
+    var timings = new Dictionary<string, List<double>>();
+    foreach (var (name, service) in engines)
+    {
+        var elapsed = new List<double>(iterations);
+        JsonNode? summary = null;
+        for (var iteration = 0; iteration < iterations; iteration++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var preview = await service.LoadAsync(filePath, triangleLimit);
+            stopwatch.Stop();
+            elapsed.Add(stopwatch.Elapsed.TotalMilliseconds);
+            summary = JsonSerializer.SerializeToNode(SummarizePreview(preview));
+        }
+
+        baseline ??= summary;
+        if (!JsonNode.DeepEquals(baseline, summary))
+        {
+            Console.Error.WriteLine(JsonSerializer.Serialize(
+                new { Error = "Preview semantic summaries differ.", Baseline = baseline, Actual = summary },
+                new JsonSerializerOptions { WriteIndented = true }));
+            return 1;
+        }
+        timings.Add(name, elapsed);
+    }
+
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        File = Path.GetFileName(filePath),
+        TriangleLimit = triangleLimit,
+        Iterations = iterations,
+        SemanticsMatch = true,
+        Engines = timings.ToDictionary(
+            pair => pair.Key,
+            pair => new { Milliseconds = pair.Value, MedianMilliseconds = Median(pair.Value) })
+    }));
+    return 0;
+}
+
+static object SummarizePreview(ModelPreviewData preview) => new
+{
+    preview.ModelName,
+    preview.SourceMeshCount,
+    preview.SourceVertexCount,
+    preview.SourceTriangleCount,
+    preview.DisplayedTriangleCount,
+    preview.IsSimplified,
+    preview.Bounds,
+    Meshes = preview.Meshes.Select(mesh => new
+    {
+        PositionHash = HashPreviewPoint3(mesh.Positions),
+        NormalHash = HashPreviewPoint3(mesh.Normals),
+        IndexHash = HashInt32(mesh.TriangleIndices)
+    })
+};
+
+static async Task BenchmarkPreviewAsync(
+    IModelPreviewService service,
+    string engine,
+    string filePath,
+    int triangleLimit,
+    int iterations)
+{
+    var elapsed = new List<double>(iterations);
+    ModelPreviewData? preview = null;
+    for (var iteration = 0; iteration < iterations; iteration++)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        preview = await service.LoadAsync(filePath, triangleLimit);
+        stopwatch.Stop();
+        elapsed.Add(stopwatch.Elapsed.TotalMilliseconds);
+    }
+
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        Engine = engine,
+        File = Path.GetFileName(filePath),
+        TriangleLimit = triangleLimit,
+        Iterations = iterations,
+        Milliseconds = elapsed,
+        MedianMilliseconds = Median(elapsed),
+        Summary = SummarizePreview(preview!)
+    }));
+}
+
 static double Median(List<double> values)
 {
     var sorted = values.Order().ToArray();
@@ -309,6 +442,13 @@ static string HashVector2(IEnumerable<Cast.Vector2> values) => Hash(values, (has
 });
 
 static string HashVector3(IEnumerable<Cast.Vector3> values) => Hash(values, (hash, value) =>
+{
+    AppendFloat(hash, value.X);
+    AppendFloat(hash, value.Y);
+    AppendFloat(hash, value.Z);
+});
+
+static string HashPreviewPoint3(IEnumerable<PreviewPoint3> values) => Hash(values, (hash, value) =>
 {
     AppendFloat(hash, value.X);
     AppendFloat(hash, value.Y);

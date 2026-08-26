@@ -12,43 +12,11 @@ public sealed class ModelPreviewService : IModelPreviewService
         int triangleLimit = DefaultTriangleLimit,
         CancellationToken cancellationToken = default)
     {
-        if (triangleLimit < 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(triangleLimit));
-        }
-
-        var normalizedPath = NormalizePath(filePath);
-        if (!File.Exists(normalizedPath))
-        {
-            throw new ModelPreviewException(ModelPreviewErrorCode.MissingFile, normalizedPath);
-        }
-
-        if (!string.Equals(Path.GetExtension(normalizedPath), ".cast", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ModelPreviewException(ModelPreviewErrorCode.UnsupportedFormat, normalizedPath);
-        }
+        var normalizedPath = ModelPreviewRequestValidator.Validate(filePath, triangleLimit);
 
         return await Task.Run(
             () => Load(normalizedPath, triangleLimit, cancellationToken),
             cancellationToken).ConfigureAwait(false);
-    }
-
-    private static string NormalizePath(string? filePath)
-    {
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(filePath))
-            {
-                return Path.GetFullPath(filePath);
-            }
-        }
-        catch (Exception exception) when (
-            exception is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            throw new ModelPreviewException(ModelPreviewErrorCode.InvalidPath, filePath, exception);
-        }
-
-        throw new ModelPreviewException(ModelPreviewErrorCode.InvalidPath, filePath);
     }
 
     private static ModelPreviewData Load(

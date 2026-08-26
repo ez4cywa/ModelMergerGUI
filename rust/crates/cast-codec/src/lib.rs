@@ -53,6 +53,7 @@ pub enum CodecError {
     TrailingData,
     InvalidNodeSize(u32),
     NestingTooDeep,
+    Cancelled,
 }
 
 impl fmt::Display for CodecError {
@@ -79,6 +80,7 @@ impl fmt::Display for CodecError {
             Self::TrailingData => formatter.write_str("Cast file contains trailing data"),
             Self::InvalidNodeSize(size) => write!(formatter, "Cast node has invalid size {size}"),
             Self::NestingTooDeep => formatter.write_str("Cast node nesting is too deep"),
+            Self::Cancelled => formatter.write_str("Cast decoding was cancelled"),
         }
     }
 }
@@ -87,7 +89,15 @@ impl std::error::Error for CodecError {}
 
 impl CastFile {
     pub fn decode(bytes: &[u8]) -> Result<Self, CodecError> {
+        Self::decode_with_cancel(bytes, || false)
+    }
+
+    pub fn decode_with_cancel(
+        bytes: &[u8],
+        mut is_cancelled: impl FnMut() -> bool,
+    ) -> Result<Self, CodecError> {
         let mut reader = Reader::new(bytes);
+        check_cancelled(&mut is_cancelled)?;
         let magic = reader.read_u32()?;
         if magic != CAST_MAGIC {
             return Err(CodecError::InvalidMagic(magic));
@@ -99,7 +109,7 @@ impl CastFile {
         reader.ensure_count_fits(root_count, NODE_HEADER_SIZE)?;
         let mut roots = Vec::with_capacity(root_count as usize);
         for _ in 0..root_count {
-            roots.push(decode_node(&mut reader, 0)?);
+            roots.push(decode_node(&mut reader, 0, &mut is_cancelled)?);
         }
         if reader.remaining() != 0 {
             return Err(CodecError::TrailingData);
@@ -134,7 +144,12 @@ impl CastFile {
     }
 }
 
-fn decode_node(reader: &mut Reader<'_>, depth: usize) -> Result<CastNode, CodecError> {
+fn decode_node(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    is_cancelled: &mut impl FnMut() -> bool,
+) -> Result<CastNode, CodecError> {
+    check_cancelled(is_cancelled)?;
     if depth >= MAX_NODE_DEPTH {
         return Err(CodecError::NestingTooDeep);
     }
@@ -154,13 +169,13 @@ fn decode_node(reader: &mut Reader<'_>, depth: usize) -> Result<CastNode, CodecE
     reader.ensure_count_fits(property_count, PROPERTY_HEADER_SIZE)?;
     let mut properties = Vec::with_capacity(property_count as usize);
     for _ in 0..property_count {
-        properties.push(decode_property(reader)?);
+        properties.push(decode_property(reader, is_cancelled)?);
     }
 
     reader.ensure_count_fits(child_count, NODE_HEADER_SIZE)?;
     let mut children = Vec::with_capacity(child_count as usize);
     for _ in 0..child_count {
-        children.push(decode_node(reader, depth + 1)?);
+        children.push(decode_node(reader, depth + 1, is_cancelled)?);
     }
     if reader.position != expected_end {
         return Err(CodecError::InvalidNodeSize(node_size));
@@ -174,7 +189,11 @@ fn decode_node(reader: &mut Reader<'_>, depth: usize) -> Result<CastNode, CodecE
     })
 }
 
-fn decode_property(reader: &mut Reader<'_>) -> Result<CastProperty, CodecError> {
+fn decode_property(
+    reader: &mut Reader<'_>,
+    is_cancelled: &mut impl FnMut() -> bool,
+) -> Result<CastProperty, CodecError> {
+    check_cancelled(is_cancelled)?;
     let property_type = reader.take::<2>()?;
     let name_length = reader.read_u16()? as usize;
     let value_count = reader.read_u32()?;
@@ -197,32 +216,52 @@ fn decode_property(reader: &mut Reader<'_>) -> Result<CastProperty, CodecError> 
     }
 
     let values = match property_type {
-        [b'b', 0] => PropertyValues::Byte(reader.read_many(count, Reader::read_u8)?),
-        [b'h', 0] => PropertyValues::Short(reader.read_many(count, Reader::read_u16)?),
-        [b'i', 0] => PropertyValues::Integer32(reader.read_many(count, Reader::read_u32)?),
-        [b'l', 0] => PropertyValues::Integer64(reader.read_many(count, Reader::read_u64)?),
-        [b'f', 0] => PropertyValues::Float(reader.read_many(count, Reader::read_f32)?),
-        [b'd', 0] => PropertyValues::Double(reader.read_many(count, Reader::read_f64)?),
+        [b'b', 0] => {
+            PropertyValues::Byte(reader.read_many(count, Reader::read_u8, is_cancelled)?)
+        }
+        [b'h', 0] => {
+            PropertyValues::Short(reader.read_many(count, Reader::read_u16, is_cancelled)?)
+        }
+        [b'i', 0] => {
+            PropertyValues::Integer32(reader.read_many(count, Reader::read_u32, is_cancelled)?)
+        }
+        [b'l', 0] => {
+            PropertyValues::Integer64(reader.read_many(count, Reader::read_u64, is_cancelled)?)
+        }
+        [b'f', 0] => {
+            PropertyValues::Float(reader.read_many(count, Reader::read_f32, is_cancelled)?)
+        }
+        [b'd', 0] => {
+            PropertyValues::Double(reader.read_many(count, Reader::read_f64, is_cancelled)?)
+        }
         [b's', 0] => {
             if value_count != 1 {
                 return Err(CodecError::InvalidStringValueCount(value_count));
             }
             PropertyValues::String(reader.read_null_terminated_utf8()?)
         }
-        [b'2', b'v'] => PropertyValues::Vector2(
-            reader.read_many(count, |reader| Ok([reader.read_f32()?, reader.read_f32()?]))?,
-        ),
-        [b'3', b'v'] => PropertyValues::Vector3(reader.read_many(count, |reader| {
-            Ok([reader.read_f32()?, reader.read_f32()?, reader.read_f32()?])
-        })?),
-        [b'4', b'v'] => PropertyValues::Vector4(reader.read_many(count, |reader| {
-            Ok([
-                reader.read_f32()?,
-                reader.read_f32()?,
-                reader.read_f32()?,
-                reader.read_f32()?,
-            ])
-        })?),
+        [b'2', b'v'] => PropertyValues::Vector2(reader.read_many(
+            count,
+            |reader| Ok([reader.read_f32()?, reader.read_f32()?]),
+            is_cancelled,
+        )?),
+        [b'3', b'v'] => PropertyValues::Vector3(reader.read_many(
+            count,
+            |reader| Ok([reader.read_f32()?, reader.read_f32()?, reader.read_f32()?]),
+            is_cancelled,
+        )?),
+        [b'4', b'v'] => PropertyValues::Vector4(reader.read_many(
+            count,
+            |reader| {
+                Ok([
+                    reader.read_f32()?,
+                    reader.read_f32()?,
+                    reader.read_f32()?,
+                    reader.read_f32()?,
+                ])
+            },
+            is_cancelled,
+        )?),
         unsupported => return Err(CodecError::UnsupportedPropertyType(unsupported)),
     };
 
@@ -383,12 +422,16 @@ impl<'a> Reader<'a> {
         &mut self,
         count: usize,
         mut read: impl FnMut(&mut Self) -> Result<T, CodecError>,
+        is_cancelled: &mut impl FnMut() -> bool,
     ) -> Result<Vec<T>, CodecError> {
         if count > self.remaining() {
             return Err(CodecError::CountExceedsFile);
         }
         let mut values = Vec::with_capacity(count);
-        for _ in 0..count {
+        for index in 0..count {
+            if index % 4_096 == 0 {
+                check_cancelled(is_cancelled)?;
+            }
             values.push(read(self)?);
         }
         Ok(values)
@@ -452,6 +495,14 @@ impl<'a> Reader<'a> {
             .read_bytes(LENGTH)?
             .try_into()
             .expect("slice length was checked"))
+    }
+}
+
+fn check_cancelled(is_cancelled: &mut impl FnMut() -> bool) -> Result<(), CodecError> {
+    if is_cancelled() {
+        Err(CodecError::Cancelled)
+    } else {
+        Ok(())
     }
 }
 

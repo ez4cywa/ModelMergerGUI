@@ -15,7 +15,19 @@ const FILE: u32 = u32::from_le_bytes(*b"file");
 const BLEND_SHAPE: u32 = u32::from_le_bytes(*b"blsh");
 
 pub(crate) fn decode_model(bytes: &[u8], path: &Path) -> Result<Model, MergeError> {
-    let file = CastFile::decode(bytes).map_err(MergeError::Codec)?;
+    decode_model_with_cancel(bytes, path, &|| false)
+}
+
+pub(crate) fn decode_model_with_cancel(
+    bytes: &[u8],
+    path: &Path,
+    is_cancelled: &impl Fn() -> bool,
+) -> Result<Model, MergeError> {
+    let file = CastFile::decode_with_cancel(bytes, is_cancelled).map_err(|error| match error {
+        cast_codec::CodecError::Cancelled => MergeError::Cancelled,
+        error => MergeError::Codec(error),
+    })?;
+    check_decode_cancelled(is_cancelled)?;
     let model_node = file
         .roots
         .iter()
@@ -78,6 +90,7 @@ pub(crate) fn decode_model(bytes: &[u8], path: &Path) -> Result<Model, MergeErro
         .collect();
     let mut meshes = Vec::with_capacity(mesh_nodes.len());
     for mesh_node in mesh_nodes {
+        check_decode_cancelled(is_cancelled)?;
         meshes.push(decode_mesh(
             mesh_node,
             &material_by_hash,
@@ -93,6 +106,14 @@ pub(crate) fn decode_model(bytes: &[u8], path: &Path) -> Result<Model, MergeErro
         materials,
         shapes,
     })
+}
+
+fn check_decode_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<(), MergeError> {
+    if is_cancelled() {
+        Err(MergeError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 fn decode_bone(node: &CastNode) -> Result<Bone, MergeError> {

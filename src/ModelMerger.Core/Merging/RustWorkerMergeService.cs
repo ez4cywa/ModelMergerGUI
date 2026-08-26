@@ -2,7 +2,6 @@ namespace ModelMerger.Core.Merging;
 
 public sealed class RustWorkerMergeService : IModelMergeService
 {
-    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
     private readonly Func<IRustWorkerProcess> _processFactory;
     private readonly IMergeOutputClaims _directInvocationClaims = MergeOutputClaims.Shared;
 
@@ -53,12 +52,13 @@ public sealed class RustWorkerMergeService : IModelMergeService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await CancelAndDisposeAsync(process).ConfigureAwait(false);
+            await RustWorkerLifetime.CancelAndDisposeAsync(process, RustWorkerProtocol.CancelCommand)
+                .ConfigureAwait(false);
             throw;
         }
         catch
         {
-            await StopAndDisposeAsync(process).ConfigureAwait(false);
+            await RustWorkerLifetime.StopAndDisposeAsync(process).ConfigureAwait(false);
             throw;
         }
     }
@@ -81,43 +81,6 @@ public sealed class RustWorkerMergeService : IModelMergeService
                 await asyncDisposable.DisposeAsync().ConfigureAwait(false);
             }
         }
-    }
-
-    private static async Task CancelAndDisposeAsync(IRustWorkerProcess process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                await process.WriteLineAsync(
-                    RustWorkerProtocol.CancelCommand,
-                    CancellationToken.None).ConfigureAwait(false);
-            }
-        }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException)
-        {
-            // The fallback below terminates a worker that stopped accepting input.
-        }
-
-        await StopAndDisposeAsync(process).ConfigureAwait(false);
-    }
-
-    private static async Task StopAndDisposeAsync(IRustWorkerProcess process)
-    {
-        if (!process.HasExited)
-        {
-            using var timeout = new CancellationTokenSource(ShutdownTimeout);
-            try
-            {
-                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-            {
-                process.Kill();
-            }
-        }
-
-        await process.DisposeAsync().ConfigureAwait(false);
     }
 
     private sealed class RustPreparedMergeOperation(
@@ -174,11 +137,13 @@ public sealed class RustWorkerMergeService : IModelMergeService
 
             if (cancel)
             {
-                await CancelAndDisposeAsync(process).ConfigureAwait(false);
+                await RustWorkerLifetime.CancelAndDisposeAsync(
+                    process,
+                    RustWorkerProtocol.CancelCommand).ConfigureAwait(false);
             }
             else
             {
-                await StopAndDisposeAsync(process).ConfigureAwait(false);
+                await RustWorkerLifetime.StopAndDisposeAsync(process).ConfigureAwait(false);
             }
         }
     }

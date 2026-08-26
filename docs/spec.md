@@ -42,6 +42,8 @@
 - Each group has independent inputs, root selection, output, progress, cancellation, log, and result.
 - A completed group can preview its merged Cast output directly from the group status card.
 - Preview loading and geometry preparation run away from the UI thread. Large models are sampled to a bounded triangle count for display only; source and output files remain unchanged.
+- Preview inputs below 2 MiB use the established C# loader unless their CAST face property uses 32-bit indices. Larger inputs and every 32-bit-index mesh use the Rust worker when installed.
+- Rust preview payloads use a compact versioned binary file owned by the worker. The worker deletes the payload after the C# adapter acknowledges it, receives cancellation, or loses its input channel.
 - Preview interaction supports mouse drag rotation, wheel zoom, visible rotate/zoom/reset controls, keyboard alternatives, and Escape/Close dismissal.
 - Core exposes structured progress, warning, validation, read-error, and output-conflict semantics so each presentation adapter can localize them.
 - Use adaptive C# / Rust routing: inputs below 4 MiB stay in-process, while larger Cast workloads use the native worker when it is installed.

@@ -81,6 +81,78 @@ fn cancel_after_prepare_returns_a_structured_cancellation() {
     worker.wait_failure();
 }
 
+#[test]
+fn preview_returns_compact_geometry_payload_and_deletes_it_after_release() {
+    let fixtures = fixture_directory();
+    let mut worker = Worker::start();
+    worker.send(json!({
+        "protocol": 1,
+        "command": "preview",
+        "request": {
+            "file_path": fixtures.join("part-00.cast"),
+            "triangle_limit": 2
+        }
+    }));
+
+    let events = worker.read_until("preview_result");
+    let result = events.last().unwrap();
+    assert_eq!("part-00", result["model_name"]);
+    assert_eq!(1, result["source_mesh_count"]);
+    assert_eq!(12, result["source_vertex_count"]);
+    assert_eq!(4, result["source_triangle_count"]);
+    assert_eq!(2, result["displayed_triangle_count"]);
+    assert_eq!(true, result["is_simplified"]);
+    let payload_path = PathBuf::from(result["payload_path"].as_str().unwrap());
+    let payload = std::fs::read(&payload_path).expect("preview payload should exist");
+    assert_eq!(MAGIC, &payload[0..4]);
+    assert_eq!(
+        VERSION,
+        u32::from_le_bytes(payload[4..8].try_into().unwrap())
+    );
+    assert_eq!(1, u32::from_le_bytes(payload[8..12].try_into().unwrap()));
+    assert_eq!(payload.len() as u64, result["payload_length"]);
+
+    worker.send(json!({ "protocol": 1, "command": "release_preview" }));
+    worker.wait_success();
+    assert!(!payload_path.exists());
+}
+
+#[test]
+fn preview_payload_is_deleted_after_cancel() {
+    let mut worker = Worker::start();
+    let payload_path = start_preview_and_get_payload(&mut worker);
+
+    worker.send(json!({ "protocol": 1, "command": "cancel" }));
+    let events = worker.read_until("error");
+    assert_eq!("cancelled", events.last().unwrap()["code"]);
+    worker.wait_failure();
+    assert!(!payload_path.exists());
+}
+
+#[test]
+fn preview_payload_is_deleted_when_input_pipe_closes() {
+    let mut worker = Worker::start();
+    let payload_path = start_preview_and_get_payload(&mut worker);
+
+    worker.close_input();
+    worker.wait_success();
+    assert!(!payload_path.exists());
+}
+
+fn start_preview_and_get_payload(worker: &mut Worker) -> PathBuf {
+    let fixtures = fixture_directory();
+    worker.send(json!({
+        "protocol": 1,
+        "command": "preview",
+        "request": {
+            "file_path": fixtures.join("part-00.cast"),
+            "triangle_limit": 2
+        }
+    }));
+    let events = worker.read_until("preview_result");
+    PathBuf::from(events.last().unwrap()["payload_path"].as_str().unwrap())
+}
+
 fn fixture_directory() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../tests/fixtures/rust-migration/golden-small")
@@ -88,7 +160,7 @@ fn fixture_directory() -> PathBuf {
 
 struct Worker {
     child: Child,
-    input: ChildStdin,
+    input: Option<ChildStdin>,
     output: BufReader<ChildStdout>,
 }
 
@@ -104,15 +176,20 @@ impl Worker {
         let output = BufReader::new(child.stdout.take().unwrap());
         Self {
             child,
-            input,
+            input: Some(input),
             output,
         }
     }
 
     fn send(&mut self, value: Value) {
-        serde_json::to_writer(&mut self.input, &value).unwrap();
-        writeln!(self.input).unwrap();
-        self.input.flush().unwrap();
+        let input = self.input.as_mut().expect("worker input should be open");
+        serde_json::to_writer(&mut *input, &value).unwrap();
+        writeln!(input).unwrap();
+        input.flush().unwrap();
+    }
+
+    fn close_input(&mut self) {
+        self.input.take();
     }
 
     fn read_until(&mut self, expected_event: &str) -> Vec<Value> {
@@ -164,3 +241,4 @@ impl Drop for TestDirectory {
         let _ = std::fs::remove_dir_all(&self.path);
     }
 }
+use model_merger_worker::preview_payload::{MAGIC, VERSION};
