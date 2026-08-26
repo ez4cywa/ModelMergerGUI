@@ -16,19 +16,43 @@
         VerticalContentAlignment="Stretch"
         Background="#F8FAFC"
         FontFamily="{Binding InterfaceFontFamily, Source={x:Static loc:LanguageCatalog.Current}}"
-        FontSize="14"
+        FontSize="15"
+        FontWeight="Medium"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         Loaded="Window_Loaded"
         Closing="Window_Closing">
     <Window.Resources>
         <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB" />
         <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#1D4ED8" />
         <SolidColorBrush x:Key="ForegroundBrush" Color="#0F172A" />
-        <SolidColorBrush x:Key="MutedForegroundBrush" Color="#64748B" />
+        <SolidColorBrush x:Key="MutedForegroundBrush" Color="#475569" />
+        <SolidColorBrush x:Key="DisabledForegroundBrush" Color="#475569" />
+        <SolidColorBrush x:Key="DisabledBackgroundBrush" Color="#F1F5F9" />
+        <SolidColorBrush x:Key="DisabledBorderBrush" Color="#CBD5E1" />
         <SolidColorBrush x:Key="BorderBrush" Color="#DCE4EF" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        </Style>
+
+        <Style x:Key="SecondaryTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{StaticResource MutedForegroundBrush}" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+        </Style>
+
+        <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{StaticResource MutedForegroundBrush}" />
+            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
         </Style>
 
         <Style x:Key="SectionCardStyle" TargetType="Border">
@@ -65,7 +89,9 @@
                                 <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.45" />
+                                <Setter Property="Foreground" Value="{StaticResource DisabledForegroundBrush}" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#CBD5E1" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -80,6 +106,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="13,8" />
             <Setter Property="MinHeight" Value="40" />
+            <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -102,7 +129,10 @@
                                 <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4" />
+                                <Setter Property="Foreground" Value="{StaticResource DisabledForegroundBrush}" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource DisabledBackgroundBrush}" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource DisabledBorderBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -111,8 +141,10 @@
         </Style>
 
         <Style x:Key="LinkButtonStyle" TargetType="Button">
-            <Setter Property="Padding" Value="3,2" />
-            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
@@ -151,17 +183,18 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="{Binding AppTitle}" FontSize="28" FontWeight="Bold" />
+                <TextBlock Text="{Binding AppTitle}" FontSize="28" FontWeight="Bold" TextWrapping="Wrap" />
                 <TextBlock Margin="0,4,0,0"
                            Text="{Binding AppSubtitle}"
+                           Style="{StaticResource SecondaryTextStyle}"
+                           FontSize="15"
                            TextWrapping="Wrap"
-                           Foreground="{StaticResource MutedForegroundBrush}" />
+                           LineHeight="22" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
                     <TextBlock Text="{Binding [Language], Source={x:Static loc:LanguageCatalog.Current}}"
-                               FontSize="11"
-                               Foreground="{StaticResource MutedForegroundBrush}" />
+                               Style="{StaticResource CaptionTextStyle}" />
                     <ComboBox MinWidth="92"
                               AutomationProperties.Name="{Binding [Language], Source={x:Static loc:LanguageCatalog.Current}}"
                               ItemsSource="{Binding LanguageOptions}"
@@ -218,9 +251,9 @@
                                         </StackPanel>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding SummaryText}"
+                                                   Style="{StaticResource SecondaryTextStyle}"
                                                    VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Foreground="{StaticResource MutedForegroundBrush}" />
+                                                   TextTrimming="CharacterEllipsis" />
                                         <Button Grid.Column="3"
                                                 Content="{Binding [StartGroup], Source={x:Static loc:LanguageCatalog.Current}}"
                                                 Command="{Binding MergeCommand}"
@@ -264,9 +297,8 @@
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding [ModelParts], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="16" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding [ModelPartsHint], Source={x:Static loc:LanguageCatalog.Current}}"
-                                                               FontSize="12"
-                                                               TextWrapping="Wrap"
-                                                               Foreground="{StaticResource MutedForegroundBrush}" />
+                                                               Style="{StaticResource SecondaryTextStyle}"
+                                                               TextWrapping="Wrap" />
                                                 </StackPanel>
                                                 <Button Grid.Column="1"
                                                         Content="{Binding [AddNext], Source={x:Static loc:LanguageCatalog.Current}}"
@@ -301,7 +333,7 @@
                                                                 </Grid.RowDefinitions>
                                                                 <Grid>
                                                                     <Border HorizontalAlignment="Left" Padding="6,2" CornerRadius="7" Background="#E2E8F0">
-                                                                        <TextBlock Text="{Binding NumberText}" FontSize="10" Foreground="#475569" />
+                                                                        <TextBlock Text="{Binding NumberText}" FontSize="11" FontWeight="SemiBold" Foreground="#334155" />
                                                                     </Border>
                                                                     <Border x:Name="RootBadge"
                                                                             HorizontalAlignment="Right"
@@ -309,7 +341,7 @@
                                                                             CornerRadius="7"
                                                                             Background="#FEF3C7"
                                                                             Visibility="Collapsed">
-                                                                        <TextBlock Text="{Binding [RootBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="10" Foreground="#92400E" />
+                                                                        <TextBlock Text="{Binding [RootBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="11" FontWeight="SemiBold" Foreground="#92400E" />
                                                                     </Border>
                                                                     <Border x:Name="InvalidBadge"
                                                                             HorizontalAlignment="Center"
@@ -317,7 +349,7 @@
                                                                             CornerRadius="7"
                                                                             Background="#FEE2E2"
                                                                             Visibility="Collapsed">
-                                                                        <TextBlock Text="{Binding [FileMissingBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="10" Foreground="#B91C1C" />
+                                                                        <TextBlock Text="{Binding [FileMissingBadge], Source={x:Static loc:LanguageCatalog.Current}}" FontSize="11" FontWeight="SemiBold" Foreground="#B91C1C" />
                                                                     </Border>
                                                                 </Grid>
                                                                 <Button Grid.Row="1"
@@ -338,13 +370,12 @@
                                                                                    TextAlignment="Center"
                                                                                    TextTrimming="CharacterEllipsis"
                                                                                    FontWeight="SemiBold"
-                                                                                   FontSize="12" />
+                                                                                   FontSize="13" />
                                                                         <TextBlock x:Name="DirectoryText"
                                                                                    Text="{Binding DirectoryName}"
                                                                                    TextAlignment="Center"
                                                                                    TextTrimming="CharacterEllipsis"
-                                                                                   FontSize="11"
-                                                                                   Foreground="{StaticResource MutedForegroundBrush}" />
+                                                                                   Style="{StaticResource CaptionTextStyle}" />
                                                                     </StackPanel>
                                                                 </Button>
                                                                 <WrapPanel x:Name="SlotActions"
@@ -356,19 +387,16 @@
                                                                             Command="{Binding DataContext.PreviewPartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
                                                                             Style="{StaticResource LinkButtonStyle}"
-                                                                            FontSize="10"
                                                                             Foreground="#1D4ED8" />
                                                                     <Button Content="{Binding [SetAsRoot], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                             Command="{Binding DataContext.SetManualRootCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
                                                                             Style="{StaticResource LinkButtonStyle}"
-                                                                            FontSize="10"
                                                                             Foreground="#B45309" />
                                                                     <Button Content="{Binding [Remove], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                             Command="{Binding DataContext.RemovePartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
                                                                             Style="{StaticResource LinkButtonStyle}"
-                                                                            FontSize="10"
                                                                             Foreground="#B91C1C" />
                                                                 </WrapPanel>
                                                             </Grid>
@@ -413,9 +441,8 @@
                                                         <RadioButton Content="{Binding [Manual], Source={x:Static loc:LanguageCatalog.Current}}" IsChecked="{Binding IsManualRootMode}" />
                                                     </WrapPanel>
                                                     <TextBlock Text="{Binding [ManualRootHint], Source={x:Static loc:LanguageCatalog.Current}}"
-                                                               FontSize="11"
-                                                               TextWrapping="Wrap"
-                                                               Foreground="{StaticResource MutedForegroundBrush}" />
+                                                               Style="{StaticResource SecondaryTextStyle}"
+                                                               TextWrapping="Wrap" />
                                                     <TextBlock Margin="0,12,0,4"
                                                                Text="{Binding [OutputFolder], Source={x:Static loc:LanguageCatalog.Current}}"
                                                                TextWrapping="Wrap"
@@ -443,9 +470,8 @@
                                                              AutomationProperties.HelpText="{Binding [OutputFileNameHelp], Source={x:Static loc:LanguageCatalog.Current}}" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Text="{Binding [OutputFileHint], Source={x:Static loc:LanguageCatalog.Current}}"
-                                                               FontSize="11"
-                                                               TextWrapping="Wrap"
-                                                               Foreground="{StaticResource MutedForegroundBrush}" />
+                                                               Style="{StaticResource SecondaryTextStyle}"
+                                                               TextWrapping="Wrap" />
                                                 </StackPanel>
                                             </Border>
 
@@ -470,7 +496,8 @@
                                                                  AcceptsReturn="True"
                                                                  VerticalScrollBarVisibility="Auto"
                                                                  HorizontalScrollBarVisibility="Auto"
-                                                                 FontSize="11" />
+                                                                 FontSize="12"
+                                                                 FontWeight="Medium" />
                                                     </Expander>
                                                     <StackPanel Margin="0,9,0,0">
                                                         <Button Content="{Binding [PreviewMerged], Source={x:Static loc:LanguageCatalog.Current}}"
@@ -513,13 +540,13 @@
                         VerticalAlignment="Center"
                         ClipToBounds="True">
                 <TextBlock Text="{Binding ConcurrencyText}"
-                           FontSize="12"
+                           Style="{StaticResource SecondaryTextStyle}"
                            TextTrimming="CharacterEllipsis"
-                           Foreground="{StaticResource MutedForegroundBrush}" />
+                           ToolTip="{Binding ConcurrencyText}" />
                 <TextBlock Text="{Binding [Attribution], Source={x:Static loc:LanguageCatalog.Current}}"
-                           FontSize="12"
+                           Style="{StaticResource SecondaryTextStyle}"
                            TextTrimming="CharacterEllipsis"
-                           Foreground="{StaticResource MutedForegroundBrush}" />
+                           ToolTip="{Binding [Attribution], Source={x:Static loc:LanguageCatalog.Current}}" />
             </StackPanel>
             <WrapPanel Grid.Row="1"
                        Grid.Column="1"

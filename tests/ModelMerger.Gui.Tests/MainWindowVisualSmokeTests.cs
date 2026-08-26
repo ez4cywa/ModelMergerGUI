@@ -72,6 +72,7 @@ public sealed class MainWindowVisualSmokeTests
                             language == AppLanguage.ChineseSimplified ? "MiSans" : "Segoe UI",
                             window.FontFamily.Source,
                             StringComparison.OrdinalIgnoreCase);
+                        AssertReadableTypography(window, viewModel);
                         _ = Render(window);
                         var bitmap = Render(window);
                         Assert.True(bitmap.PixelWidth >= 800);
@@ -148,6 +149,79 @@ public sealed class MainWindowVisualSmokeTests
         };
         timer.Start();
         Dispatcher.PushFrame(frame);
+    }
+
+    private static void AssertReadableTypography(MainWindow window, MainWindowViewModel viewModel)
+    {
+        var expectedSecondaryColor = Color.FromRgb(0x47, 0x55, 0x69);
+        var secondaryText = new[]
+        {
+            viewModel.AppSubtitle,
+            LanguageCatalog.Current[LanguageKeys.ModelPartsHint],
+            LanguageCatalog.Current[LanguageKeys.ManualRootHint],
+            LanguageCatalog.Current[LanguageKeys.OutputFileHint],
+            viewModel.ConcurrencyText,
+            LanguageCatalog.Current[LanguageKeys.Attribution]
+        };
+        var textBlocks = FindVisualDescendants<TextBlock>(window).ToArray();
+        foreach (var text in secondaryText)
+        {
+            var matches = textBlocks.Where(textBlock => textBlock.Text == text).ToArray();
+            Assert.NotEmpty(matches);
+            Assert.All(matches, textBlock =>
+            {
+                Assert.True(textBlock.FontSize >= 13, $"'{text}' uses {textBlock.FontSize}px text.");
+                Assert.True(
+                    textBlock.FontWeight.ToOpenTypeWeight() >= FontWeights.Medium.ToOpenTypeWeight(),
+                    $"'{text}' uses {textBlock.FontWeight} text.");
+                Assert.Equal(expectedSecondaryColor, Assert.IsType<SolidColorBrush>(textBlock.Foreground).Color);
+            });
+        }
+
+        var subtitle = Assert.Single(textBlocks, textBlock => textBlock.Text == viewModel.AppSubtitle);
+        Assert.True(subtitle.FontSize >= 15);
+
+        var slotHints = textBlocks
+            .Where(textBlock => textBlock.Text == LanguageCatalog.Current[LanguageKeys.ClickCastFile])
+            .ToArray();
+        Assert.NotEmpty(slotHints);
+        Assert.All(slotHints, textBlock =>
+        {
+            Assert.True(textBlock.FontSize >= 12);
+            Assert.True(textBlock.FontWeight.ToOpenTypeWeight() >= FontWeights.Medium.ToOpenTypeWeight());
+            Assert.Equal(expectedSecondaryColor, Assert.IsType<SolidColorBrush>(textBlock.Foreground).Color);
+        });
+
+        var disabledButtonLabels = new[]
+        {
+            LanguageCatalog.Current[LanguageKeys.PreviewMerged],
+            LanguageCatalog.Current[LanguageKeys.CancelAll]
+        };
+        var buttons = FindVisualDescendants<Button>(window).ToArray();
+        foreach (var label in disabledButtonLabels)
+        {
+            var button = Assert.Single(buttons, candidate => Equals(candidate.Content, label));
+            Assert.False(button.IsEnabled);
+            Assert.Equal(expectedSecondaryColor, Assert.IsType<SolidColorBrush>(button.Foreground).Color);
+        }
+    }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in FindVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private static void SaveWhenRequested(BitmapSource bitmap, AppLanguage language, string prefix)

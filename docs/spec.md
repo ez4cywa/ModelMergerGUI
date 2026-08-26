@@ -60,6 +60,8 @@
 - On first launch, use the Windows UI language when it is one of the five supported languages; otherwise default to Simplified Chinese.
 - Language resources have matching keys and format placeholders.
 - The Simplified Chinese interface uses embedded MiSans fonts and visibly acknowledges MiSans; other languages use Segoe UI.
+- Embed only the original MiSans Medium font file; WPF synthesizes heavier heading weights so the framework-dependent package does not carry duplicate full CJK font files.
+- Main body text uses a 15 px medium-weight baseline. Helper and caption text stays at 12–13 px minimum with a darker high-contrast foreground, including disabled actions.
 
 ## Distribution and acceptance
 

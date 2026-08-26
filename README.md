@@ -6,11 +6,11 @@
 
 | 中文主界面 | English UI |
 | --- | --- |
-| ![Cast 模型合并器中文主界面](docs/images/v1.2.0/main-window-zh.png) | ![Cast Model Merger English interface](docs/images/v1.2.0/main-window-en.png) |
+| ![Cast 模型合并器中文主界面](docs/images/v1.2.1/main-window-zh.png) | ![Cast Model Merger English interface](docs/images/v1.2.1/main-window-en.png) |
 
 ### 模型预览
 
-![Cast 模型预览窗口](docs/images/v1.2.0/model-preview-zh.png)
+![Cast 模型预览窗口](docs/images/v1.2.1/model-preview-zh.png)
 
 ## 下载
 
@@ -107,7 +107,7 @@ MiSans 的许可允许把字体嵌入应用，但不允许把字体文件作为�
 .\scripts\Install-MiSans.ps1 -AcceptLicense
 ```
 
-脚本从小米官网下载经校验的字体包，只提取程序使用的 Regular、Semibold 和 Bold 三个字重；下载的本地字体文件会被 Git 忽略。官方 GitHub Release 中的可执行文件已经嵌入字体，普通用户无需运行该脚本。
+脚本从小米官网下载经校验的字体包，只提取程序使用的 Medium 字重；标题的粗体效果由 WPF 合成。下载的本地字体文件会被 Git 忽略。官方 GitHub Release 中的可执行文件已经嵌入字体，普通用户无需运行该脚本。
 
 ```powershell
 dotnet build .\src\ModelMerger\ModelMerger.sln -c Release

@@ -35,9 +35,7 @@ try
     try
     {
         $fonts = @{
-            'MiSans/ttf/MiSans-Regular.ttf' = 'MiSans-Regular.ttf'
-            'MiSans/ttf/MiSans-Semibold.ttf' = 'MiSans-Semibold.ttf'
-            'MiSans/ttf/MiSans-Bold.ttf' = 'MiSans-Bold.ttf'
+            'MiSans/ttf/MiSans-Medium.ttf' = 'MiSans-Medium.ttf'
         }
 
         foreach ($entryName in $fonts.Keys)

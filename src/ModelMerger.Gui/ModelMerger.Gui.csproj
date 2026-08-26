@@ -15,7 +15,7 @@
     <SelfContained>false</SelfContained>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <Product>Cast Model Merger GUI</Product>
     <Description>Merge 2 to 15 Cast model parts with a visual Windows interface.</Description>
     <Company>ModelMerger contributors</Company>
@@ -27,7 +27,7 @@
 
   <ItemGroup>
     <None Remove="Assets\Fonts\*.ttf" />
-    <Resource Include="Assets\Fonts\*.ttf" />
+    <Resource Include="Assets\Fonts\MiSans-Medium.ttf" />
   </ItemGroup>
 
   <ItemGroup>
