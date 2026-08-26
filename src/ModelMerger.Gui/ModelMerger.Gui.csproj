@@ -19,6 +19,9 @@
     <Product>Cast Model Merger GUI</Product>
     <Description>Merge 2 to 15 Cast model parts with a visual Windows interface.</Description>
     <Company>ModelMerger contributors</Company>
+    <DebugType Condition="'$(Configuration)' == 'Release'">None</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+    <AllowedReferenceRelatedFileExtensions Condition="'$(Configuration)' == 'Release'"></AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,4 +39,16 @@
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" />
     <None Update="Assets\Fonts\MiSans-License.pdf" CopyToPublishDirectory="PreserveNewest" TargetPath="MiSans-License.pdf" />
   </ItemGroup>
+
+  <Target Name="BuildRustMergeWorker" BeforeTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <Exec
+      WorkingDirectory="$(MSBuildProjectDirectory)\..\..\rust"
+      Command="cargo build --release --locked -p model-merger-worker" />
+  </Target>
+
+  <Target Name="CopyRustMergeWorker" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <Copy
+      SourceFiles="$(MSBuildProjectDirectory)\..\..\rust\target\release\model-merger-worker.exe"
+      DestinationFiles="$(PublishDir)model-merger-worker.exe" />
+  </Target>
 </Project>

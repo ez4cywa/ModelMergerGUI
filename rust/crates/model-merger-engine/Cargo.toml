@@ -1,0 +1,12 @@
+[package]
+name = "model-merger-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cast-codec.workspace = true
+
+[lib]
+path = "src/lib.rs"

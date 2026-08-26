@@ -1,0 +1,15 @@
+[package]
+name = "model-merger-worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+model-merger-engine.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[[bin]]
+name = "model-merger-worker"
+path = "src/main.rs"

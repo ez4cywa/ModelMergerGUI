@@ -44,6 +44,9 @@
 - Preview loading and geometry preparation run away from the UI thread. Large models are sampled to a bounded triangle count for display only; source and output files remain unchanged.
 - Preview interaction supports mouse drag rotation, wheel zoom, visible rotate/zoom/reset controls, keyboard alternatives, and Escape/Close dismissal.
 - Core exposes structured progress, warning, validation, read-error, and output-conflict semantics so each presentation adapter can localize them.
+- Use adaptive C# / Rust routing: inputs below 4 MiB stay in-process, while larger Cast workloads use the native worker when it is installed.
+- Keep the C# engine as a compatibility fallback and support explicit `csharp` or `rust` engine overrides for diagnosis.
+- Communicate with the Rust worker through a versioned NDJSON protocol and preserve prepare/execute, progress, warning, cancellation, and safe-output semantics.
 
 ## Saved settings
 
@@ -65,7 +68,8 @@
 
 ## Distribution and acceptance
 
-- Starting with v1.2.0, publish only an unpackaged, framework-dependent `win-x64` release.
+- Starting with v1.2.0, publish only an unpackaged, framework-dependent `win-x64` release. Releases that include the Rust worker use a ZIP so the native sidecar remains beside the main executable.
 - The release requires the Microsoft .NET 8 Desktop Runtime x64 and must document that prerequisite clearly.
+- End users do not need a Rust runtime; Rust 1.96 or newer is a source-build prerequisite only.
 - Build and tests must pass.
 - Tests cover the merge-plan seam, scheduler lifecycle/concurrency/cancellation/output conflicts, shared Cast/SEModel engine, settings round-trip, structured merge semantics, five-language completeness and live rerendering, WPF rendering in all supported languages, cancellation cleanup, and a real synthetic Cast merge that is readable afterward.

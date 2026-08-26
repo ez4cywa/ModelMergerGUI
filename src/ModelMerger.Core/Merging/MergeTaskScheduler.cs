@@ -97,7 +97,7 @@ public sealed class MergeTaskScheduler : IMergeTaskScheduler, IDisposable
     private int _slotsDisposed;
 
     public MergeTaskScheduler(int maximumConcurrency = 2)
-        : this(new ModelMergeService(), maximumConcurrency)
+        : this(ModelMergeServiceFactory.CreateDefault(), maximumConcurrency)
     {
     }
 

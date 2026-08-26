@@ -18,7 +18,7 @@
 
 | 版本 | 下载文件 | 运行环境 |
 | --- | --- | --- |
-| 轻量免安装版 | `CastModelMerger-portable-win-x64.exe` | 不包含运行环境，需要预先安装 **.NET 8 Desktop Runtime x64** |
+| 轻量免安装版 | `CastModelMerger-portable-win-x64.zip` | 不包含运行环境，需要预先安装 **.NET 8 Desktop Runtime x64** |
 
 ### 免安装版需要的环境
 
@@ -27,6 +27,8 @@
 - 必须安装 x64 Desktop Runtime；仅安装 x86 版本、普通 `.NET Runtime` 或 `ASP.NET Core Runtime` 不能满足本程序的 WPF 桌面运行环境。
 
 如果电脑缺少所需运行环境，双击程序时 .NET 启动器会显示缺少的框架、版本和架构，并提供下载入口。安装 .NET 8 Desktop Runtime x64 后，重新双击程序即可。也可以在命令提示符中运行 `dotnet --list-runtimes`，确认列表包含 `Microsoft.WindowsDesktop.App 8.`。
+
+下载后请完整解压 ZIP，再运行 `CastModelMerger-portable-win-x64.exe`。包内的 `model-merger-worker.exe` 是大型模型使用的原生 Rust 合并引擎，必须与主程序放在同一文件夹；普通用户不需要安装 Rust 或其他 Rust 运行环境。
 
 ## 功能
 
@@ -44,6 +46,7 @@
 - 可选择输出文件夹和输出文件名，覆盖已有文件前会确认。
 - 后台合并、阶段进度、运行日志及取消操作，界面不会因处理大模型而冻结。
 - 输出先写入临时文件并重新读取验证，成功后才生成最终文件。
+- 采用 C# / Rust 混合引擎：小模型避免进程启动开销，大模型自动交给原生 Rust worker；可查看[迁移设计与基准](docs/rust-migration.md)。
 - 中文、English、Français、Русский、Español 可在同一程序内即时切换，已有状态、日志和对话框会同步更新。
 - 中文界面使用随程序嵌入的 MiSans，其他四种语言使用 Segoe UI。
 - 可保存界面语言、输出目录、根模型模式及窗口位置；不会保存已选择的模型路径。
@@ -99,7 +102,7 @@
 
 ## 构建和测试
 
-需要 .NET 8 SDK 或能够构建 `net8.0` 项目的更新版 SDK：
+需要 .NET 8 SDK 或能够构建 `net8.0` 项目的更新版 SDK，以及 Rust 1.96 或兼容的更新稳定工具链。Rust 仅用于源码构建，发布包用户不需要安装。
 
 MiSans 的许可允许把字体嵌入应用，但不允许把字体文件作为独立资源再次分发，因此 Git 仓库不直接提交 `.ttf`。首次从源码构建前，请阅读[官方 MiSans 许可](https://hyperos.mi.com/font/en/download/)，接受后运行：
 
@@ -110,23 +113,18 @@ MiSans 的许可允许把字体嵌入应用，但不允许把字体文件作为�
 脚本从小米官网下载经校验的字体包，只提取程序使用的 Medium 字重；标题的粗体效果由 WPF 合成。下载的本地字体文件会被 Git 忽略。官方 GitHub Release 中的可执行文件已经嵌入字体，普通用户无需运行该脚本。
 
 ```powershell
+cd .\rust
+cargo test --workspace
+cd ..
 dotnet build .\src\ModelMerger\ModelMerger.sln -c Release
 dotnet test .\tests\ModelMerger.Core.Tests\ModelMerger.Core.Tests.csproj -c Release
 dotnet test .\tests\ModelMerger.Gui.Tests\ModelMerger.Gui.Tests.csproj -c Release
 ```
 
-生成项目唯一发布类型——不包含运行环境、需要 .NET 8 Desktop Runtime x64 的轻量单文件版本：
+生成项目唯一发布类型——不包含运行环境、需要 .NET 8 Desktop Runtime x64 的轻量免安装包。发布目标会自动以 Release 模式构建 Rust worker：
 
 ```powershell
-dotnet publish .\src\ModelMerger.Gui\ModelMerger.Gui.csproj `
-  -c Release `
-  -r win-x64 `
-  -p:SelfContained=false `
-  -o .\artifacts\publish\portable-win-x64
-
-Rename-Item `
-  .\artifacts\publish\portable-win-x64\CastModelMerger.exe `
-  CastModelMerger-portable-win-x64.exe
+.\scripts\Publish-FrameworkDependent.ps1
 ```
 
 ## 工程结构
@@ -135,6 +133,7 @@ Rename-Item `
 src/ModelMerger.Core   合并计划、任务调度、格式适配、合并与设置存储
 src/ModelMerger.Gui    WPF 图形界面、五语语言目录与嵌入字体资源
 src/ModelMerger        使用共享 Core 的 Cast / SEModel 命令行入口
+rust/                  Cast 编解码、扁平数据合并引擎与原生 worker
 tests/                 计划、调度、真实 Cast/SEModel、语言及 WPF 视觉冒烟测试
 ```
 
