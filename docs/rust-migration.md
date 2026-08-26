@@ -47,6 +47,7 @@ For a 20,000-triangle preview, C# and Rust geometry hashes matched and the warm 
 ```text
 rust/crates/cast-codec            Bounds-checked Cast binary codec
 rust/crates/model-merger-engine   Flat-buffer model representation and merge logic
+rust/crates/model-merger-app-core Group state, settings, localization and task scheduler
 rust/crates/model-merger-worker   Versioned NDJSON process boundary
 ```
 

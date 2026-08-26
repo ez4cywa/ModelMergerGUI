@@ -37,13 +37,15 @@ Ship a Windows x64 Cast Model Merger whose production executable, application st
 
 Acceptance closed with matching C#/Rust geometry hashes, a real sub-2 MiB model using 65,537 vertices and 32-bit face indices, and cleanup tests for acknowledgement, cancellation and input-pipe closure. Decode, payload write and payload read loops check cancellation at bounded intervals.
 
-### 3. Rust application core — next
+### 3. Rust application core — complete
 
 - Move merge-group state, validation, output planning and the two-task scheduler into Rust modules.
 - Move settings schema, atomic persistence and five-language catalogs into Rust.
 - Expose narrow interfaces usable by both the compatibility UI and native GUI tests.
 
-### 4. Native Rust GUI tracer
+Acceptance closed with public-seam tests for 15-slot group invariants, path-alias rejection and remembered input directories; schema-compatible settings replacement with interrupted-write recovery; 88 exhaustive interface and dynamic-status keys across all five languages; a hard two-task concurrency limit, bounded shutdown, queued cancellation, resolved output-path claims, structured engine errors, and a native two-part merge.
+
+### 4. Native Rust GUI tracer — next
 
 - Create the eframe shell, MiSans/Segoe-compatible font configuration and five-language switching.
 - Implement collapsible groups, the 5 × 3 slot grid, remembered input directory and output selection.

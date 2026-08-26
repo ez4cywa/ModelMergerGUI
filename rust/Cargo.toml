@@ -2,6 +2,7 @@
 members = [
     "crates/cast-codec",
     "crates/model-merger-engine",
+    "crates/model-merger-app-core",
     "crates/model-merger-worker",
 ]
 resolver = "3"
