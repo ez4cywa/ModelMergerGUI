@@ -34,6 +34,21 @@ public sealed class AdaptiveModelMergeServiceTests : IDisposable
         Assert.Equal(expectedEngine == "rust" ? 1 : 0, rust.PrepareCount);
     }
 
+    [Fact]
+    public async Task PrepareAsync_NullInputCollectionPreservesStructuredValidation()
+    {
+        var service = new AdaptiveModelMergeService(
+            new ModelMergeService(),
+            new RecordingMergeService("rust"),
+            rustThresholdBytes: 0);
+
+        var exception = await Assert.ThrowsAsync<MergeValidationException>(() =>
+            service.PrepareAsync(new MergeRequest(null!, _directory)));
+
+        Assert.Contains(exception.Errors, error =>
+            error.Code == MergeValidationErrorCode.InvalidPartCount);
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);

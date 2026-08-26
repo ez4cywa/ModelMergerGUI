@@ -91,7 +91,6 @@ pub enum MergeError {
     },
     InvalidModel(String),
     Cancelled,
-    AlreadyExecuted,
 }
 
 impl fmt::Display for MergeError {
@@ -104,9 +103,6 @@ impl fmt::Display for MergeError {
             Self::Codec(source) => write!(formatter, "Cast codec error: {source}"),
             Self::ModelRead { path, message } => write!(formatter, "{}: {message}", path.display()),
             Self::Cancelled => formatter.write_str("merge was cancelled"),
-            Self::AlreadyExecuted => {
-                formatter.write_str("prepared merge can only be executed once")
-            }
         }
     }
 }
@@ -144,7 +140,6 @@ pub struct PreparedMerge {
     root_index: usize,
     output_path: PathBuf,
     overwrite: bool,
-    executed: bool,
 }
 
 impl PreparedMerge {
@@ -153,10 +148,6 @@ impl PreparedMerge {
     }
 
     pub fn execute(mut self, observer: &impl MergeObserver) -> Result<MergeResult, MergeError> {
-        if self.executed {
-            return Err(MergeError::AlreadyExecuted);
-        }
-        self.executed = true;
         check_cancelled(observer)?;
         if self.output_path.exists() && !self.overwrite {
             return Err(validation(
@@ -373,7 +364,6 @@ pub fn prepare(
         root_index,
         output_path,
         overwrite: validated.overwrite,
-        executed: false,
     })
 }
 

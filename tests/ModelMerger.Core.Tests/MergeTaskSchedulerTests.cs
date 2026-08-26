@@ -162,12 +162,14 @@ public sealed class MergeTaskSchedulerTests : IDisposable
         var exception = await Assert.ThrowsAsync<MergeOutputConflictException>(() => second.Completion);
         Assert.Equal(outputPath, exception.OutputPath);
         Assert.Equal(1, mergeService.ExecuteStartedCount);
+        Assert.Equal(1, mergeService.DisposeCount);
         mergeService.Release();
         await first.Completion;
 
         var retryAfterCompletion = secondScheduler.Schedule(CreateRequest(3));
         await retryAfterCompletion.Completion;
         Assert.Equal(2, mergeService.ExecuteStartedCount);
+        Assert.Equal(3, mergeService.DisposeCount);
     }
 
     public void Dispose()
@@ -312,8 +314,11 @@ public sealed class MergeTaskSchedulerTests : IDisposable
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly string _outputPath = Path.GetFullPath(outputPath);
         private int _executeStartedCount;
+        private int _disposeCount;
 
         public int ExecuteStartedCount => Volatile.Read(ref _executeStartedCount);
+
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
 
         public Task<IPreparedMergeOperation> PrepareAsync(
             MergeRequest request,
@@ -332,7 +337,7 @@ public sealed class MergeTaskSchedulerTests : IDisposable
         public void Release() => _release.TrySetResult();
 
         private sealed class Operation(PreparedBlockingMergeService owner, MergeRequest request)
-            : IPreparedMergeOperation
+            : IPreparedMergeOperation, IAsyncDisposable
         {
             public string OutputPath => owner._outputPath;
 
@@ -344,6 +349,12 @@ public sealed class MergeTaskSchedulerTests : IDisposable
                 owner._executeStarted.TrySetResult();
                 await owner._release.Task.WaitAsync(cancellationToken);
                 return new MergeResult(OutputPath, "root", request.InputFiles.Count, 0, 0, []);
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Interlocked.Increment(ref owner._disposeCount);
+                return ValueTask.CompletedTask;
             }
         }
     }

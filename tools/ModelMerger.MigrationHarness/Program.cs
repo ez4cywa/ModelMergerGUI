@@ -1,7 +1,9 @@
 using ModelMerger.Core.Merging;
 using PhilLibX;
 using PhilLibX.Mathematics;
+using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -186,7 +188,10 @@ static object Summarize(string filePath)
                     Name = bone.Name(),
                     Parent = bone.ParentIndex(),
                     LocalPosition = Vector3ToArray(bone.LocalPosition()),
-                    LocalRotation = Vector4ToArray(bone.LocalRotation())
+                    LocalRotation = Vector4ToArray(bone.LocalRotation()),
+                    WorldPosition = Vector3ToArray(bone.WorldPosition()),
+                    WorldRotation = Vector4ToArray(bone.WorldRotation()),
+                    Scale = Vector3ToArray(bone.Scale())
                 }),
                 Meshes = meshes.Select(mesh => new
                 {
@@ -195,13 +200,25 @@ static object Summarize(string filePath)
                     MaximumInfluence = mesh.MaximumWeightInfluence(),
                     PositionChecksum = mesh.VertexPositionBuffer()
                         .Aggregate(0d, (sum, point) => sum + point.X + point.Y + point.Z),
-                    IndexChecksum = mesh.FaceBuffer().Aggregate(0L, (sum, index) => sum + index)
+                    IndexChecksum = mesh.FaceBuffer().Aggregate(0L, (sum, index) => sum + index),
+                    PositionHash = HashVector3(mesh.VertexPositionBuffer()),
+                    NormalHash = HashVector3(mesh.VertexNormalBuffer()),
+                    ColorHash = HashUInt32(mesh.VertexColorBuffer()),
+                    Uv0Hash = HashVector2(mesh.VertexUVLayerBuffer(0)),
+                    WeightBoneHash = HashInt32(mesh.VertexWeightBoneBuffer()),
+                    WeightValueHash = HashFloat(mesh.VertexWeightValueBuffer()),
+                    FaceHash = HashInt32(mesh.FaceBuffer()),
+                    Material = mesh.Material()?.Name()
                 }),
                 Materials = model.Materials().Select(material => material.Name()),
                 BlendShapes = model.BlendShapes().Select(shape => new
                 {
                     Name = shape.Name(),
-                    VertexCount = shape.TargetShapeVertexIndices().Count()
+                    VertexCount = shape.TargetShapeVertexIndices().Count(),
+                    IndexHash = HashInt32(shape.TargetShapeVertexIndices()),
+                    TargetPositionHash = HashVector3(shape.TargetShapeVertexPositions()),
+                    TargetScale = shape.TargetWeightScale(),
+                    BaseMeshHash = shape.BaseShape()?.Hash
                 })
             };
         });
@@ -284,5 +301,52 @@ static float[] Vector3ToArray(Cast.Vector3? vector) =>
 
 static float[] Vector4ToArray(Cast.Vector4? vector) =>
     vector is null ? [] : [vector.X, vector.Y, vector.Z, vector.W];
+
+static string HashVector2(IEnumerable<Cast.Vector2> values) => Hash(values, (hash, value) =>
+{
+    AppendFloat(hash, value.X);
+    AppendFloat(hash, value.Y);
+});
+
+static string HashVector3(IEnumerable<Cast.Vector3> values) => Hash(values, (hash, value) =>
+{
+    AppendFloat(hash, value.X);
+    AppendFloat(hash, value.Y);
+    AppendFloat(hash, value.Z);
+});
+
+static string HashFloat(IEnumerable<float> values) => Hash(values, AppendFloat);
+
+static string HashInt32(IEnumerable<int> values) => Hash(values, (hash, value) =>
+{
+    Span<byte> bytes = stackalloc byte[sizeof(int)];
+    BinaryPrimitives.WriteInt32LittleEndian(bytes, value);
+    hash.AppendData(bytes);
+});
+
+static string HashUInt32(IEnumerable<uint> values) => Hash(values, (hash, value) =>
+{
+    Span<byte> bytes = stackalloc byte[sizeof(uint)];
+    BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
+    hash.AppendData(bytes);
+});
+
+static string Hash<T>(IEnumerable<T> values, Action<IncrementalHash, T> append)
+{
+    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    foreach (var value in values)
+    {
+        append(hash, value);
+    }
+
+    return Convert.ToHexString(hash.GetHashAndReset());
+}
+
+static void AppendFloat(IncrementalHash hash, float value)
+{
+    Span<byte> bytes = stackalloc byte[sizeof(float)];
+    BinaryPrimitives.WriteSingleLittleEndian(bytes, value);
+    hash.AppendData(bytes);
+}
 
 static Quaternion IdentityRotation() => new(0, 0, 0, 1);

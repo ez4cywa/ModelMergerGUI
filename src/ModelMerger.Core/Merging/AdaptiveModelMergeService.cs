@@ -59,7 +59,7 @@ public sealed class AdaptiveModelMergeService : IModelMergeService
         long totalBytes = 0;
         try
         {
-            foreach (var input in request.InputFiles)
+            foreach (var input in request.InputFiles ?? [])
             {
                 totalBytes = checked(totalBytes + new FileInfo(input).Length);
                 if (totalBytes >= _rustThresholdBytes)

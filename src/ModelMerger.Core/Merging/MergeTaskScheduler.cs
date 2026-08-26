@@ -170,11 +170,25 @@ public sealed class MergeTaskScheduler : IMergeTaskScheduler, IDisposable
                 .PrepareAsync(handle.Request, progress, handle.CancellationToken)
                 .ConfigureAwait(false);
             MergeResult result;
-            using (_outputClaims.Claim(prepared.OutputPath))
+            try
             {
-                result = await prepared
-                    .ExecuteAsync(progress, handle.CancellationToken)
-                    .ConfigureAwait(false);
+                using (_outputClaims.Claim(prepared.OutputPath))
+                {
+                    result = await prepared
+                        .ExecuteAsync(progress, handle.CancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                if (prepared is IAsyncDisposable asyncDisposable)
+                {
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                }
+                else if (prepared is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
             }
 
             handle.MarkSucceeded(result);

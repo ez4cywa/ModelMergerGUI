@@ -302,7 +302,6 @@ fn emit_merge_error(output: &Mutex<BufWriter<std::io::Stdout>>, error: &MergeErr
         MergeError::ModelRead { .. } => unreachable!(),
         MergeError::InvalidModel(_) => "invalid_model",
         MergeError::Cancelled => "cancelled",
-        MergeError::AlreadyExecuted => "protocol",
     };
     emit_error(output, code, &error.to_string());
 }

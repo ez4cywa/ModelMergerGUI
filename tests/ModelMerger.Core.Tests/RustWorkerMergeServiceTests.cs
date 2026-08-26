@@ -109,6 +109,34 @@ public sealed class RustWorkerMergeServiceTests
         Assert.Equal("Cast", exception.FormatName);
     }
 
+    [Fact]
+    public async Task MergeAsync_ConcurrentDirectCallsClaimOutputAndDisposeRejectedWorker()
+    {
+        const string prepared =
+            """{"protocol":1,"event":"prepared","output_path":"C:\\output\\shared.cast"}""";
+        var firstWorker = new FakeRustWorkerProcess([prepared], blockWhenEmpty: true);
+        var secondWorker = new FakeRustWorkerProcess([prepared], blockWhenEmpty: true);
+        var firstService = new RustWorkerMergeService(() => firstWorker);
+        var secondService = new RustWorkerMergeService(() => secondWorker);
+        var request = new MergeRequest(
+            [@"C:\models\body.cast", @"C:\models\head.cast"],
+            @"C:\output");
+        using var firstCancellation = new CancellationTokenSource();
+
+        var first = firstService.MergeAsync(request, cancellationToken: firstCancellation.Token);
+        await firstWorker.ReadBlocked.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var conflict = await Assert.ThrowsAsync<MergeOutputConflictException>(() =>
+            secondService.MergeAsync(request));
+
+        Assert.Equal(@"C:\output\shared.cast", conflict.OutputPath);
+        Assert.True(secondWorker.HasExited);
+        Assert.Contains(secondWorker.WrittenLines, line =>
+            JsonDocument.Parse(line).RootElement.GetProperty("command").GetString() == "cancel");
+        firstCancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+    }
+
     private sealed class FakeRustWorkerProcess(
         IEnumerable<string> output,
         bool blockWhenEmpty = false) : IRustWorkerProcess
