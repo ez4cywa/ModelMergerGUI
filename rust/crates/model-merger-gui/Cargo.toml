@@ -1,0 +1,17 @@
+[package]
+name = "model-merger-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "wgpu"] }
+model-merger-app-core.workspace = true
+model-merger-engine.workspace = true
+rfd = "0.15.4"
+serde.workspace = true
+
+[[bin]]
+name = "CastModelMerger"
+path = "src/main.rs"

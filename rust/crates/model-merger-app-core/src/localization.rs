@@ -38,6 +38,7 @@ pub enum TextKey {
     SelectCast,
     SelectOutput,
     SettingsSaved,
+    SettingsSaveFailed,
     DefaultsRestored,
     Overwrite,
     OverwriteQuestion,
@@ -52,7 +53,14 @@ pub enum TextKey {
     ZoomOut,
     ResetView,
     PreviewSimplified,
+    PreviewFailed,
+    PreviewWorkerStopped,
+    Meshes,
+    Triangles,
+    Actions,
+    MiSansMissing,
     NeedTwoToFifteen,
+    Ready,
     Queued,
     Running,
     Succeeded,
@@ -130,6 +138,7 @@ impl TextKey {
         Self::SelectCast,
         Self::SelectOutput,
         Self::SettingsSaved,
+        Self::SettingsSaveFailed,
         Self::DefaultsRestored,
         Self::Overwrite,
         Self::OverwriteQuestion,
@@ -144,7 +153,14 @@ impl TextKey {
         Self::ZoomOut,
         Self::ResetView,
         Self::PreviewSimplified,
+        Self::PreviewFailed,
+        Self::PreviewWorkerStopped,
+        Self::Meshes,
+        Self::Triangles,
+        Self::Actions,
+        Self::MiSansMissing,
         Self::NeedTwoToFifteen,
+        Self::Ready,
         Self::Queued,
         Self::Running,
         Self::Succeeded,
@@ -258,6 +274,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::SelectCast => "选择 Cast 模型部件",
         TextKey::SelectOutput => "选择合并模型输出文件夹",
         TextKey::SettingsSaved => "设置已保存；不会保存模型路径",
+        TextKey::SettingsSaveFailed => "无法保存设置",
         TextKey::DefaultsRestored => "已恢复默认设置",
         TextKey::Overwrite => "覆盖输出文件",
         TextKey::OverwriteQuestion => "输出文件已存在，是否覆盖？",
@@ -272,7 +289,14 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::ZoomOut => "缩小",
         TextKey::ResetView => "重置视角",
         TextKey::PreviewSimplified => "为保持流畅已抽样显示；不会修改源文件和合并输出。",
+        TextKey::PreviewFailed => "无法预览此 Cast 文件；请检查文件是否完整且包含模型网格。",
+        TextKey::PreviewWorkerStopped => "预览任务意外停止；请关闭窗口后重试。",
+        TextKey::Meshes => "网格",
+        TextKey::Triangles => "三角形",
+        TextKey::Actions => "操作",
+        TextKey::MiSansMissing => "未找到 MiSans Medium 字体；请重新解压完整发布包。",
         TextKey::NeedTwoToFifteen => "添加 2 至 15 个 Cast 部件",
+        TextKey::Ready => "已就绪",
         TextKey::Queued => "等待处理",
         TextKey::Running => "正在处理",
         TextKey::Succeeded => "已完成",
@@ -357,6 +381,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::SelectCast => "Select a Cast model part",
         TextKey::SelectOutput => "Select merged-model output folder",
         TextKey::SettingsSaved => "Settings saved; model paths are never stored",
+        TextKey::SettingsSaveFailed => "Could not save settings",
         TextKey::DefaultsRestored => "Default settings restored",
         TextKey::Overwrite => "Replace output file",
         TextKey::OverwriteQuestion => "The output file already exists. Replace it?",
@@ -375,7 +400,20 @@ fn english(key: TextKey) -> &'static str {
         TextKey::PreviewSimplified => {
             "The view is sampled for responsiveness; source and merged output are unchanged."
         }
+        TextKey::PreviewFailed => {
+            "This Cast file cannot be previewed; check that it is complete and contains model meshes."
+        }
+        TextKey::PreviewWorkerStopped => {
+            "The preview task stopped unexpectedly; close this window and try again."
+        }
+        TextKey::Meshes => "meshes",
+        TextKey::Triangles => "triangles",
+        TextKey::Actions => "Actions",
+        TextKey::MiSansMissing => {
+            "MiSans Medium is missing; extract the complete release package again."
+        }
         TextKey::NeedTwoToFifteen => "Add 2 to 15 Cast parts",
+        TextKey::Ready => "Ready",
         TextKey::Queued => "Queued",
         TextKey::Running => "Running",
         TextKey::Succeeded => "Completed",
@@ -466,6 +504,7 @@ fn french(key: TextKey) -> &'static str {
         TextKey::SettingsSaved => {
             "Paramètres enregistrés ; les chemins des modèles ne le sont jamais"
         }
+        TextKey::SettingsSaveFailed => "Impossible d’enregistrer les paramètres",
         TextKey::DefaultsRestored => "Paramètres par défaut restaurés",
         TextKey::Overwrite => "Remplacer le fichier de sortie",
         TextKey::OverwriteQuestion => "Le fichier de sortie existe déjà. Le remplacer ?",
@@ -484,7 +523,20 @@ fn french(key: TextKey) -> &'static str {
         TextKey::PreviewSimplified => {
             "L’aperçu est échantillonné pour rester fluide ; les fichiers ne sont pas modifiés."
         }
+        TextKey::PreviewFailed => {
+            "Impossible d’afficher ce fichier Cast ; vérifiez qu’il est complet et contient des maillages."
+        }
+        TextKey::PreviewWorkerStopped => {
+            "La tâche d’aperçu s’est arrêtée ; fermez cette fenêtre et réessayez."
+        }
+        TextKey::Meshes => "maillages",
+        TextKey::Triangles => "triangles",
+        TextKey::Actions => "Actions",
+        TextKey::MiSansMissing => {
+            "MiSans Medium est absent ; extrayez à nouveau le paquet complet."
+        }
         TextKey::NeedTwoToFifteen => "Ajoutez 2 à 15 pièces Cast",
+        TextKey::Ready => "Prêt",
         TextKey::Queued => "En attente",
         TextKey::Running => "En cours",
         TextKey::Succeeded => "Terminé",
@@ -577,6 +629,7 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::SelectCast => "Выберите деталь модели Cast",
         TextKey::SelectOutput => "Выберите папку вывода",
         TextKey::SettingsSaved => "Настройки сохранены; пути моделей не сохраняются",
+        TextKey::SettingsSaveFailed => "Не удалось сохранить настройки",
         TextKey::DefaultsRestored => "Настройки по умолчанию восстановлены",
         TextKey::Overwrite => "Заменить выходной файл",
         TextKey::OverwriteQuestion => "Выходной файл уже существует. Заменить его?",
@@ -595,7 +648,18 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::PreviewSimplified => {
             "Для плавности предпросмотр упрощён; исходный и выходной файлы не меняются."
         }
+        TextKey::PreviewFailed => {
+            "Не удалось показать файл Cast; проверьте его целостность и наличие сеток модели."
+        }
+        TextKey::PreviewWorkerStopped => {
+            "Задача предпросмотра остановилась; закройте окно и повторите попытку."
+        }
+        TextKey::Meshes => "сеток",
+        TextKey::Triangles => "треугольников",
+        TextKey::Actions => "Действия",
+        TextKey::MiSansMissing => "Шрифт MiSans Medium не найден; распакуйте полный пакет ещё раз.",
         TextKey::NeedTwoToFifteen => "Добавьте от 2 до 15 деталей Cast",
+        TextKey::Ready => "Готово",
         TextKey::Queued => "В очереди",
         TextKey::Running => "Выполняется",
         TextKey::Succeeded => "Завершено",
@@ -684,6 +748,7 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::SelectCast => "Seleccionar una pieza Cast",
         TextKey::SelectOutput => "Seleccionar la carpeta de salida",
         TextKey::SettingsSaved => "Ajustes guardados; las rutas de modelos nunca se almacenan",
+        TextKey::SettingsSaveFailed => "No se pudieron guardar los ajustes",
         TextKey::DefaultsRestored => "Valores predeterminados restaurados",
         TextKey::Overwrite => "Reemplazar archivo de salida",
         TextKey::OverwriteQuestion => "El archivo de salida ya existe. ¿Quieres reemplazarlo?",
@@ -702,7 +767,18 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::PreviewSimplified => {
             "La vista se ha muestreado para mantener la fluidez; los archivos no se modifican."
         }
+        TextKey::PreviewFailed => {
+            "No se puede previsualizar este archivo Cast; comprueba que esté completo y tenga mallas."
+        }
+        TextKey::PreviewWorkerStopped => {
+            "La tarea de vista previa se detuvo; cierra esta ventana e inténtalo de nuevo."
+        }
+        TextKey::Meshes => "mallas",
+        TextKey::Triangles => "triángulos",
+        TextKey::Actions => "Acciones",
+        TextKey::MiSansMissing => "Falta MiSans Medium; vuelve a extraer el paquete completo.",
         TextKey::NeedTwoToFifteen => "Añade de 2 a 15 piezas Cast",
+        TextKey::Ready => "Listo",
         TextKey::Queued => "En espera",
         TextKey::Running => "Procesando",
         TextKey::Succeeded => "Completado",

@@ -2,7 +2,7 @@
 
 ## MiSans
 
-Official release builds of Cast Model Merger GUI embed MiSans font files supplied by Xiaomi Inc. for the Simplified Chinese interface.
+Official release builds of Cast Model Merger GUI embed the original MiSans Medium face supplied by Xiaomi Inc. for the Simplified Chinese interface.
 
 MiSans is not covered by this project's MIT License. It is used and distributed under the **MiSans Fonts Intellectual Property License Agreement**. The software visibly acknowledges its use of MiSans, as required by that agreement. The font files have not been modified.
 
@@ -14,8 +14,10 @@ MiSans font files are intentionally excluded from the Git repository. Source bui
 
 ## Rust libraries
 
-The native merge worker uses the following Rust libraries under their upstream open-source licenses:
+The native application uses the following principal Rust libraries under their upstream open-source licenses:
 
-- `serde` and `serde_json`: dual-licensed under MIT or Apache-2.0.
+- `eframe`, `egui`, `egui-wgpu`, `wgpu`, `accesskit`, `image`, `serde` and `serde_json`: MIT or Apache-2.0.
+- `rfd`: MIT.
+- `winit`: Apache-2.0.
 
-Their source and license metadata are available from the dependency versions locked in `rust/Cargo.lock` and the corresponding crates.io packages. These libraries are separate works and are not relicensed by this project's MIT License.
+Exact versions and the complete transitive dependency set are locked in `rust/Cargo.lock`; Cargo package metadata records each upstream license. These libraries are separate works and are not relicensed by this project's MIT License.

@@ -87,18 +87,12 @@ fn concurrent_tasks_cannot_claim_the_same_output_path() {
     let first = scheduler.schedule(request("shared.cast")).unwrap();
     let second = scheduler.schedule(request("shared.cast")).unwrap();
     backend.wait_for_started(1);
-    for _ in 0..1_000 {
-        if [first, second].into_iter().any(|id| {
-            scheduler
-                .snapshot(id)
-                .is_some_and(|snapshot| snapshot.state == TaskState::Failed)
-        }) {
-            break;
-        }
-        std::thread::yield_now();
-    }
+    let conflict = scheduler.wait_for_any(&[first, second], Duration::from_secs(3));
     backend.state.release.store(true, Ordering::Release);
     backend.wake_all();
+    let conflict = conflict.expect("same-output claim should fail before the first task is released");
+    assert_eq!(TaskState::Failed, conflict.state);
+    assert!(matches!(conflict.error, Some(TaskError::OutputConflict(_))));
 
     let states = [
         scheduler.wait(first).unwrap(),
@@ -132,18 +126,12 @@ fn aliased_output_paths_share_one_claim() {
     let first = scheduler.schedule(direct).unwrap();
     let second = scheduler.schedule(aliased).unwrap();
     backend.wait_for_started(1);
-    for _ in 0..1_000 {
-        if [first, second].into_iter().any(|id| {
-            scheduler
-                .snapshot(id)
-                .is_some_and(|snapshot| snapshot.state == TaskState::Failed)
-        }) {
-            break;
-        }
-        std::thread::yield_now();
-    }
+    let conflict = scheduler.wait_for_any(&[first, second], Duration::from_secs(3));
     backend.state.release.store(true, Ordering::Release);
     backend.wake_all();
+    let conflict = conflict.expect("aliased output claim should fail before release");
+    assert_eq!(TaskState::Failed, conflict.state);
+    assert!(matches!(conflict.error, Some(TaskError::OutputConflict(_))));
 
     let states = [
         scheduler.wait(first).unwrap(),

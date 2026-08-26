@@ -337,6 +337,37 @@ impl TaskScheduler {
             inner = self.shared.changed.wait(inner).unwrap();
         }
     }
+
+    pub fn wait_for_any(&self, ids: &[TaskId], timeout: Duration) -> Option<TaskSnapshot> {
+        let deadline = Instant::now() + timeout;
+        let mut inner = self.shared.inner.lock().unwrap();
+        loop {
+            if let Some(snapshot) = ids.iter().find_map(|id| {
+                inner
+                    .tasks
+                    .get(id)
+                    .filter(|task| task.state.is_terminal())
+                    .map(|task| task.snapshot(*id))
+            }) {
+                return Some(snapshot);
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            let (guard, wait) = self.shared.changed.wait_timeout(inner, remaining).unwrap();
+            inner = guard;
+            if wait.timed_out() {
+                return ids.iter().find_map(|id| {
+                    inner
+                        .tasks
+                        .get(id)
+                        .filter(|task| task.state.is_terminal())
+                        .map(|task| task.snapshot(*id))
+                });
+            }
+        }
+    }
 }
 
 impl Drop for TaskScheduler {
