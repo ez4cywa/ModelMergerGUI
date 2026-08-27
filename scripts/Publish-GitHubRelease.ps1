@@ -1,8 +1,25 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^v\d+\.\d+\.\d+$')]
+    [string]$Tag,
+
+    [Parameter(Mandatory = $true)]
+    [string]$NotesPath
+)
+
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $apiBase = 'https://api.github.com/repos/ez4cywa/ModelMergerGUI'
-$tag = 'v2.0.0'
+$resolvedNotesPath = if ([System.IO.Path]::IsPathRooted($NotesPath)) {
+    $NotesPath
+}
+else {
+    Join-Path $repositoryRoot $NotesPath
+}
+if (-not (Test-Path -LiteralPath $resolvedNotesPath -PathType Leaf)) {
+    throw "Release notes are missing: $resolvedNotesPath"
+}
 
 $credentialInput = [string]::Join(
     [Environment]::NewLine,
@@ -39,66 +56,27 @@ foreach ($requiredPath in @($archivePath, $hashPath)) {
     }
 }
 $sha256 = ((Get-Content -LiteralPath $hashPath -Raw).Trim() -split '\s+')[0]
-
-$body = @'
-## v2.0.0 中文说明
-
-这是 Cast Model Merger GUI 的全 Rust 原生版本，合并引擎、任务调度、五语界面和 3D 预览均已迁移到 Rust。
-
-### 本次改进
-
-- “添加下一个”和空槽位现在都支持一次多选多个 `.cast` 文件，并按返回顺序填入剩余槽位；每组仍严格限制为 15 个部件。
-- 部件卡片改为固定宽度和垂直布局，长文件名自动省略，悬停可查看完整路径，不再挤压右侧设置区。
-- “本组状态”改为始终可见的横向百分比进度条，同时保留本地化阶段状态和运行日志。
-- 更新中文、English 最新主界面截图，并完成五种语言、键盘焦点和 AccessKit 进度语义检查。
-- 单一 Windows x64 原生程序，不需要安装 .NET、Rust 或额外运行环境；预览需要支持 Direct3D 12 的显卡驱动。
-
-下载并完整解压 `CastModelMerger-win-x64.zip`，然后运行 `CastModelMerger.exe`。
-
-SHA-256：`$sha256`
-
-![中文主界面](https://raw.githubusercontent.com/ez4cywa/ModelMergerGUI/main/docs/images/rust-native/main-window-zh.png)
-
-![English interface](https://raw.githubusercontent.com/ez4cywa/ModelMergerGUI/main/docs/images/rust-native/main-window-en.png)
-
-![模型预览](https://raw.githubusercontent.com/ez4cywa/ModelMergerGUI/main/docs/images/rust-native/model-preview-zh.png)
-
----
-
-## v2.0.0 English notes
-
-This is the fully Rust-native Cast Model Merger GUI. The merge engine, scheduler, five-language UI, settings, and interactive 3D preview now run in one Rust application.
-
-- Add next and every empty slot now open a multi-select `.cast` picker and fill the remaining slots in returned order, up to 15 parts per group.
-- Fixed-width vertical part cards truncate long names and show the full path on hover, so file names can no longer squeeze the settings pane.
-- Group status now uses an always-visible horizontal percentage progress bar with localized stage text and logs.
-- Updated Chinese and English screenshots and rechecked all five languages, keyboard focus, and AccessKit progress semantics.
-- The Windows x64 ZIP requires no .NET or Rust installation. A Direct3D 12-capable graphics driver is required for preview rendering.
-
-Extract `CastModelMerger-win-x64.zip` completely and run `CastModelMerger.exe`.
-
-SHA-256: `$sha256`
-'@
-$body = $body.Replace('$sha256', $sha256).Replace('$tag', $tag)
+$body = (Get-Content -LiteralPath $resolvedNotesPath -Raw)
+$body = $body.Replace('{{SHA256}}', $sha256).Replace('{{TAG}}', $Tag)
 
 $release = $null
 try {
-    $existing = Invoke-RestMethod -Method Get -Uri "$apiBase/releases/tags/$tag" -Headers $headers
+    $existing = Invoke-RestMethod -Method Get -Uri "$apiBase/releases/tags/$Tag" -Headers $headers
     if (-not $existing.draft) {
-        throw "A published release already exists for ${tag}: $($existing.html_url)"
+        throw "A published release already exists for ${Tag}: $($existing.html_url)"
     }
     $release = $existing
 }
 catch {
-    if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+    if ($null -eq $_.Exception.Response -or $_.Exception.Response.StatusCode.value__ -ne 404) {
         throw
     }
 }
 
 $payload = @{
-    tag_name = $tag
+    tag_name = $Tag
     target_commitish = 'main'
-    name = 'Cast Model Merger GUI v2.0.0'
+    name = "Cast Model Merger GUI $Tag"
     body = $body
     draft = $true
     prerelease = $false

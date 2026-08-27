@@ -588,7 +588,7 @@ dependencies = [
 
 [[package]]
 name = "cast-codec"
-version = "2.0.0"
+version = "2.0.1"
 
 [[package]]
 name = "cc"
@@ -1701,7 +1701,7 @@ dependencies = [
 
 [[package]]
 name = "model-merger-app-core"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "model-merger-engine",
  "serde",
@@ -1710,25 +1710,26 @@ dependencies = [
 
 [[package]]
 name = "model-merger-engine"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "cast-codec",
 ]
 
 [[package]]
 name = "model-merger-gui"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "eframe",
  "model-merger-app-core",
  "model-merger-engine",
  "rfd",
  "serde",
+ "winresource",
 ]
 
 [[package]]
 name = "model-merger-worker"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "model-merger-engine",
  "serde",
@@ -3972,6 +3973,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winresource"
+version = "0.1.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0986a8b1d586b7d3e4fe3d9ea39fb451ae22869dcea4aa109d287a374d866087"
+dependencies = [
+ "version_check",
 ]
 
 [[package]]

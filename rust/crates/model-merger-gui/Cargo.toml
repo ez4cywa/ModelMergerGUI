@@ -12,6 +12,9 @@ model-merger-engine.workspace = true
 rfd = "0.15.4"
 serde.workspace = true
 
+[build-dependencies]
+winresource = { version = "0.1.31", default-features = false }
+
 [[bin]]
 name = "CastModelMerger"
 path = "src/main.rs"

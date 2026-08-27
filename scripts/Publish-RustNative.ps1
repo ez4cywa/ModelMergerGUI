@@ -76,6 +76,11 @@ finally {
     $stream.Dispose()
 }
 Copy-Item -LiteralPath $executable -Destination $resolvedPublishDirectory
+$publishedExecutable = Join-Path $resolvedPublishDirectory 'CastModelMerger.exe'
+& (Join-Path $PSScriptRoot 'Test-WindowsIcon.ps1') -ExecutablePath $publishedExecutable
+if ($LASTEXITCODE -ne 0) {
+    throw "Windows icon verification failed with exit code $LASTEXITCODE."
+}
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') -Destination $resolvedPublishDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $resolvedPublishDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'THIRD-PARTY-NOTICES.md') -Destination $resolvedPublishDirectory
