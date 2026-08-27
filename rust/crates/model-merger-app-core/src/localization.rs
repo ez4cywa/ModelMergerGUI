@@ -246,7 +246,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::RestoreDefaults => "恢复默认",
         TextKey::Group => "模型组",
         TextKey::ModelParts => "模型部件",
-        TextKey::ModelPartsHint => "点击空槽逐个添加，或将多个 .cast 文件拖到本组",
+        TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
         TextKey::AddNext => "添加下一个",
         TextKey::Clear => "清空",
         TextKey::RootModel => "根模型",
@@ -271,7 +271,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::SetAsRoot => "设为根",
         TextKey::RootBadge => "根",
         TextKey::FileMissing => "文件缺失",
-        TextKey::SelectCast => "选择 Cast 模型部件",
+        TextKey::SelectCast => "选择一个或多个 Cast 模型部件",
         TextKey::SelectOutput => "选择合并模型输出文件夹",
         TextKey::SettingsSaved => "设置已保存；不会保存模型路径",
         TextKey::SettingsSaveFailed => "无法保存设置",
@@ -352,7 +352,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::Group => "Model group",
         TextKey::ModelParts => "Model parts",
         TextKey::ModelPartsHint => {
-            "Select empty slots one at a time or drop multiple .cast files here"
+            "Use Add next or an empty slot to select multiple .cast files, or drop them here"
         }
         TextKey::AddNext => "Add next",
         TextKey::Clear => "Clear",
@@ -378,7 +378,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::SetAsRoot => "Set as root",
         TextKey::RootBadge => "Root",
         TextKey::FileMissing => "File missing",
-        TextKey::SelectCast => "Select a Cast model part",
+        TextKey::SelectCast => "Select one or more Cast model parts",
         TextKey::SelectOutput => "Select merged-model output folder",
         TextKey::SettingsSaved => "Settings saved; model paths are never stored",
         TextKey::SettingsSaveFailed => "Could not save settings",
@@ -473,7 +473,7 @@ fn french(key: TextKey) -> &'static str {
         TextKey::Group => "Groupe de modèles",
         TextKey::ModelParts => "Pièces du modèle",
         TextKey::ModelPartsHint => {
-            "Sélectionnez les emplacements un par un ou déposez plusieurs fichiers .cast"
+            "Ajoutez plusieurs fichiers .cast avec Ajouter ou un emplacement vide, ou déposez-les ici"
         }
         TextKey::AddNext => "Ajouter le suivant",
         TextKey::Clear => "Effacer",
@@ -499,7 +499,7 @@ fn french(key: TextKey) -> &'static str {
         TextKey::SetAsRoot => "Définir comme racine",
         TextKey::RootBadge => "Racine",
         TextKey::FileMissing => "Fichier manquant",
-        TextKey::SelectCast => "Sélectionner une pièce Cast",
+        TextKey::SelectCast => "Sélectionner une ou plusieurs pièces Cast",
         TextKey::SelectOutput => "Sélectionner le dossier de sortie",
         TextKey::SettingsSaved => {
             "Paramètres enregistrés ; les chemins des modèles ne le sont jamais"
@@ -600,7 +600,7 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::Group => "Группа моделей",
         TextKey::ModelParts => "Детали модели",
         TextKey::ModelPartsHint => {
-            "Выбирайте пустые ячейки по одной или перетащите несколько файлов .cast"
+            "Выберите несколько файлов .cast через добавление или пустую ячейку либо перетащите их сюда"
         }
         TextKey::AddNext => "Добавить следующую",
         TextKey::Clear => "Очистить",
@@ -626,7 +626,7 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::SetAsRoot => "Сделать корневой",
         TextKey::RootBadge => "Корень",
         TextKey::FileMissing => "Файл отсутствует",
-        TextKey::SelectCast => "Выберите деталь модели Cast",
+        TextKey::SelectCast => "Выберите одну или несколько деталей Cast",
         TextKey::SelectOutput => "Выберите папку вывода",
         TextKey::SettingsSaved => "Настройки сохранены; пути моделей не сохраняются",
         TextKey::SettingsSaveFailed => "Не удалось сохранить настройки",
@@ -719,7 +719,7 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::Group => "Grupo de modelos",
         TextKey::ModelParts => "Piezas del modelo",
         TextKey::ModelPartsHint => {
-            "Selecciona espacios vacíos uno a uno o arrastra varios archivos .cast"
+            "Selecciona varios archivos .cast con Añadir o un espacio vacío, o arrástralos aquí"
         }
         TextKey::AddNext => "Añadir siguiente",
         TextKey::Clear => "Vaciar",
@@ -745,7 +745,7 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::SetAsRoot => "Fijar raíz",
         TextKey::RootBadge => "Raíz",
         TextKey::FileMissing => "Falta el archivo",
-        TextKey::SelectCast => "Seleccionar una pieza Cast",
+        TextKey::SelectCast => "Seleccionar una o varias piezas Cast",
         TextKey::SelectOutput => "Seleccionar la carpeta de salida",
         TextKey::SettingsSaved => "Ajustes guardados; las rutas de modelos nunca se almacenan",
         TextKey::SettingsSaveFailed => "No se pudieron guardar los ajustes",

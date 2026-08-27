@@ -205,6 +205,17 @@ impl WorkspaceState {
         group.plan.add_part(path)
     }
 
+    pub fn add_parts<I, P>(&mut self, group_index: usize, paths: I) -> Vec<AddPartResult>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<Path>,
+    {
+        paths
+            .into_iter()
+            .map(|path| self.add_part(group_index, path))
+            .collect()
+    }
+
     pub fn replace_part(
         &mut self,
         group_index: usize,

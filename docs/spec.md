@@ -17,11 +17,10 @@
 - The scheduler owns queued, running, succeeded, failed, and cancelled task states; queued and running tasks can be cancelled.
 - Concurrent groups cannot claim the same resolved output path, and conflicts stop before mesh merge work.
 - Show 15 numbered slots in a 5 by 3 visual layout and an `n / 15` counter.
-- An empty slot can add one part with a single-selection file dialog.
-- “Add next part” adds one file to the first empty slot.
+- An empty slot and “Add next part” both open a multi-selection file dialog and append the returned files to the remaining slots in order.
 - Within each group, subsequent part dialogs start in the directory of the most recently accepted part.
 - Drag-and-drop can add multiple parts up to the remaining capacity.
-- A filled slot shows its file name and validation state and can be removed or replaced.
+- A filled slot uses a fixed card width, truncates long file names with an ellipsis, exposes the full path on hover, and can be removed or replaced without widening the workspace or squeezing the settings column.
 - A filled slot can open an interactive 3D preview without changing the selected file or merge plan.
 - Reject duplicates, missing files, non-Cast files, and additions beyond slot 15 without disturbing accepted slots.
 - Disable merging until at least two valid parts are selected.
@@ -30,7 +29,7 @@
 
 - Preserve the upstream automatic root-model and bone-connection behaviour by default.
 - Allow a user to mark one selected part as the manual root.
-- Run loading and merging away from the UI thread and report stage progress.
+- Run loading and merging away from the UI thread and report stage progress through an always-visible horizontal percentage progress bar plus localized status text.
 - Allow cancellation at safe processing points.
 - Let the user choose the output folder and output file name.
 - Default to a `Merged Models` folder next to the first selected part and the root model name.

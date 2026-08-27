@@ -42,6 +42,26 @@ fn slot_grid_reflows_before_horizontal_scrolling_is_needed() {
     assert_eq!(2, slot_columns(360.0));
 }
 
+#[test]
+fn batch_import_preserves_selection_order_and_respects_the_fifteen_part_limit() {
+    let directory = TestDirectory::new();
+    let paths: Vec<_> = (1..=16)
+        .map(|index| directory.cast(&format!("part-{index:02}.cast")))
+        .collect();
+    let mut state = NativeAppState::new(AppSettings::default());
+
+    let results = state.add_parts(0, paths.iter());
+
+    assert_eq!(16, results.len());
+    assert!(
+        results[..15]
+            .iter()
+            .all(|result| result.status == AddPartStatus::Added)
+    );
+    assert_eq!(AddPartStatus::Full, results[15].status);
+    assert_eq!(paths[..15], state.groups()[0].plan.state().part_files);
+}
+
 struct TestDirectory {
     path: PathBuf,
 }

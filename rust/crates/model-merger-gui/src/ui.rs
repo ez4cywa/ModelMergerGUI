@@ -105,16 +105,23 @@ impl NativeApp {
         if let Some(directory) = recent {
             dialog = dialog.set_directory(directory);
         }
-        let Some(path) = dialog.pick_file() else {
-            return;
-        };
-        let result = if let Some(part_index) = replace_index {
-            self.state.replace_part(group_index, part_index, path)
+        let results = if let Some(part_index) = replace_index {
+            let Some(path) = dialog.pick_file() else {
+                return;
+            };
+            vec![self.state.replace_part(group_index, part_index, path)]
         } else {
-            self.state.add_part(group_index, path)
+            let Some(paths) = dialog.pick_files() else {
+                return;
+            };
+            self.state.add_parts(group_index, paths)
         };
-        if result.status != AddPartStatus::Added {
-            self.notice = Some(UiNotice::AddPart(result.status));
+        if let Some(status) = results
+            .iter()
+            .rev()
+            .find_map(|result| (result.status != AddPartStatus::Added).then_some(result.status))
+        {
+            self.notice = Some(UiNotice::AddPart(status));
         }
     }
 
@@ -353,9 +360,11 @@ impl NativeApp {
                         });
                     ui.add_space(8.0);
                 }
+                let workspace_width = visible_available_width(ui);
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
+                        ui.set_width(workspace_width);
                         let count = self.state.groups().len();
                         for group_index in 0..count {
                             self.group_card(ui, group_index);
@@ -373,9 +382,11 @@ impl NativeApp {
         let group_snapshot = self.state.groups()[group_index].plan.state();
         let collapsed = self.state.groups()[group_index].collapsed;
         let task_id = self.state.groups()[group_index].task_id();
+        let group_inner_width = (visible_available_width(ui) - 32.0).max(280.0);
         let response = panel_frame()
             .inner_margin(egui::Margin::same(16))
             .show(ui, |ui| {
+                ui.set_width(group_inner_width);
                 ui.horizontal_wrapped(|ui| {
                     if sized_button(
                         ui,
@@ -447,12 +458,18 @@ impl NativeApp {
                     ui.allocate_ui_with_layout(
                         egui::vec2(slots_width, panel_height),
                         egui::Layout::top_down(egui::Align::Min),
-                        |ui| self.parts_panel(ui, group_index, task_id.is_some()),
+                        |ui| {
+                            ui.set_width(slots_width);
+                            self.parts_panel(ui, group_index, task_id.is_some(), slots_width);
+                        },
                     );
                     ui.allocate_ui_with_layout(
                         egui::vec2(settings_width, panel_height),
                         egui::Layout::top_down(egui::Align::Min),
-                        |ui| self.settings_panel(ui, group_index, task_id.is_some()),
+                        |ui| {
+                            ui.set_width(settings_width);
+                            self.settings_panel(ui, group_index, task_id.is_some());
+                        },
                     );
                 });
             })
@@ -467,7 +484,13 @@ impl NativeApp {
         }
     }
 
-    fn parts_panel(&mut self, ui: &mut egui::Ui, group_index: usize, locked: bool) {
+    fn parts_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        group_index: usize,
+        locked: bool,
+        panel_width: f32,
+    ) {
         let catalog = self.catalog();
         let snapshot = self.state.groups()[group_index].plan.state();
         ui.add_enabled_ui(!locked, |ui| {
@@ -492,13 +515,14 @@ impl NativeApp {
                     self.state.clear_parts(group_index);
                 }
             });
-            let columns = slot_columns(ui.available_width());
+            let columns = slot_columns(panel_width);
+            let card_width = slot_card_width(panel_width, columns);
             egui::Grid::new(("parts-grid", group_index))
                 .num_columns(columns)
                 .spacing(egui::vec2(8.0, 8.0))
                 .show(ui, |ui| {
                     for slot in 0..SLOT_COUNT {
-                        self.slot_card(ui, group_index, slot, &snapshot.part_files);
+                        self.slot_card(ui, group_index, slot, &snapshot.part_files, card_width);
                         if (slot + 1) % columns == 0 {
                             ui.end_row();
                         }
@@ -507,65 +531,81 @@ impl NativeApp {
         });
     }
 
-    fn slot_card(&mut self, ui: &mut egui::Ui, group_index: usize, slot: usize, parts: &[PathBuf]) {
+    fn slot_card(
+        &mut self,
+        ui: &mut egui::Ui,
+        group_index: usize,
+        slot: usize,
+        parts: &[PathBuf],
+        card_width: f32,
+    ) {
         let catalog = self.catalog();
-        let width =
-            ((ui.available_width() - 8.0) / slot_columns(ui.available_width()) as f32).max(112.0);
+        let content_width = (card_width - 16.0).max(96.0);
         egui::Frame::new()
             .fill(theme::PANEL)
             .stroke(Stroke::new(1.0, theme::BORDER))
             .corner_radius(6.0)
             .inner_margin(egui::Margin::same(8))
             .show(ui, |ui| {
-                ui.set_min_size(egui::vec2(width, 108.0));
-                ui.label(RichText::new(format!("{:02}", slot + 1)).size(13.0));
-                if let Some(path) = parts.get(slot) {
-                    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
-                    ui.label(RichText::new(file_name.as_ref()).size(15.0))
+                ui.set_width(content_width);
+                ui.set_min_height(108.0);
+                ui.vertical(|ui| {
+                    ui.set_width(content_width);
+                    ui.label(RichText::new(format!("{:02}", slot + 1)).size(13.0));
+                    if let Some(path) = parts.get(slot) {
+                        let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                        ui.add_sized(
+                            [content_width, 22.0],
+                            truncated_file_name_label(file_name.as_ref()),
+                        )
                         .on_hover_text(path.display().to_string());
-                    if !path.is_file() {
-                        ui.colored_label(theme::DESTRUCTIVE, catalog.text(TextKey::FileMissing));
-                    }
-                    ui.horizontal_wrapped(|ui| {
-                        if ui
-                            .add(
-                                egui::Button::new(catalog.text(TextKey::Preview))
-                                    .min_size(egui::vec2(64.0, 44.0)),
-                            )
-                            .clicked()
-                        {
-                            self.open_preview(path);
+                        if !path.is_file() {
+                            ui.colored_label(
+                                theme::DESTRUCTIVE,
+                                catalog.text(TextKey::FileMissing),
+                            );
                         }
-                        ui.menu_button(catalog.text(TextKey::Actions), |ui| {
-                            if ui.button(catalog.text(TextKey::Replace)).clicked() {
-                                self.add_part_dialog(group_index, Some(slot));
-                                ui.close();
-                            }
-                            if ui.button(catalog.text(TextKey::SetAsRoot)).clicked() {
-                                self.state.set_group_manual_root(group_index, slot);
-                                ui.close();
-                            }
+                        ui.horizontal_wrapped(|ui| {
                             if ui
-                                .button(
-                                    RichText::new(catalog.text(TextKey::Remove))
-                                        .color(theme::DESTRUCTIVE),
+                                .add(
+                                    egui::Button::new(catalog.text(TextKey::Preview))
+                                        .min_size(egui::vec2(64.0, 44.0)),
                                 )
                                 .clicked()
                             {
-                                self.state.remove_part(group_index, slot);
-                                ui.close();
+                                self.open_preview(path);
                             }
+                            ui.menu_button(catalog.text(TextKey::Actions), |ui| {
+                                if ui.button(catalog.text(TextKey::Replace)).clicked() {
+                                    self.add_part_dialog(group_index, Some(slot));
+                                    ui.close();
+                                }
+                                if ui.button(catalog.text(TextKey::SetAsRoot)).clicked() {
+                                    self.state.set_group_manual_root(group_index, slot);
+                                    ui.close();
+                                }
+                                if ui
+                                    .button(
+                                        RichText::new(catalog.text(TextKey::Remove))
+                                            .color(theme::DESTRUCTIVE),
+                                    )
+                                    .clicked()
+                                {
+                                    self.state.remove_part(group_index, slot);
+                                    ui.close();
+                                }
+                            });
                         });
-                    });
-                } else if ui
-                    .add_sized(
-                        [width - 16.0, 72.0],
-                        egui::Button::new(catalog.text(TextKey::AddPart)),
-                    )
-                    .clicked()
-                {
-                    self.add_part_dialog(group_index, None);
-                }
+                    } else if ui
+                        .add_sized(
+                            [content_width, 72.0],
+                            egui::Button::new(catalog.text(TextKey::AddPart)),
+                        )
+                        .clicked()
+                    {
+                        self.add_part_dialog(group_index, None);
+                    }
+                });
             });
     }
 
@@ -599,6 +639,8 @@ impl NativeApp {
                 let mut selected = current;
                 egui::ComboBox::from_id_salt(("manual-root", group_index))
                     .selected_text(short_name(&snapshot.part_files[current]))
+                    .width(ui.available_width())
+                    .truncate()
                     .show_ui(ui, |ui| {
                         for (index, path) in snapshot.part_files.iter().enumerate() {
                             ui.selectable_value(&mut selected, index, short_name(path));
@@ -612,8 +654,9 @@ impl NativeApp {
             ui.label(catalog.text(TextKey::OutputFolder));
             let mut output_directory = snapshot.output_directory.display().to_string();
             ui.horizontal(|ui| {
+                let field_width = (ui.available_width() - 88.0).max(96.0);
                 ui.add_sized(
-                    [ui.available_width() - 80.0, 44.0],
+                    [field_width, 44.0],
                     egui::TextEdit::singleline(&mut output_directory).interactive(false),
                 );
                 if sized_button(ui, catalog.text(TextKey::Browse)).clicked() {
@@ -641,7 +684,6 @@ impl NativeApp {
             }
         });
         ui.add_space(12.0);
-        ui.label(RichText::new(catalog.text(TextKey::GroupStatus)).size(18.0));
         let progress = self.state.groups()[group_index]
             .task_id()
             .and_then(|id| self.scheduler.snapshot(id))
@@ -650,24 +692,26 @@ impl NativeApp {
             .as_ref()
             .and_then(|snapshot| snapshot.progress.as_ref())
             .map_or(0.0, |progress| {
-                if progress.total == 0 {
-                    0.0
-                } else {
-                    progress.current as f32 / progress.total as f32
-                }
+                normalized_progress(progress.current, progress.total)
             });
-        let progress_width = ui.available_width();
-        egui::Frame::new()
-            .fill(theme::PROGRESS_TRACK)
-            .corner_radius(12.0)
-            .show(ui, |ui| {
-                ui.add(
-                    egui::ProgressBar::new(progress_value)
-                        .desired_width(progress_width)
-                        .desired_height(24.0)
-                        .show_percentage(),
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(catalog.text(TextKey::GroupStatus)).size(18.0));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    RichText::new(format!("{:.0}%", progress_value * 100.0)).color(theme::PRIMARY),
                 );
             });
+        });
+        ui.scope(|ui| {
+            ui.style_mut().visuals.extreme_bg_color = theme::PROGRESS_TRACK;
+            ui.add(
+                egui::ProgressBar::new(progress_value)
+                    .desired_width(ui.available_width())
+                    .desired_height(28.0)
+                    .corner_radius(6.0)
+                    .fill(theme::PRIMARY),
+            );
+        });
         let status = progress
             .as_ref()
             .and_then(|snapshot| snapshot.progress.as_ref())
@@ -756,15 +800,13 @@ impl NativeApp {
         else {
             return;
         };
-        let mut last_error = None;
-        for path in paths {
-            let result = self.state.add_part(group_index, path);
-            if result.status != AddPartStatus::Added {
-                last_error = Some(result.status);
-            }
-        }
-        if last_error.is_some() {
-            self.notice = last_error.map(UiNotice::AddPart);
+        let results = self.state.add_parts(group_index, paths);
+        if let Some(status) = results
+            .iter()
+            .rev()
+            .find_map(|result| (result.status != AddPartStatus::Added).then_some(result.status))
+        {
+            self.notice = Some(UiNotice::AddPart(status));
         }
     }
 
@@ -852,6 +894,36 @@ fn panel_frame() -> egui::Frame {
 
 fn sized_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
     ui.add(egui::Button::new(label).min_size(egui::vec2(80.0, 44.0)))
+}
+
+fn visible_available_width(ui: &egui::Ui) -> f32 {
+    let viewport_right = ui
+        .ctx()
+        .input(|input| input.viewport().inner_rect.map(|rect| rect.right()))
+        .unwrap_or_else(|| ui.ctx().content_rect().right());
+    let visible = viewport_right - ui.next_widget_position().x;
+    ui.available_width().min(visible).max(0.0)
+}
+
+fn slot_card_width(available_width: f32, columns: usize) -> f32 {
+    let columns = columns.max(1);
+    let spacing = 8.0 * columns.saturating_sub(1) as f32;
+    (((available_width - spacing) / columns as f32) / 8.0)
+        .floor()
+        .mul_add(8.0, 0.0)
+        .max(112.0)
+}
+
+fn normalized_progress(current: usize, total: usize) -> f32 {
+    if total == 0 {
+        0.0
+    } else {
+        (current as f32 / total as f32).clamp(0.0, 1.0)
+    }
+}
+
+fn truncated_file_name_label(file_name: &str) -> egui::Label {
+    egui::Label::new(RichText::new(file_name.to_owned()).size(15.0)).truncate()
 }
 
 fn top_title(ui: &mut egui::Ui, catalog: Catalog) {
@@ -1111,10 +1183,16 @@ mod tests {
                 .iter()
                 .filter(|(_, node)| node.role() == Role::TextInput)
                 .count();
+            let progress_count = update
+                .nodes
+                .iter()
+                .filter(|(_, node)| node.role() == Role::ProgressIndicator)
+                .count();
             let tree = format!("{:?}", update.nodes);
 
             assert!(button_count >= 20, "expected slot and command buttons");
             assert!(text_input_count >= 2, "expected labeled output fields");
+            assert!(progress_count >= 1, "expected an accessible progress bar");
             assert!(
                 tree.contains(Catalog::new(language).text(TextKey::AppTitle)),
                 "localized title should be present in the accessibility tree"
@@ -1167,5 +1245,68 @@ mod tests {
         let message = task_error_message(catalog, &error);
         assert!(message.contains("broken.cast"));
         assert!(message.contains("truncated face buffer"));
+    }
+
+    #[test]
+    fn progress_fraction_is_bounded_and_handles_an_empty_total() {
+        assert_eq!(0.0, normalized_progress(0, 0));
+        assert_eq!(0.5, normalized_progress(1, 2));
+        assert_eq!(1.0, normalized_progress(4, 2));
+    }
+
+    #[test]
+    fn slot_cards_share_the_available_width_without_overflowing() {
+        assert_eq!(144.0, slot_card_width(760.0, 5));
+        assert_eq!(112.0, slot_card_width(360.0, 3));
+    }
+
+    #[test]
+    fn long_file_names_do_not_expand_the_workspace_past_the_viewport() {
+        let directory = std::env::temp_dir().join(format!(
+            "model-merger-long-filename-layout-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory
+            .join("01_att_t10_vm_p50_dm_erie_rec_LOD0_with_an_intentionally_long_filename.cast");
+        std::fs::write(&path, b"cast").unwrap();
+
+        let context = egui::Context::default();
+        context.set_theme(egui::ThemePreference::Light);
+        let mut state = NativeAppState::new(model_merger_app_core::AppSettings::default());
+        assert_eq!(AddPartStatus::Added, state.add_part(0, &path).status);
+        let mut app = NativeApp {
+            state,
+            store: SettingsStore::new(directory.join("settings.json")),
+            scheduler: TaskScheduler::native(2).unwrap(),
+            notice: None,
+            configured_language: AppLanguage::English,
+            previews: Vec::new(),
+            next_preview_id: 1,
+            drop_target: None,
+            pending_group_delete: None,
+            pending_overwrites: VecDeque::new(),
+        };
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1180.0, 860.0),
+            )),
+            ..Default::default()
+        };
+        let mut root_rect = egui::Rect::NOTHING;
+
+        let output = context.run_ui(input, |ui| {
+            app.central_workspace(ui);
+            root_rect = ui.min_rect();
+        });
+        output.drop_without_applying_deltas();
+        let _ = std::fs::remove_dir_all(directory);
+
+        assert!(
+            root_rect.right() <= 1182.0,
+            "workspace overflowed to x={}",
+            root_rect.right()
+        );
     }
 }

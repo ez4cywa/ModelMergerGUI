@@ -90,7 +90,8 @@ fn concurrent_tasks_cannot_claim_the_same_output_path() {
     let conflict = scheduler.wait_for_any(&[first, second], Duration::from_secs(3));
     backend.state.release.store(true, Ordering::Release);
     backend.wake_all();
-    let conflict = conflict.expect("same-output claim should fail before the first task is released");
+    let conflict =
+        conflict.expect("same-output claim should fail before the first task is released");
     assert_eq!(TaskState::Failed, conflict.state);
     assert!(matches!(conflict.error, Some(TaskError::OutputConflict(_))));
 

@@ -7,6 +7,9 @@ The generated landing-page pattern is not applicable to this desktop productivit
 - Chinese text uses only MiSans Medium. Other languages prefer the installed Segoe UI face, with MiSans Medium as fallback. Body text is 15 px; helper text is at least 13 px; section headings are 17–18 px.
 - Primary text `#0F172A`, secondary text `#475569`, background `#F8FAFC`, panel `#FFFFFF`, border `#CBD5E1`, primary/focus `#2563EB`, destructive `#DC2626`.
 - Interactive targets are at least 44 px high. Slot cards are at least 136 × 108 px. Keep 8 px between controls and 16 px panel padding.
+- Give every slot card an explicit grid-derived width and a vertical internal layout. Truncate long file names with an ellipsis and expose the complete path in a tooltip; slot content must never widen the left pane or reduce the reserved 300 px settings pane.
+- “Add next” and empty-slot actions use the same multi-select Cast picker. Accepted files fill the remaining slots in returned order and the 15-part capacity remains visible.
+- Group status uses a full-width 28 px horizontal progress track with a separate visible percentage and localized state label. The track remains visible at 0%, and the progress widget keeps its accessibility role and numeric value.
 - Every field has a persistent visible label. Put validation and task errors next to the affected group; never rely on red color alone.
 - Preserve visible keyboard focus. Logical tab order follows top commands → group summary → slots → group settings → group actions → bottom actions.
 - Motion is limited to native focus/hover feedback and collapsible panels. Do not animate layout size or use decorative reveals.
