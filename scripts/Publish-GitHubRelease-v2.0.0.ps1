@@ -57,11 +57,11 @@ $body = @'
 
 SHA-256：`$sha256`
 
-![中文主界面](https://github.com/ez4cywa/ModelMergerGUI/releases/download/$tag/main-window-zh.png)
+![中文主界面](https://raw.githubusercontent.com/ez4cywa/ModelMergerGUI/main/docs/images/rust-native/main-window-zh.png)
 
-![English interface](https://github.com/ez4cywa/ModelMergerGUI/releases/download/$tag/main-window-en.png)
+![English interface](https://raw.githubusercontent.com/ez4cywa/ModelMergerGUI/main/docs/images/rust-native/main-window-en.png)
 
-![模型预览](https://github.com/ez4cywa/ModelMergerGUI/releases/download/$tag/model-preview-zh.png)
+![模型预览](https://raw.githubusercontent.com/ez4cywa/ModelMergerGUI/main/docs/images/rust-native/model-preview-zh.png)
 
 ---
 
@@ -111,18 +111,12 @@ if ($null -eq $release) {
 }
 
 $assets = @(
-    @{ Path = $archivePath; Name = 'CastModelMerger-win-x64.zip'; Type = 'application/zip' },
-    @{ Path = $hashPath; Name = 'CastModelMerger-win-x64.zip.sha256'; Type = 'text/plain' },
-    @{ Path = (Join-Path $repositoryRoot 'THIRD-PARTY-NOTICES.md'); Name = 'THIRD-PARTY-NOTICES.md'; Type = 'text/markdown' },
-    @{ Path = (Join-Path $repositoryRoot 'docs\images\rust-native\main-window-zh.png'); Name = 'main-window-zh.png'; Type = 'image/png' },
-    @{ Path = (Join-Path $repositoryRoot 'docs\images\rust-native\main-window-en.png'); Name = 'main-window-en.png'; Type = 'image/png' },
-    @{ Path = (Join-Path $repositoryRoot 'docs\images\rust-native\model-preview-zh.png'); Name = 'model-preview-zh.png'; Type = 'image/png' }
+    @{ Path = $archivePath; Name = 'CastModelMerger-win-x64.zip'; Type = 'application/zip' }
 )
+$assetNames = @($assets | ForEach-Object { $_.Name })
 
 foreach ($existingAsset in @($release.assets)) {
-    if ($existingAsset.name -in $assets.Name) {
-        Invoke-RestMethod -Method Delete -Uri "$apiBase/releases/assets/$($existingAsset.id)" -Headers $headers | Out-Null
-    }
+    Invoke-RestMethod -Method Delete -Uri "$apiBase/releases/assets/$($existingAsset.id)" -Headers $headers | Out-Null
 }
 
 $uploadBase = $release.upload_url -replace '\{\?name,label\}$', ''
@@ -137,7 +131,7 @@ foreach ($asset in $assets) {
 
 $draftCheck = Invoke-RestMethod -Method Get -Uri "$apiBase/releases/$($release.id)" -Headers $headers
 $actualNames = @($draftCheck.assets | ForEach-Object { $_.name })
-$missingNames = @($assets.Name | Where-Object { $_ -notin $actualNames })
+$missingNames = @($assetNames | Where-Object { $_ -notin $actualNames })
 if ($missingNames.Count -gt 0 -or $draftCheck.assets.Count -ne $assets.Count) {
     throw "Release asset verification failed. Missing: $($missingNames -join ', ')"
 }

@@ -38,6 +38,7 @@ fn groups_can_be_added_collapsed_and_deleted_without_affecting_other_groups() {
 #[test]
 fn slot_grid_reflows_before_horizontal_scrolling_is_needed() {
     assert_eq!(5, slot_columns(760.0));
+    assert_eq!(3, slot_columns(711.0));
     assert_eq!(3, slot_columns(560.0));
     assert_eq!(2, slot_columns(360.0));
 }

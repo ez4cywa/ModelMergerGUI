@@ -2,14 +2,16 @@ use crate::preview::PreviewSession;
 use crate::{GroupLog, NativeAppState, slot_columns, theme};
 use eframe::egui::{self, Color32, RichText, Stroke};
 use model_merger_app_core::{
-    AddPartStatus, AppLanguage, Catalog, GroupId, RootMode, SettingsStore, TaskError, TaskProgress,
-    TaskScheduler, TaskState, TextKey, WindowBounds,
+    AddPartResult, AddPartStatus, AppLanguage, Catalog, GroupId, RootMode, SettingsStore,
+    TaskError, TaskProgress, TaskScheduler, TaskState, TextKey, WindowBounds,
 };
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const SLOT_COUNT: usize = 15;
+const SETTINGS_PANE_WIDTH: f32 = 300.0;
+const MINIMUM_SLOT_CARD_WIDTH: f32 = 136.0;
 
 enum UiNotice {
     Key(TextKey),
@@ -116,11 +118,7 @@ impl NativeApp {
             };
             self.state.add_parts(group_index, paths)
         };
-        if let Some(status) = results
-            .iter()
-            .rev()
-            .find_map(|result| (result.status != AddPartStatus::Added).then_some(result.status))
-        {
+        if let Some(status) = latest_add_part_error(&results) {
             self.notice = Some(UiNotice::AddPart(status));
         }
     }
@@ -450,7 +448,7 @@ impl NativeApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     let width = ui.available_width();
-                    let settings_width = 300.0_f32.min(width * 0.32);
+                    let settings_width = SETTINGS_PANE_WIDTH;
                     let slots_width = (width - settings_width - 8.0).max(280.0);
                     let columns = slot_columns(slots_width);
                     let rows = SLOT_COUNT.div_ceil(columns);
@@ -801,11 +799,7 @@ impl NativeApp {
             return;
         };
         let results = self.state.add_parts(group_index, paths);
-        if let Some(status) = results
-            .iter()
-            .rev()
-            .find_map(|result| (result.status != AddPartStatus::Added).then_some(result.status))
-        {
+        if let Some(status) = latest_add_part_error(&results) {
             self.notice = Some(UiNotice::AddPart(status));
         }
     }
@@ -911,7 +905,14 @@ fn slot_card_width(available_width: f32, columns: usize) -> f32 {
     (((available_width - spacing) / columns as f32) / 8.0)
         .floor()
         .mul_add(8.0, 0.0)
-        .max(112.0)
+        .max(MINIMUM_SLOT_CARD_WIDTH)
+}
+
+fn latest_add_part_error(results: &[AddPartResult]) -> Option<AddPartStatus> {
+    results
+        .iter()
+        .rev()
+        .find_map(|result| (result.status != AddPartStatus::Added).then_some(result.status))
 }
 
 fn normalized_progress(current: usize, total: usize) -> f32 {
@@ -1257,7 +1258,19 @@ mod tests {
     #[test]
     fn slot_cards_share_the_available_width_without_overflowing() {
         assert_eq!(144.0, slot_card_width(760.0, 5));
-        assert_eq!(112.0, slot_card_width(360.0, 3));
+        assert_eq!(136.0, slot_card_width(430.0, 3));
+        assert_eq!(176.0, slot_card_width(360.0, 2));
+    }
+
+    #[test]
+    fn compact_workspace_preserves_the_settings_pane_and_minimum_slot_width() {
+        let group_content_width = 812.0;
+        let slots_width = group_content_width - SETTINGS_PANE_WIDTH - 8.0;
+        let columns = slot_columns(slots_width);
+
+        assert_eq!(300.0, SETTINGS_PANE_WIDTH);
+        assert_eq!(3, columns);
+        assert!(slot_card_width(slots_width, columns) >= MINIMUM_SLOT_CARD_WIDTH);
     }
 
     #[test]

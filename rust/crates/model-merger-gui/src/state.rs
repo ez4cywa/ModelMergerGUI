@@ -3,7 +3,7 @@ pub use model_merger_app_core::{
 };
 
 pub fn slot_columns(available_width: f32) -> usize {
-    if available_width >= 680.0 {
+    if available_width >= 712.0 {
         5
     } else if available_width >= 430.0 {
         3
