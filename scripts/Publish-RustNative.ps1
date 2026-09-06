@@ -10,7 +10,7 @@ $packageName = 'CastModelMerger-win-x64'
 $publishDirectory = Join-Path $resolvedOutputRoot $packageName
 $archivePath = Join-Path $resolvedOutputRoot "$packageName.zip"
 $rustRoot = Join-Path $repositoryRoot 'rust'
-$fontPath = Join-Path $repositoryRoot 'src\ModelMerger.Gui\Assets\Fonts\MiSans-Medium.ttf'
+$fontPath = Join-Path $repositoryRoot 'rust\crates\model-merger-gui\assets\fonts\MiSans-Medium.ttf'
 $targetTriple = 'x86_64-pc-windows-gnu'
 
 $resolvedPublishDirectory = [System.IO.Path]::GetFullPath($publishDirectory)

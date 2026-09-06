@@ -59,7 +59,7 @@ Acceptance closed with a real Windows wgpu window review at 1180 × 860, respons
 - Implement wgpu model preview with rotate, zoom, reset, keyboard alternatives and triangle-limit messaging.
 - Preserve multi-window preview and cancellation behavior.
 
-Acceptance closed with direct in-process scheduling, overwrite confirmation, structured localized task errors, cancellable background preview loading, independent preview viewports, mouse/keyboard controls and bounded 75,000-triangle display sampling.
+Acceptance closed with direct in-process scheduling, overwrite confirmation, structured localized task errors, cancellable background preview loading, independent preview viewports, mouse/keyboard controls and bounded display sampling. The renderer now keeps up to 250,000 sampled triangles in GPU buffers and uses WGPU transforms plus depth testing instead of CPU triangle sorting during interaction.
 
 ### 6. Cutover — complete
 
@@ -81,3 +81,12 @@ Acceptance closed on Windows x64 with the complete workspace test suite and warn
 The migration benchmark corpus measured Rust merge medians of 35/81/182 ms for 2/8/15 parts versus 349/1,384/2,472 ms for the former C# path. Preview medians were 43.5 ms for Rust versus 68.2 ms for C# on 20,000 triangles, while a 150,000-vertex 32-bit-index model loaded in 81.1 ms in Rust. These are local development-machine measurements, not universal performance promises.
 
 The final stripped executable is 21,259,776 bytes and the release ZIP, including documentation screenshots, is 11,809,125 bytes. A single idle native main window used approximately 239 MiB working set and a loaded preview approximately 262 MiB on the acceptance machine; the former WPF main window used approximately 135 MiB. The native renderer therefore uses more idle memory, while merge and preview processing are substantially faster and no .NET runtime or worker process is required.
+
+### 8. Reliability and maintainability hardening — complete
+
+- Windows CI now gates formatting, warning-free Clippy, workspace tests, native x64 builds and Windows icon resources. Tag publishing rebuilds from the clean tagged commit, checks Cargo/tag identity and ships a separate SHA-256 asset.
+- Console-less startup failures and panics write a persistent diagnostic log and offer a bilingual recovery dialog that opens the log directory.
+- Selection and scheduling errors are routed through a per-group notice center; drag targets provide immediate border and text feedback.
+- The GUI isolates GPU preview rendering, localized semantic messages and notice routing behind small modules. The localization key list is declared once; adding a key cannot compile until all five exhaustive language adapters implement it.
+- MiSans is now owned by the Rust GUI asset directory. The retired Rust worker and former WPF implementation remain available as migration evidence but are outside the default workspace and release graph.
+- CAST decoding enforces configurable aggregate node, property, value-byte and text-byte budgets. A dedicated `cargo-fuzz` target runs weekly against arbitrary decoder inputs.

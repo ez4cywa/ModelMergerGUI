@@ -1,4 +1,6 @@
-use cast_codec::{CastFile, CastNode, CastProperty, CodecError, PropertyValues};
+use cast_codec::{
+    CastFile, CastNode, CastProperty, CodecError, DecodeLimits, DecodeResource, PropertyValues,
+};
 use std::path::Path;
 
 #[test]
@@ -173,6 +175,64 @@ fn cancellable_decode_stops_during_a_large_property() {
     .unwrap_err();
 
     assert_eq!(CodecError::Cancelled, error);
+}
+
+#[test]
+fn configurable_decode_budgets_reject_excessive_allocations_before_decoding() {
+    let bytes = CastFile {
+        version: 1,
+        flags: 0,
+        roots: vec![CastNode {
+            identifier: u32::from_le_bytes(*b"root"),
+            hash: 0,
+            properties: vec![CastProperty {
+                name: "data".to_owned(),
+                values: PropertyValues::Integer32(vec![1, 2]),
+            }],
+            children: Vec::new(),
+        }],
+    }
+    .encode()
+    .unwrap();
+
+    let node_error = CastFile::decode_with_limits(
+        &bytes,
+        DecodeLimits {
+            max_nodes: 0,
+            ..DecodeLimits::default()
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        CodecError::ResourceLimitExceeded(DecodeResource::Nodes),
+        node_error
+    );
+
+    let property_error = CastFile::decode_with_limits(
+        &bytes,
+        DecodeLimits {
+            max_properties: 0,
+            ..DecodeLimits::default()
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        CodecError::ResourceLimitExceeded(DecodeResource::Properties),
+        property_error
+    );
+
+    let value_error = CastFile::decode_with_limits(
+        &bytes,
+        DecodeLimits {
+            max_value_bytes: 4,
+            ..DecodeLimits::default()
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        CodecError::ResourceLimitExceeded(DecodeResource::ValueBytes),
+        value_error
+    );
 }
 
 fn child(parent: &CastNode, identifier: [u8; 4]) -> &CastNode {

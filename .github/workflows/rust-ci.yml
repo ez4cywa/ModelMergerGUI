@@ -1,0 +1,37 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+          components: rustfmt, clippy
+          targets: x86_64-pc-windows-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install MiSans for the embedded Chinese UI
+        shell: pwsh
+        run: ./scripts/Install-MiSans.ps1 -AcceptLicense
+      - name: Check formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+      - name: Lint
+        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --manifest-path rust/Cargo.toml --workspace
+      - name: Build Windows x64 release
+        run: cargo build --manifest-path rust/Cargo.toml --release --target x86_64-pc-windows-gnu --package model-merger-gui --bin CastModelMerger
+      - name: Verify Explorer and taskbar icon resources
+        shell: pwsh
+        run: ./scripts/Test-WindowsIcon.ps1 -ExecutablePath rust/target/x86_64-pc-windows-gnu/release/CastModelMerger.exe

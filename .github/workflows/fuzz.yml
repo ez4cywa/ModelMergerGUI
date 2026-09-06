@@ -1,0 +1,23 @@
+name: Cast codec fuzzing
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/fuzz
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Exercise the Cast decoder
+        run: cargo +nightly fuzz --fuzz-dir rust/fuzz run decode -- -max_total_time=90

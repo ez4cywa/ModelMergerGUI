@@ -3,8 +3,7 @@ use model_merger_app_core::AppLanguage;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-const MISANS_MEDIUM: &[u8] =
-    include_bytes!("../../../../src/ModelMerger.Gui/Assets/Fonts/MiSans-Medium.ttf");
+const MISANS_MEDIUM: &[u8] = include_bytes!("../assets/fonts/MiSans-Medium.ttf");
 
 pub const BACKGROUND: Color32 = Color32::from_rgb(248, 250, 252);
 pub const PANEL: Color32 = Color32::WHITE;

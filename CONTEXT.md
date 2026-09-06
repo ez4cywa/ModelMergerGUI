@@ -14,7 +14,7 @@ The merge engine combines loaded model parts using one root-selection and geomet
 
 ## Language catalog
 
-The language catalog maps structured application meaning to user-facing text for one culture. Simplified Chinese, English, French, Russian, and Spanish are real language adapters at the same presentation seam. The WPF layer also selects the interface font at this seam: embedded MiSans for Chinese and Segoe UI for the other supported languages.
+The language catalog maps structured application meaning to user-facing text for one culture. Simplified Chinese, English, French, Russian, and Spanish are real language adapters at the same presentation seam. The native GUI selects embedded MiSans for Chinese and installed Segoe UI for the other supported languages.
 
 ## Native application core
 
@@ -22,4 +22,4 @@ The native application core owns editable merge groups, schema-compatible settin
 
 ## Model preview
 
-A model preview is a bounded, read-only projection of Cast mesh geometry for interactive display. Core owns loading, statistics, validation, and triangle sampling; WPF owns camera controls and rendering. Preview sampling never changes the selected part or merged output.
+A model preview is a bounded, read-only projection of Cast mesh geometry for interactive display. Core owns loading, statistics, validation and triangle sampling; the native WGPU module owns camera transforms, lighting and depth-tested rendering. Preview sampling never changes the selected part or merged output.

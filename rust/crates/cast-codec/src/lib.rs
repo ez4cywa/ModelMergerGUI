@@ -6,6 +6,25 @@ const NODE_HEADER_SIZE: usize = 24;
 const PROPERTY_HEADER_SIZE: usize = 8;
 const MAX_NODE_DEPTH: usize = 256;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodeLimits {
+    pub max_nodes: usize,
+    pub max_properties: usize,
+    pub max_value_bytes: usize,
+    pub max_text_bytes: usize,
+}
+
+impl Default for DecodeLimits {
+    fn default() -> Self {
+        Self {
+            max_nodes: 1_000_000,
+            max_properties: 4_000_000,
+            max_value_bytes: 512 * 1024 * 1024,
+            max_text_bytes: 128 * 1024 * 1024,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CastFile {
     pub version: u32,
@@ -53,7 +72,27 @@ pub enum CodecError {
     TrailingData,
     InvalidNodeSize(u32),
     NestingTooDeep,
+    ResourceLimitExceeded(DecodeResource),
     Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeResource {
+    Nodes,
+    Properties,
+    ValueBytes,
+    TextBytes,
+}
+
+impl fmt::Display for DecodeResource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Nodes => "node count",
+            Self::Properties => "property count",
+            Self::ValueBytes => "property values",
+            Self::TextBytes => "text data",
+        })
+    }
 }
 
 impl fmt::Display for CodecError {
@@ -80,6 +119,12 @@ impl fmt::Display for CodecError {
             Self::TrailingData => formatter.write_str("Cast file contains trailing data"),
             Self::InvalidNodeSize(size) => write!(formatter, "Cast node has invalid size {size}"),
             Self::NestingTooDeep => formatter.write_str("Cast node nesting is too deep"),
+            Self::ResourceLimitExceeded(resource) => {
+                write!(
+                    formatter,
+                    "Cast {resource} exceeds the configured decode limit"
+                )
+            }
             Self::Cancelled => formatter.write_str("Cast decoding was cancelled"),
         }
     }
@@ -96,7 +141,20 @@ impl CastFile {
         bytes: &[u8],
         mut is_cancelled: impl FnMut() -> bool,
     ) -> Result<Self, CodecError> {
+        Self::decode_with_limits_and_cancel(bytes, DecodeLimits::default(), &mut is_cancelled)
+    }
+
+    pub fn decode_with_limits(bytes: &[u8], limits: DecodeLimits) -> Result<Self, CodecError> {
+        Self::decode_with_limits_and_cancel(bytes, limits, || false)
+    }
+
+    pub fn decode_with_limits_and_cancel(
+        bytes: &[u8],
+        limits: DecodeLimits,
+        mut is_cancelled: impl FnMut() -> bool,
+    ) -> Result<Self, CodecError> {
         let mut reader = Reader::new(bytes);
+        let mut budget = DecodeBudget::new(limits);
         check_cancelled(&mut is_cancelled)?;
         let magic = reader.read_u32()?;
         if magic != CAST_MAGIC {
@@ -107,9 +165,10 @@ impl CastFile {
         let root_count = reader.read_u32()?;
         let flags = reader.read_u32()?;
         reader.ensure_count_fits(root_count, NODE_HEADER_SIZE)?;
+        budget.ensure_nodes(root_count as usize)?;
         let mut roots = Vec::with_capacity(root_count as usize);
         for _ in 0..root_count {
-            roots.push(decode_node(&mut reader, 0, &mut is_cancelled)?);
+            roots.push(decode_node(&mut reader, 0, &mut budget, &mut is_cancelled)?);
         }
         if reader.remaining() != 0 {
             return Err(CodecError::TrailingData);
@@ -147,9 +206,11 @@ impl CastFile {
 fn decode_node(
     reader: &mut Reader<'_>,
     depth: usize,
+    budget: &mut DecodeBudget,
     is_cancelled: &mut impl FnMut() -> bool,
 ) -> Result<CastNode, CodecError> {
     check_cancelled(is_cancelled)?;
+    budget.add_node()?;
     if depth >= MAX_NODE_DEPTH {
         return Err(CodecError::NestingTooDeep);
     }
@@ -167,15 +228,17 @@ fn decode_node(
     let property_count = reader.read_u32()?;
     let child_count = reader.read_u32()?;
     reader.ensure_count_fits(property_count, PROPERTY_HEADER_SIZE)?;
+    budget.add_properties(property_count as usize)?;
     let mut properties = Vec::with_capacity(property_count as usize);
     for _ in 0..property_count {
-        properties.push(decode_property(reader, is_cancelled)?);
+        properties.push(decode_property(reader, budget, is_cancelled)?);
     }
 
     reader.ensure_count_fits(child_count, NODE_HEADER_SIZE)?;
+    budget.ensure_nodes(child_count as usize)?;
     let mut children = Vec::with_capacity(child_count as usize);
     for _ in 0..child_count {
-        children.push(decode_node(reader, depth + 1, is_cancelled)?);
+        children.push(decode_node(reader, depth + 1, budget, is_cancelled)?);
     }
     if reader.position != expected_end {
         return Err(CodecError::InvalidNodeSize(node_size));
@@ -191,12 +254,14 @@ fn decode_node(
 
 fn decode_property(
     reader: &mut Reader<'_>,
+    budget: &mut DecodeBudget,
     is_cancelled: &mut impl FnMut() -> bool,
 ) -> Result<CastProperty, CodecError> {
     check_cancelled(is_cancelled)?;
     let property_type = reader.take::<2>()?;
     let name_length = reader.read_u16()? as usize;
     let value_count = reader.read_u32()?;
+    budget.add_text_bytes(name_length)?;
     let name = std::str::from_utf8(reader.read_bytes(name_length)?)
         .map_err(|_| CodecError::InvalidUtf8)?
         .to_owned();
@@ -213,6 +278,9 @@ fn decode_property(
     };
     if let Some(value_size) = value_size {
         reader.ensure_count_fits(value_count, value_size)?;
+        budget.add_value_bytes(count.checked_mul(value_size).ok_or(
+            CodecError::ResourceLimitExceeded(DecodeResource::ValueBytes),
+        )?)?;
     }
 
     let values = match property_type {
@@ -238,7 +306,10 @@ fn decode_property(
             if value_count != 1 {
                 return Err(CodecError::InvalidStringValueCount(value_count));
             }
-            PropertyValues::String(reader.read_null_terminated_utf8()?)
+            let remaining = budget.remaining_text_bytes();
+            let (value, byte_count) = reader.read_null_terminated_utf8(remaining)?;
+            budget.add_text_bytes(byte_count)?;
+            PropertyValues::String(value)
         }
         [b'2', b'v'] => PropertyValues::Vector2(reader.read_many(
             count,
@@ -266,6 +337,94 @@ fn decode_property(
     };
 
     Ok(CastProperty { name, values })
+}
+
+struct DecodeBudget {
+    limits: DecodeLimits,
+    nodes: usize,
+    properties: usize,
+    value_bytes: usize,
+    text_bytes: usize,
+}
+
+impl DecodeBudget {
+    fn new(limits: DecodeLimits) -> Self {
+        Self {
+            limits,
+            nodes: 0,
+            properties: 0,
+            value_bytes: 0,
+            text_bytes: 0,
+        }
+    }
+
+    fn ensure_nodes(&self, additional: usize) -> Result<(), CodecError> {
+        ensure_budget(
+            self.nodes,
+            additional,
+            self.limits.max_nodes,
+            DecodeResource::Nodes,
+        )
+    }
+
+    fn add_node(&mut self) -> Result<(), CodecError> {
+        self.ensure_nodes(1)?;
+        self.nodes += 1;
+        Ok(())
+    }
+
+    fn add_properties(&mut self, additional: usize) -> Result<(), CodecError> {
+        ensure_budget(
+            self.properties,
+            additional,
+            self.limits.max_properties,
+            DecodeResource::Properties,
+        )?;
+        self.properties += additional;
+        Ok(())
+    }
+
+    fn add_value_bytes(&mut self, additional: usize) -> Result<(), CodecError> {
+        ensure_budget(
+            self.value_bytes,
+            additional,
+            self.limits.max_value_bytes,
+            DecodeResource::ValueBytes,
+        )?;
+        self.value_bytes += additional;
+        Ok(())
+    }
+
+    fn remaining_text_bytes(&self) -> usize {
+        self.limits.max_text_bytes.saturating_sub(self.text_bytes)
+    }
+
+    fn add_text_bytes(&mut self, additional: usize) -> Result<(), CodecError> {
+        ensure_budget(
+            self.text_bytes,
+            additional,
+            self.limits.max_text_bytes,
+            DecodeResource::TextBytes,
+        )?;
+        self.text_bytes += additional;
+        Ok(())
+    }
+}
+
+fn ensure_budget(
+    current: usize,
+    additional: usize,
+    maximum: usize,
+    resource: DecodeResource,
+) -> Result<(), CodecError> {
+    if current
+        .checked_add(additional)
+        .is_none_or(|total| total > maximum)
+    {
+        Err(CodecError::ResourceLimitExceeded(resource))
+    } else {
+        Ok(())
+    }
 }
 
 fn encode_node(writer: &mut Writer, node: &CastNode) -> Result<(), CodecError> {
@@ -474,7 +633,10 @@ impl<'a> Reader<'a> {
         Ok(slice)
     }
 
-    fn read_null_terminated_utf8(&mut self) -> Result<String, CodecError> {
+    fn read_null_terminated_utf8(
+        &mut self,
+        maximum_length: usize,
+    ) -> Result<(String, usize), CodecError> {
         let tail = self
             .bytes
             .get(self.position..)
@@ -483,11 +645,14 @@ impl<'a> Reader<'a> {
             .iter()
             .position(|byte| *byte == 0)
             .ok_or(CodecError::UnexpectedEndOfFile)?;
+        if terminator > maximum_length {
+            return Err(CodecError::ResourceLimitExceeded(DecodeResource::TextBytes));
+        }
         let value = std::str::from_utf8(&tail[..terminator])
             .map_err(|_| CodecError::InvalidUtf8)?
             .to_owned();
         self.position += terminator + 1;
-        Ok(value)
+        Ok((value, terminator))
     }
 
     fn take<const LENGTH: usize>(&mut self) -> Result<[u8; LENGTH], CodecError> {

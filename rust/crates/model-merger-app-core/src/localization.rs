@@ -1,7 +1,21 @@
 use crate::AppLanguage;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextKey {
+macro_rules! declare_text_keys {
+    ($($key:ident),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum TextKey {
+            $($key),+
+        }
+
+        impl TextKey {
+            pub const ALL: &'static [Self] = &[$(Self::$key),+];
+        }
+    };
+}
+
+// This is the single localization contract. Adding a key here updates ALL and makes every
+// language match below fail to compile until its translation is supplied.
+declare_text_keys!(
     AppTitle,
     AppSubtitle,
     Language,
@@ -11,6 +25,7 @@ pub enum TextKey {
     Group,
     ModelParts,
     ModelPartsHint,
+    DropHere,
     AddNext,
     Clear,
     RootModel,
@@ -98,108 +113,7 @@ pub enum TextKey {
     CancelledLog,
     ModelPartReadError,
     Attribution,
-}
-
-impl TextKey {
-    pub const ALL: &'static [Self] = &[
-        Self::AppTitle,
-        Self::AppSubtitle,
-        Self::Language,
-        Self::NewGroup,
-        Self::SaveSettings,
-        Self::RestoreDefaults,
-        Self::Group,
-        Self::ModelParts,
-        Self::ModelPartsHint,
-        Self::AddNext,
-        Self::Clear,
-        Self::RootModel,
-        Self::Automatic,
-        Self::Manual,
-        Self::OutputFolder,
-        Self::Browse,
-        Self::OutputFileName,
-        Self::GroupStatus,
-        Self::RunLog,
-        Self::Preview,
-        Self::PreviewMerged,
-        Self::StartGroup,
-        Self::Cancel,
-        Self::DeleteGroup,
-        Self::MergeAllReady,
-        Self::CancelAll,
-        Self::RememberOutput,
-        Self::AddPart,
-        Self::Replace,
-        Self::Remove,
-        Self::SetAsRoot,
-        Self::RootBadge,
-        Self::FileMissing,
-        Self::SelectCast,
-        Self::SelectOutput,
-        Self::SettingsSaved,
-        Self::SettingsSaveFailed,
-        Self::DefaultsRestored,
-        Self::Overwrite,
-        Self::OverwriteQuestion,
-        Self::Yes,
-        Self::No,
-        Self::Close,
-        Self::PreviewLoading,
-        Self::PreviewInstructions,
-        Self::RotateLeft,
-        Self::RotateRight,
-        Self::ZoomIn,
-        Self::ZoomOut,
-        Self::ResetView,
-        Self::PreviewSimplified,
-        Self::PreviewFailed,
-        Self::PreviewWorkerStopped,
-        Self::Meshes,
-        Self::Triangles,
-        Self::Actions,
-        Self::MiSansMissing,
-        Self::NeedTwoToFifteen,
-        Self::Ready,
-        Self::Queued,
-        Self::Running,
-        Self::Succeeded,
-        Self::Failed,
-        Self::Cancelled,
-        Self::OutputConflict,
-        Self::MergeFailed,
-        Self::Completed,
-        Self::Concurrency,
-        Self::AddPartInvalidPath,
-        Self::AddPartMissing,
-        Self::AddPartNotCast,
-        Self::AddPartDuplicate,
-        Self::AddPartFull,
-        Self::ValidationInvalidPartCount,
-        Self::ValidationInvalidPath,
-        Self::ValidationMissingFile,
-        Self::ValidationUnsupportedExtension,
-        Self::ValidationDuplicateFile,
-        Self::ValidationInvalidOutputDirectory,
-        Self::ValidationInvalidOutputFileName,
-        Self::ValidationOutputAlreadyExists,
-        Self::ValidationManualRootNotSelected,
-        Self::WarningNoAttachmentBone,
-        Self::WarningUnconnectedHierarchy,
-        Self::ProgressValidating,
-        Self::ProgressLoading,
-        Self::ProgressSelectingRoot,
-        Self::ProgressMerging,
-        Self::ProgressSaving,
-        Self::ProgressVerifying,
-        Self::ProgressCompleted,
-        Self::QueueWaiting,
-        Self::MergeCompletedLog,
-        Self::CancelledLog,
-        Self::ModelPartReadError,
-        Self::Attribution,
-    ];
-}
+);
 
 #[derive(Debug, Clone, Copy)]
 pub struct Catalog {
@@ -247,6 +161,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::Group => "模型组",
         TextKey::ModelParts => "模型部件",
         TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
+        TextKey::DropHere => "松开鼠标，将文件添加到本组",
         TextKey::AddNext => "添加下一个",
         TextKey::Clear => "清空",
         TextKey::RootModel => "根模型",
@@ -354,6 +269,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::ModelPartsHint => {
             "Use Add next or an empty slot to select multiple .cast files, or drop them here"
         }
+        TextKey::DropHere => "Release to add files to this group",
         TextKey::AddNext => "Add next",
         TextKey::Clear => "Clear",
         TextKey::RootModel => "Root model",
@@ -475,6 +391,7 @@ fn french(key: TextKey) -> &'static str {
         TextKey::ModelPartsHint => {
             "Ajoutez plusieurs fichiers .cast avec Ajouter ou un emplacement vide, ou déposez-les ici"
         }
+        TextKey::DropHere => "Relâchez pour ajouter les fichiers à ce groupe",
         TextKey::AddNext => "Ajouter le suivant",
         TextKey::Clear => "Effacer",
         TextKey::RootModel => "Modèle racine",
@@ -602,6 +519,7 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::ModelPartsHint => {
             "Выберите несколько файлов .cast через добавление или пустую ячейку либо перетащите их сюда"
         }
+        TextKey::DropHere => "Отпустите, чтобы добавить файлы в эту группу",
         TextKey::AddNext => "Добавить следующую",
         TextKey::Clear => "Очистить",
         TextKey::RootModel => "Корневая модель",
@@ -721,6 +639,7 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::ModelPartsHint => {
             "Selecciona varios archivos .cast con Añadir o un espacio vacío, o arrástralos aquí"
         }
+        TextKey::DropHere => "Suelta para añadir los archivos a este grupo",
         TextKey::AddNext => "Añadir siguiente",
         TextKey::Clear => "Vaciar",
         TextKey::RootModel => "Modelo raíz",

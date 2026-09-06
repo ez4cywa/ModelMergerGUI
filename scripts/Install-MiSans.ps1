@@ -10,7 +10,7 @@ $archiveUrl = 'https://hyperos.mi.com/font-download/MiSans.zip'
 $licenseDocumentUrl = 'https://hyperos.mi.com/font-download/MiSans%E5%AD%97%E4%BD%93%E7%9F%A5%E8%AF%86%E4%BA%A7%E6%9D%83%E8%AE%B8%E5%8F%AF%E5%8D%8F%E8%AE%AE.pdf'
 $expectedArchiveHash = 'B6AA1FC827035922612DF8EDF36E5609BCA1C5441E25CD57572204569B7B81D9'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$targetDirectory = Join-Path $projectRoot 'src\ModelMerger.Gui\Assets\Fonts'
+$targetDirectory = Join-Path $projectRoot 'rust\crates\model-merger-gui\assets\fonts'
 $archivePath = Join-Path ([System.IO.Path]::GetTempPath()) "MiSans-$([Guid]::NewGuid().ToString('N')).zip"
 
 if (-not $AcceptLicense)

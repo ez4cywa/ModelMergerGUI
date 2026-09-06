@@ -1,9 +1,12 @@
+use crate::messages;
+use crate::notices::{NoticeCenter, UiNotice};
 use crate::preview::PreviewSession;
+use crate::preview_gpu;
 use crate::{GroupLog, NativeAppState, slot_columns, theme};
 use eframe::egui::{self, Color32, RichText, Stroke};
 use model_merger_app_core::{
     AddPartResult, AddPartStatus, AppLanguage, Catalog, GroupId, RootMode, SettingsStore,
-    TaskError, TaskProgress, TaskScheduler, TaskState, TextKey, WindowBounds,
+    TaskScheduler, TextKey, WindowBounds,
 };
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -13,39 +16,26 @@ const SLOT_COUNT: usize = 15;
 const SETTINGS_PANE_WIDTH: f32 = 300.0;
 const MINIMUM_SLOT_CARD_WIDTH: f32 = 136.0;
 
-enum UiNotice {
-    Key(TextKey),
-    AddPart(AddPartStatus),
-    SettingsSaveFailed(String),
-}
-
-impl UiNotice {
-    fn text(&self, catalog: Catalog) -> String {
-        match self {
-            Self::Key(key) => catalog.text(*key).to_owned(),
-            Self::AddPart(status) => add_part_error(catalog, *status).to_owned(),
-            Self::SettingsSaveFailed(detail) => {
-                format!("{}: {detail}", catalog.text(TextKey::SettingsSaveFailed))
-            }
-        }
-    }
-}
-
 pub struct NativeApp {
     state: NativeAppState,
     store: SettingsStore,
     scheduler: TaskScheduler,
-    notice: Option<UiNotice>,
+    notices: NoticeCenter,
     configured_language: AppLanguage,
     previews: Vec<PreviewSession>,
     next_preview_id: u64,
     drop_target: Option<usize>,
     pending_group_delete: Option<usize>,
     pending_overwrites: VecDeque<GroupId>,
+    render_state: Option<eframe::egui_wgpu::RenderState>,
 }
 
 impl NativeApp {
-    pub fn new(context: &egui::Context) -> Self {
+    pub fn new(creation: &eframe::CreationContext<'_>) -> Self {
+        let context = &creation.egui_ctx;
+        if let Some(render_state) = &creation.wgpu_render_state {
+            preview_gpu::install(render_state);
+        }
         let store = default_settings_store();
         let state = NativeAppState::new(store.load());
         let configured_language = state.language();
@@ -59,13 +49,14 @@ impl NativeApp {
             state,
             store,
             scheduler: TaskScheduler::native(2).expect("two native merge workers are valid"),
-            notice: None,
+            notices: NoticeCenter::default(),
             configured_language,
             previews: Vec::new(),
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,
             pending_overwrites: VecDeque::new(),
+            render_state: creation.wgpu_render_state.clone(),
         };
         for path in std::env::args_os().skip(1).map(PathBuf::from).take(5) {
             if path.is_file()
@@ -84,15 +75,17 @@ impl NativeApp {
     }
 
     fn save_settings(&mut self) {
-        self.notice = Some(match self.store.save(self.state.settings()) {
-            Ok(()) => UiNotice::Key(TextKey::SettingsSaved),
-            Err(error) => UiNotice::SettingsSaveFailed(error.to_string()),
-        });
+        self.notices
+            .set_global(match self.store.save(self.state.settings()) {
+                Ok(()) => UiNotice::Key(TextKey::SettingsSaved),
+                Err(error) => UiNotice::SettingsSaveFailed(error.to_string()),
+            });
     }
 
     fn restore_defaults(&mut self) {
         self.state.reset_defaults();
-        self.notice = Some(UiNotice::Key(TextKey::DefaultsRestored));
+        self.notices
+            .set_global(UiNotice::Key(TextKey::DefaultsRestored));
     }
 
     fn add_part_dialog(&mut self, group_index: usize, replace_index: Option<usize>) {
@@ -119,7 +112,33 @@ impl NativeApp {
             self.state.add_parts(group_index, paths)
         };
         if let Some(status) = latest_add_part_error(&results) {
-            self.notice = Some(UiNotice::AddPart(status));
+            self.set_group_notice(group_index, UiNotice::AddPart(status));
+        } else {
+            self.clear_group_notice(group_index);
+        }
+    }
+
+    fn set_group_notice(&mut self, group_index: usize, notice: UiNotice) {
+        if let Some(group) = self.state.groups().get(group_index) {
+            self.notices.set_group(group.id(), notice);
+        }
+    }
+
+    fn clear_group_notice(&mut self, group_index: usize) {
+        if let Some(group) = self.state.groups().get(group_index) {
+            self.notices.clear_group(group.id());
+        }
+    }
+
+    fn clear_parts(&mut self, group_index: usize) {
+        if self.state.clear_parts(group_index) {
+            self.clear_group_notice(group_index);
+        }
+    }
+
+    fn remove_part(&mut self, group_index: usize, part_index: usize) {
+        if self.state.remove_part(group_index, part_index) {
+            self.clear_group_notice(group_index);
         }
     }
 
@@ -153,16 +172,17 @@ impl NativeApp {
             .plan
             .create_request(overwrite)
         else {
-            self.notice = Some(UiNotice::Key(TextKey::NeedTwoToFifteen));
+            self.set_group_notice(group_index, UiNotice::Key(TextKey::NeedTwoToFifteen));
             return;
         };
         match self.scheduler.schedule(request) {
             Ok(task_id) => {
+                self.clear_group_notice(group_index);
                 let task_snapshot = self.scheduler.snapshot(task_id);
                 self.state.start_task(group_index, task_id, task_snapshot);
             }
             Err(_error) => {
-                self.notice = Some(UiNotice::Key(TextKey::MergeFailed));
+                self.set_group_notice(group_index, UiNotice::Key(TextKey::MergeFailed));
             }
         }
     }
@@ -340,24 +360,7 @@ impl NativeApp {
                     .inner_margin(egui::Margin::same(28)),
             )
             .show(root, |ui| {
-                if let Some(notice) = &self.notice {
-                    let notice = notice.text(self.catalog());
-                    let close_label = self.catalog().text(TextKey::Close);
-                    egui::Frame::new()
-                        .fill(Color32::from_rgb(239, 246, 255))
-                        .stroke(Stroke::new(1.0, theme::PRIMARY))
-                        .corner_radius(6.0)
-                        .inner_margin(egui::Margin::same(12))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(notice);
-                                if ui.button(close_label).clicked() {
-                                    self.notice = None;
-                                }
-                            });
-                        });
-                    ui.add_space(8.0);
-                }
+                self.notices.show_global(ui, self.catalog());
                 let workspace_width = visible_available_width(ui);
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
@@ -370,6 +373,9 @@ impl NativeApp {
                         }
                     });
                 if let Some(index) = self.pending_group_delete.take() {
+                    if let Some(group) = self.state.groups().get(index) {
+                        self.notices.clear_group(group.id());
+                    }
                     self.state.delete_group(index);
                 }
             });
@@ -379,6 +385,7 @@ impl NativeApp {
         let catalog = self.catalog();
         let group_snapshot = self.state.groups()[group_index].plan.state();
         let collapsed = self.state.groups()[group_index].collapsed;
+        let group_id = self.state.groups()[group_index].id();
         let task_id = self.state.groups()[group_index].task_id();
         let group_inner_width = (visible_available_width(ui) - 32.0).max(280.0);
         let response = panel_frame()
@@ -442,6 +449,7 @@ impl NativeApp {
                         }
                     });
                 });
+                self.notices.show_group(ui, catalog, group_id);
                 if collapsed {
                     return;
                 }
@@ -479,6 +487,27 @@ impl NativeApp {
                 .is_some_and(|position| response.rect.contains(position))
         {
             self.drop_target = Some(group_index);
+            if ui.ctx().input(|input| !input.raw.hovered_files.is_empty()) {
+                let overlay = response.rect.shrink(2.0);
+                ui.painter().rect_filled(
+                    overlay,
+                    8.0,
+                    Color32::from_rgba_premultiplied(239, 246, 255, 224),
+                );
+                ui.painter().rect_stroke(
+                    overlay,
+                    8.0,
+                    Stroke::new(3.0, theme::PRIMARY),
+                    egui::StrokeKind::Inside,
+                );
+                ui.painter().text(
+                    overlay.center(),
+                    egui::Align2::CENTER_CENTER,
+                    catalog.text(TextKey::DropHere),
+                    egui::FontId::proportional(18.0),
+                    theme::PRIMARY,
+                );
+            }
         }
     }
 
@@ -510,7 +539,7 @@ impl NativeApp {
                     )
                     .clicked()
                 {
-                    self.state.clear_parts(group_index);
+                    self.clear_parts(group_index);
                 }
             });
             let columns = slot_columns(panel_width);
@@ -589,7 +618,7 @@ impl NativeApp {
                                     )
                                     .clicked()
                                 {
-                                    self.state.remove_part(group_index, slot);
+                                    self.remove_part(group_index, slot);
                                     ui.close();
                                 }
                             });
@@ -714,8 +743,11 @@ impl NativeApp {
             .as_ref()
             .and_then(|snapshot| snapshot.progress.as_ref())
             .map_or_else(
-                || task_label(catalog, progress.as_ref().map(|value| value.state)).to_owned(),
-                |task_progress| task_progress_message(catalog, task_progress),
+                || {
+                    messages::task_label(catalog, progress.as_ref().map(|value| value.state))
+                        .to_owned()
+                },
+                |task_progress| messages::task_progress(catalog, task_progress),
             );
         ui.label(status);
         ui.label(RichText::new(catalog.text(TextKey::RunLog)).size(17.0));
@@ -725,11 +757,11 @@ impl NativeApp {
                 for entry in self.state.groups()[group_index].log() {
                     let message = match entry {
                         GroupLog::Status(key) => catalog.text(*key).to_owned(),
-                        GroupLog::Warning(warning) => merge_warning_message(catalog, warning),
+                        GroupLog::Warning(warning) => messages::merge_warning(catalog, warning),
                         GroupLog::Output(path) => catalog
                             .text(TextKey::ProgressCompleted)
                             .replace("{0}", &path.display().to_string()),
-                        GroupLog::Error(error) => task_error_message(catalog, error),
+                        GroupLog::Error(error) => messages::task_error(catalog, error),
                     };
                     ui.label(RichText::new(message).size(13.0).color(theme::SECONDARY));
                 }
@@ -767,6 +799,12 @@ impl NativeApp {
             );
         }
         self.previews.retain(|preview| preview.open);
+        if let Some(render_state) = &self.render_state {
+            preview_gpu::retain_models(
+                render_state,
+                self.previews.iter().map(|preview| preview.id),
+            );
+        }
     }
 
     fn handle_dropped_files(&mut self, context: &egui::Context) {
@@ -781,26 +819,19 @@ impl NativeApp {
         if paths.is_empty() {
             return;
         }
-        let Some(group_index) = self
-            .drop_target
-            .filter(|index| {
-                self.state
-                    .groups()
-                    .get(*index)
-                    .is_some_and(|group| group.task_id().is_none())
-            })
-            .or_else(|| {
-                self.state
-                    .groups()
-                    .iter()
-                    .position(|group| !group.collapsed && group.task_id().is_none())
-            })
-        else {
+        let Some(group_index) = self.drop_target.filter(|index| {
+            self.state
+                .groups()
+                .get(*index)
+                .is_some_and(|group| group.task_id().is_none())
+        }) else {
             return;
         };
         let results = self.state.add_parts(group_index, paths);
         if let Some(status) = latest_add_part_error(&results) {
-            self.notice = Some(UiNotice::AddPart(status));
+            self.set_group_notice(group_index, UiNotice::AddPart(status));
+        } else {
+            self.clear_group_notice(group_index);
         }
     }
 
@@ -950,122 +981,6 @@ fn language_selector(ui: &mut egui::Ui, language: &mut AppLanguage) {
         });
 }
 
-fn add_part_error(catalog: Catalog, status: AddPartStatus) -> &'static str {
-    catalog.text(match status {
-        AddPartStatus::InvalidPath | AddPartStatus::InvalidIndex => TextKey::AddPartInvalidPath,
-        AddPartStatus::Missing => TextKey::AddPartMissing,
-        AddPartStatus::UnsupportedFormat => TextKey::AddPartNotCast,
-        AddPartStatus::Duplicate => TextKey::AddPartDuplicate,
-        AddPartStatus::Full => TextKey::AddPartFull,
-        AddPartStatus::Added => TextKey::Completed,
-    })
-}
-
-fn task_label(catalog: Catalog, state: Option<TaskState>) -> &'static str {
-    catalog.text(match state {
-        None => TextKey::NeedTwoToFifteen,
-        Some(TaskState::Queued) => TextKey::Queued,
-        Some(TaskState::Running) => TextKey::Running,
-        Some(TaskState::Succeeded) => TextKey::Succeeded,
-        Some(TaskState::Failed) => TextKey::Failed,
-        Some(TaskState::Cancelled) => TextKey::Cancelled,
-    })
-}
-
-fn task_progress_message(catalog: Catalog, progress: &TaskProgress) -> String {
-    let key = match progress.stage {
-        model_merger_engine::MergeStage::Validating => TextKey::ProgressValidating,
-        model_merger_engine::MergeStage::Loading => TextKey::ProgressLoading,
-        model_merger_engine::MergeStage::SelectingRoot => TextKey::ProgressSelectingRoot,
-        model_merger_engine::MergeStage::Merging => TextKey::ProgressMerging,
-        model_merger_engine::MergeStage::Saving => TextKey::ProgressSaving,
-        model_merger_engine::MergeStage::Verifying => TextKey::ProgressVerifying,
-        model_merger_engine::MergeStage::Completed => TextKey::Completed,
-    };
-    let item = progress.item.as_deref().unwrap_or_default();
-    catalog.text(key).replace("{0}", item)
-}
-
-fn task_error_message(catalog: Catalog, error: &TaskError) -> String {
-    use model_merger_engine::MergeValidationCode;
-    match error {
-        TaskError::ModelRead { path, message } => {
-            return catalog
-                .text(TextKey::ModelPartReadError)
-                .replace("{0}", &path.display().to_string())
-                .replace("{1}", message);
-        }
-        TaskError::Codec(message) | TaskError::InvalidModel(message) => {
-            return catalog
-                .text(TextKey::ModelPartReadError)
-                .replace("{0}", "Cast")
-                .replace("{1}", message);
-        }
-        TaskError::Io { path, message } => {
-            return format!(
-                "{}: {}\n{message}",
-                catalog.text(TextKey::MergeFailed),
-                path.display()
-            );
-        }
-        TaskError::Backend(message) => {
-            return format!("{}: {message}", catalog.text(TextKey::MergeFailed));
-        }
-        TaskError::SchedulerStopped | TaskError::InvalidConcurrency => {
-            return format!("{}: {error}", catalog.text(TextKey::MergeFailed));
-        }
-        _ => {}
-    }
-    let key = match error {
-        TaskError::Cancelled => TextKey::Cancelled,
-        TaskError::OutputConflict(_) => TextKey::OutputConflict,
-        TaskError::Validation { code, .. } => match code {
-            MergeValidationCode::InvalidPartCount => TextKey::ValidationInvalidPartCount,
-            MergeValidationCode::InvalidPath => TextKey::ValidationInvalidPath,
-            MergeValidationCode::MissingFile => TextKey::ValidationMissingFile,
-            MergeValidationCode::UnsupportedExtension => TextKey::ValidationUnsupportedExtension,
-            MergeValidationCode::DuplicateFile => TextKey::ValidationDuplicateFile,
-            MergeValidationCode::InvalidOutputDirectory => {
-                TextKey::ValidationInvalidOutputDirectory
-            }
-            MergeValidationCode::InvalidOutputFileName => TextKey::ValidationInvalidOutputFileName,
-            MergeValidationCode::OutputAlreadyExists => TextKey::ValidationOutputAlreadyExists,
-            MergeValidationCode::ManualRootNotSelected => TextKey::ValidationManualRootNotSelected,
-        },
-        TaskError::Io { .. }
-        | TaskError::Codec(_)
-        | TaskError::ModelRead { .. }
-        | TaskError::InvalidModel(_)
-        | TaskError::Backend(_)
-        | TaskError::SchedulerStopped
-        | TaskError::InvalidConcurrency => unreachable!("handled above"),
-    };
-    let mut message = catalog.text(key).to_owned();
-    let path = match error {
-        TaskError::OutputConflict(path) => Some(path),
-        TaskError::Validation { path, .. } => path.as_ref(),
-        TaskError::Io { path, .. } | TaskError::ModelRead { path, .. } => Some(path),
-        _ => None,
-    };
-    if let Some(path) = path {
-        message = message.replace("{0}", &path.display().to_string());
-    }
-    message
-}
-
-fn merge_warning_message(catalog: Catalog, warning: &model_merger_engine::MergeWarning) -> String {
-    let key = match warning.code {
-        model_merger_engine::MergeWarningCode::NoAttachmentBone => TextKey::WarningNoAttachmentBone,
-        model_merger_engine::MergeWarningCode::UnconnectedHierarchy => {
-            TextKey::WarningUnconnectedHierarchy
-        }
-    };
-    catalog
-        .text(key)
-        .replace("{0}", &warning.model_name)
-        .replace("{1}", &warning.root_model_name)
-}
-
 fn short_name(path: &Path) -> String {
     path.file_name()
         .unwrap_or_default()
@@ -1149,13 +1064,14 @@ mod tests {
                 state: NativeAppState::new(settings),
                 store: SettingsStore::new(std::env::temp_dir().join("unused-settings.json")),
                 scheduler: TaskScheduler::native(2).unwrap(),
-                notice: None,
+                notices: NoticeCenter::default(),
                 configured_language: language,
                 previews: Vec::new(),
                 next_preview_id: 1,
                 drop_target: None,
                 pending_group_delete: None,
                 pending_overwrites: VecDeque::new(),
+                render_state: None,
             };
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -1203,22 +1119,6 @@ mod tests {
     }
 
     #[test]
-    fn merge_warnings_rerender_from_semantic_data() {
-        let warning = model_merger_engine::MergeWarning {
-            code: model_merger_engine::MergeWarningCode::NoAttachmentBone,
-            model_name: "arm".to_owned(),
-            root_model_name: "body".to_owned(),
-        };
-
-        let chinese = merge_warning_message(Catalog::new(AppLanguage::ChineseSimplified), &warning);
-        let english = merge_warning_message(Catalog::new(AppLanguage::English), &warning);
-
-        assert!(chinese.contains("arm"));
-        assert!(chinese.contains("body"));
-        assert_ne!(chinese, english);
-    }
-
-    #[test]
     fn offscreen_saved_window_position_is_rejected() {
         let display = WindowBounds::new(0.0, 0.0, 1920.0, 1080.0);
         let visible = WindowBounds::new(1800.0, 900.0, 600.0, 500.0);
@@ -1229,30 +1129,52 @@ mod tests {
     }
 
     #[test]
-    fn stage_progress_and_model_read_errors_include_actionable_context() {
-        let catalog = Catalog::new(AppLanguage::English);
-        let progress = TaskProgress {
-            stage: model_merger_engine::MergeStage::Loading,
-            current: 1,
-            total: 2,
-            item: Some("arm.cast".to_owned()),
-        };
-        let error = TaskError::ModelRead {
-            path: PathBuf::from("broken.cast"),
-            message: "truncated face buffer".to_owned(),
-        };
-
-        assert!(task_progress_message(catalog, &progress).contains("arm.cast"));
-        let message = task_error_message(catalog, &error);
-        assert!(message.contains("broken.cast"));
-        assert!(message.contains("truncated face buffer"));
-    }
-
-    #[test]
     fn progress_fraction_is_bounded_and_handles_an_empty_total() {
         assert_eq!(0.0, normalized_progress(0, 0));
         assert_eq!(0.5, normalized_progress(1, 2));
         assert_eq!(1.0, normalized_progress(4, 2));
+    }
+
+    #[test]
+    fn successful_part_removal_and_clear_dismiss_stale_group_errors() {
+        let directory = std::env::temp_dir().join(format!(
+            "model-merger-notice-transition-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let first = directory.join("first.cast");
+        let second = directory.join("second.cast");
+        std::fs::write(&first, b"cast").unwrap();
+        std::fs::write(&second, b"cast").unwrap();
+
+        let mut state = NativeAppState::new(model_merger_app_core::AppSettings::default());
+        assert_eq!(AddPartStatus::Added, state.add_part(0, &first).status);
+        assert_eq!(AddPartStatus::Added, state.add_part(0, &second).status);
+        let group_id = state.groups()[0].id();
+        let mut app = NativeApp {
+            state,
+            store: SettingsStore::new(directory.join("settings.json")),
+            scheduler: TaskScheduler::native(2).unwrap(),
+            notices: NoticeCenter::default(),
+            configured_language: AppLanguage::English,
+            previews: Vec::new(),
+            next_preview_id: 1,
+            drop_target: None,
+            pending_group_delete: None,
+            pending_overwrites: VecDeque::new(),
+            render_state: None,
+        };
+
+        app.set_group_notice(0, UiNotice::AddPart(AddPartStatus::Duplicate));
+        app.remove_part(0, 0);
+        assert!(!app.notices.contains_group(group_id));
+
+        app.set_group_notice(0, UiNotice::AddPart(AddPartStatus::Full));
+        app.clear_parts(0);
+        assert!(!app.notices.contains_group(group_id));
+        assert!(app.state.groups()[0].plan.state().part_files.is_empty());
+
+        let _ = std::fs::remove_dir_all(directory);
     }
 
     #[test]
@@ -1292,13 +1214,14 @@ mod tests {
             state,
             store: SettingsStore::new(directory.join("settings.json")),
             scheduler: TaskScheduler::native(2).unwrap(),
-            notice: None,
+            notices: NoticeCenter::default(),
             configured_language: AppLanguage::English,
             previews: Vec::new(),
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,
             pending_overwrites: VecDeque::new(),
+            render_state: None,
         };
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(

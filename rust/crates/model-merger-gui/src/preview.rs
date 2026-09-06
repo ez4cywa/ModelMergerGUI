@@ -1,14 +1,14 @@
-use crate::theme;
-use eframe::egui::{self, Color32, RichText, Sense, Shape};
+use crate::{preview_gpu, theme};
+use eframe::egui::{self, Color32, RichText, Sense};
 use model_merger_app_core::{Catalog, TextKey};
-use model_merger_engine::{PreviewData, PreviewError};
+use model_merger_engine::PreviewError;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread::JoinHandle;
 
-const PREVIEW_TRIANGLE_LIMIT: usize = 75_000;
+const PREVIEW_TRIANGLE_LIMIT: usize = 250_000;
 
 pub struct PreviewSession {
     pub id: u64,
@@ -23,14 +23,26 @@ pub struct PreviewSession {
 }
 
 enum PreviewLoadState {
-    Loading(Receiver<Result<PreviewData, PreviewError>>),
-    Ready(PreviewData),
+    Loading(Receiver<Result<LoadedPreview, PreviewError>>),
+    Ready(LoadedPreview),
     Failed(PreviewFailure),
 }
 
 enum PreviewFailure {
-    Engine,
+    Engine(PreviewError),
     WorkerStopped,
+}
+
+struct LoadedPreview {
+    summary: PreviewSummary,
+    gpu_model: Arc<preview_gpu::PreviewModel>,
+}
+
+struct PreviewSummary {
+    model_name: String,
+    source_mesh_count: usize,
+    displayed_triangle_count: usize,
+    is_simplified: bool,
 }
 
 impl PreviewSession {
@@ -47,6 +59,16 @@ impl PreviewSession {
         let worker = std::thread::spawn(move || {
             let result = model_merger_engine::load_preview(&path, PREVIEW_TRIANGLE_LIMIT, || {
                 worker_cancelled.load(Ordering::Acquire)
+            })
+            .map(|data| {
+                let gpu_model = Arc::new(preview_gpu::PreviewModel::from_preview(&data));
+                let summary = PreviewSummary {
+                    model_name: data.model_name,
+                    source_mesh_count: data.source_mesh_count,
+                    displayed_triangle_count: data.displayed_triangle_count,
+                    is_simplified: data.is_simplified,
+                };
+                LoadedPreview { summary, gpu_model }
             });
             let _ = sender.send(result);
         });
@@ -118,19 +140,21 @@ impl PreviewSession {
                             .request_repaint_after(std::time::Duration::from_millis(30));
                     }
                     PreviewLoadState::Failed(failure) => {
-                        let key = match failure {
-                            PreviewFailure::Engine => TextKey::PreviewFailed,
-                            PreviewFailure::WorkerStopped => TextKey::PreviewWorkerStopped,
+                        let message = match failure {
+                            PreviewFailure::Engine(error) => {
+                                crate::messages::preview_error(catalog, error)
+                            }
+                            PreviewFailure::WorkerStopped => {
+                                catalog.text(TextKey::PreviewWorkerStopped).to_owned()
+                            }
                         };
-                        ui.colored_label(theme::DESTRUCTIVE, catalog.text(key));
+                        ui.colored_label(theme::DESTRUCTIVE, message);
                     }
-                    PreviewLoadState::Ready(data) => {
-                        let model_name = data.model_name.clone();
-                        let source_mesh_count = data.source_mesh_count;
-                        let displayed_triangle_count = data.displayed_triangle_count;
-                        let is_simplified = data.is_simplified;
-                        let bounds = data.bounds;
-                        let meshes = &data.meshes;
+                    PreviewLoadState::Ready(loaded) => {
+                        let model_name = loaded.summary.model_name.clone();
+                        let source_mesh_count = loaded.summary.source_mesh_count;
+                        let displayed_triangle_count = loaded.summary.displayed_triangle_count;
+                        let is_simplified = loaded.summary.is_simplified;
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(model_name).size(17.0));
                             ui.label(format!(
@@ -152,12 +176,6 @@ impl PreviewSession {
                         let size = egui::vec2(available.x.max(320.0), available.y.max(300.0));
                         let (response, painter) = ui.allocate_painter(size, Sense::drag());
                         painter.rect_filled(response.rect, 6.0, Color32::from_rgb(241, 245, 249));
-                        painter.rect_stroke(
-                            response.rect,
-                            6.0,
-                            egui::Stroke::new(1.0, theme::BORDER),
-                            egui::StrokeKind::Inside,
-                        );
                         if response.dragged() {
                             let delta = ui.input(|input| input.pointer.delta());
                             self.yaw += delta.x * 0.01;
@@ -195,16 +213,20 @@ impl PreviewSession {
                             self.pitch = 0.35;
                             self.zoom = 1.0;
                         }
-                        let shape = build_model_shape(
+                        painter.add(preview_gpu::paint_callback(
                             response.rect,
-                            meshes,
-                            bounds.minimum,
-                            bounds.maximum,
+                            self.id,
+                            Arc::clone(&loaded.gpu_model),
                             self.yaw,
                             self.pitch,
                             self.zoom,
+                        ));
+                        painter.rect_stroke(
+                            response.rect,
+                            6.0,
+                            egui::Stroke::new(1.0, theme::BORDER),
+                            egui::StrokeKind::Inside,
                         );
-                        painter.add(shape);
                     }
                 }
             });
@@ -219,9 +241,11 @@ impl PreviewSession {
                 self.finish_worker();
                 self.state = PreviewLoadState::Ready(data);
             }
-            Ok(Err(_error)) => {
+            Ok(Err(error)) => {
                 self.finish_worker();
-                self.state = PreviewLoadState::Failed(PreviewFailure::Engine);
+                let detail = error.to_string();
+                crate::diagnostics::record_runtime_error("preview-error", &detail);
+                self.state = PreviewLoadState::Failed(PreviewFailure::Engine(error));
             }
             Err(TryRecvError::Disconnected) => {
                 self.finish_worker();
@@ -247,110 +271,6 @@ impl Drop for PreviewSession {
     }
 }
 
-fn build_model_shape(
-    rect: egui::Rect,
-    source_meshes: &[model_merger_engine::PreviewMesh],
-    minimum: [f32; 3],
-    maximum: [f32; 3],
-    yaw: f32,
-    pitch: f32,
-    zoom: f32,
-) -> Shape {
-    let center = [
-        (minimum[0] + maximum[0]) * 0.5,
-        (minimum[1] + maximum[1]) * 0.5,
-        (minimum[2] + maximum[2]) * 0.5,
-    ];
-    let extent = (maximum[0] - minimum[0])
-        .max(maximum[1] - minimum[1])
-        .max(maximum[2] - minimum[2])
-        .max(0.0001);
-    let scale = rect.width().min(rect.height()) * 0.42 * zoom / extent;
-    let mut triangles = Vec::new();
-    for source in source_meshes {
-        let transformed: Vec<_> = source
-            .positions
-            .iter()
-            .map(|point| rotate(subtract(*point, center), yaw, pitch))
-            .collect();
-        for triangle in source.triangle_indices.chunks_exact(3) {
-            let Some(a) = transformed.get(triangle[0] as usize) else {
-                continue;
-            };
-            let Some(b) = transformed.get(triangle[1] as usize) else {
-                continue;
-            };
-            let Some(c) = transformed.get(triangle[2] as usize) else {
-                continue;
-            };
-            triangles.push([*a, *b, *c]);
-        }
-    }
-    // egui meshes do not expose a depth buffer. Draw farther triangles first so nearer
-    // surfaces remain visible instead of depending on source-file face order.
-    triangles.sort_by(|left, right| triangle_depth(*left).total_cmp(&triangle_depth(*right)));
-    let mut mesh = egui::Mesh::default();
-    for [a, b, c] in triangles {
-        let shade = face_shade(a, b, c);
-        let color = Color32::from_rgb(
-            (45.0 + shade * 75.0) as u8,
-            (93.0 + shade * 80.0) as u8,
-            (150.0 + shade * 65.0) as u8,
-        );
-        let base = mesh.vertices.len() as u32;
-        mesh.colored_vertex(project(rect, a, scale), color);
-        mesh.colored_vertex(project(rect, b, scale), color);
-        mesh.colored_vertex(project(rect, c, scale), color);
-        mesh.add_triangle(base, base + 1, base + 2);
-    }
-    Shape::mesh(mesh)
-}
-
-fn triangle_depth(triangle: [[f32; 3]; 3]) -> f32 {
-    (triangle[0][2] + triangle[1][2] + triangle[2][2]) / 3.0
-}
-
-fn subtract(point: [f32; 3], center: [f32; 3]) -> [f32; 3] {
-    [
-        point[0] - center[0],
-        point[1] - center[1],
-        point[2] - center[2],
-    ]
-}
-
-fn rotate(point: [f32; 3], yaw: f32, pitch: f32) -> [f32; 3] {
-    let (sin_yaw, cos_yaw) = yaw.sin_cos();
-    let x = point[0] * cos_yaw + point[2] * sin_yaw;
-    let z = -point[0] * sin_yaw + point[2] * cos_yaw;
-    let (sin_pitch, cos_pitch) = pitch.sin_cos();
-    [
-        x,
-        point[1] * cos_pitch - z * sin_pitch,
-        point[1] * sin_pitch + z * cos_pitch,
-    ]
-}
-
-fn project(rect: egui::Rect, point: [f32; 3], scale: f32) -> egui::Pos2 {
-    egui::pos2(
-        rect.center().x + point[0] * scale,
-        rect.center().y - point[1] * scale,
-    )
-}
-
-fn face_shade(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> f32 {
-    let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    let normal = [
-        ab[1] * ac[2] - ab[2] * ac[1],
-        ab[2] * ac[0] - ab[0] * ac[2],
-        ab[0] * ac[1] - ab[1] * ac[0],
-    ];
-    let length = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2])
-        .sqrt()
-        .max(0.0001);
-    (normal[2].abs() / length).clamp(0.15, 1.0)
-}
-
 fn control(ui: &mut egui::Ui, label: &str) -> egui::Response {
     ui.add(egui::Button::new(label).min_size(egui::vec2(92.0, 44.0)))
 }
@@ -367,27 +287,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_preserves_distance_from_origin() {
-        let point = [2.0, -1.0, 3.0];
-        let rotated = rotate(point, 0.7, -0.4);
-        let before = point.iter().map(|value| value * value).sum::<f32>();
-        let after = rotated.iter().map(|value| value * value).sum::<f32>();
-        assert!((before - after).abs() < 0.0001);
-    }
-
-    #[test]
     fn preview_title_keeps_the_selected_file_name() {
         assert_eq!(
             "Preview — body.cast",
             PreviewSession::path_title(Path::new("C:/models/body.cast"), "Preview")
         );
-    }
-
-    #[test]
-    fn triangle_depth_uses_the_average_camera_space_z() {
-        let triangle = [[0.0, 0.0, -3.0], [1.0, 0.0, 0.0], [0.0, 1.0, 3.0]];
-
-        assert_eq!(0.0, triangle_depth(triangle));
     }
 
     #[test]

@@ -11,6 +11,35 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $apiBase = 'https://api.github.com/repos/ez4cywa/ModelMergerGUI'
+& (Join-Path $PSScriptRoot 'Test-ReleaseVersion.ps1') `
+    -Tag $Tag `
+    -RequireCleanTree `
+    -RequireHeadTag
+if ($LASTEXITCODE -ne 0) {
+    throw "Release identity validation failed with exit code $LASTEXITCODE."
+}
+
+Push-Location $repositoryRoot
+try {
+    git fetch origin "refs/tags/${Tag}:refs/tags/${Tag}" --force
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to verify remote tag $Tag."
+    }
+    $head = (git rev-parse HEAD).Trim()
+    $remoteTagCommit = (git rev-list -n 1 $Tag).Trim()
+    if ($head -ne $remoteTagCommit) {
+        throw "Remote tag $Tag does not point to HEAD."
+    }
+}
+finally {
+    Pop-Location
+}
+
+$publishScript = Join-Path $PSScriptRoot 'Publish-RustNative.ps1'
+& $publishScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Native package build failed with exit code $LASTEXITCODE."
+}
 $resolvedNotesPath = if ([System.IO.Path]::IsPathRooted($NotesPath)) {
     $NotesPath
 }
@@ -56,6 +85,10 @@ foreach ($requiredPath in @($archivePath, $hashPath)) {
     }
 }
 $sha256 = ((Get-Content -LiteralPath $hashPath -Raw).Trim() -split '\s+')[0]
+$actualSha256 = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($sha256 -ne $actualSha256) {
+    throw 'Release archive checksum does not match its SHA-256 file.'
+}
 $body = (Get-Content -LiteralPath $resolvedNotesPath -Raw)
 $body = $body.Replace('{{SHA256}}', $sha256).Replace('{{TAG}}', $Tag)
 
@@ -75,7 +108,7 @@ catch {
 
 $payload = @{
     tag_name = $Tag
-    target_commitish = 'main'
+    target_commitish = (git -C $repositoryRoot rev-parse HEAD).Trim()
     name = "Cast Model Merger GUI $Tag"
     body = $body
     draft = $true
@@ -89,7 +122,8 @@ if ($null -eq $release) {
 }
 
 $assets = @(
-    @{ Path = $archivePath; Name = 'CastModelMerger-win-x64.zip'; Type = 'application/zip' }
+    @{ Path = $archivePath; Name = 'CastModelMerger-win-x64.zip'; Type = 'application/zip' },
+    @{ Path = $hashPath; Name = 'CastModelMerger-win-x64.zip.sha256'; Type = 'text/plain' }
 )
 $assetNames = @($assets | ForEach-Object { $_.Name })
 

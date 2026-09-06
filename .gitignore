@@ -364,3 +364,5 @@ MigrationBackup/
 # standalone font files. Run scripts/Install-MiSans.ps1 to obtain the official files.
 /src/ModelMerger.Gui/Assets/Fonts/*.ttf
 /src/ModelMerger.Gui/Assets/Fonts/MiSans-License.pdf
+/rust/crates/model-merger-gui/assets/fonts/*.ttf
+/rust/crates/model-merger-gui/assets/fonts/MiSans-License.pdf

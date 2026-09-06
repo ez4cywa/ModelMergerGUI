@@ -37,7 +37,7 @@
 - 各组会记住最近添加部件的文件夹，后续选择会从同一路径打开。
 - 支持删除、替换部件，并可为各组手动指定根模型。
 - 可从任一已选槽位打开交互式 3D 部件预览，也可在合并完成后预览最终拼接模型；所有 Cast 预览均由 Rust 解析，包含使用 32 位面索引的模型。
-- 预览窗口支持鼠标拖动旋转、滚轮缩放、键盘操作和一键重置视角；大型模型会自动抽样显示，不修改源文件。
+- 预览窗口使用 GPU 深度缓冲渲染，支持鼠标拖动旋转、滚轮缩放、键盘操作和一键重置视角；大型模型会自动抽样显示，不修改源文件。
 - 可单独启动、取消某一组，也可一键合并所有已就绪的组。
 - 最多同时执行 2 组合并，其他组自动排队；排队或运行中的任务均可取消。
 - 同一输出路径不会被两个模型组同时写入，冲突会在网格合并前停止。
@@ -56,6 +56,12 @@
 
 ```text
 %LocalAppData%\CastModelMerger\settings.json
+```
+
+如果程序在创建窗口或显卡渲染器时失败，会显示中英双语提示并可直接打开诊断目录。启动崩溃和预览解码错误记录在：
+
+```text
+%LocalAppData%\CastModelMerger\logs\CastModelMerger.log
 ```
 
 ## 使用
@@ -97,7 +103,7 @@
 | 恢复初始视角 | 点击“重置视角”或按 `R` |
 | 关闭预览 | 点击“关闭”或按 `Esc` |
 
-预览只读取模型，不会修改部件、合并计划或输出文件。为保证大型模型操作流畅，预览画面最多显示 75,000 个三角面；发生抽样时窗口会显示简化提示，但实际合并仍使用完整模型数据。
+预览只读取模型，不会修改部件、合并计划或输出文件。几何在后台准备一次，旋转、缩放、明暗和遮挡由 GPU 完成。预览画面最多显示 250,000 个三角面；发生抽样时窗口会显示简化提示，但实际合并仍使用完整模型数据。
 
 ## 构建和测试
 
@@ -118,6 +124,12 @@ cargo test --workspace
 cargo build --release -p model-merger-gui --bin CastModelMerger
 ```
 
+CAST 解码器还提供节点、属性、数值和文本资源预算。仓库通过 Windows CI 检查格式、Clippy、测试、Release 构建和图标资源，并每周运行解码模糊测试；也可本地安装 `cargo-fuzz` 后执行：
+
+```powershell
+cargo fuzz --fuzz-dir .\fuzz run decode
+```
+
 生成项目唯一发布类型——不依赖 .NET 的 Rust 原生 Windows x64 免安装包，并同时生成 SHA-256 校验文件：
 
 ```powershell
@@ -131,8 +143,11 @@ rust/crates/cast-codec              边界检查严格的 CAST 编解码
 rust/crates/model-merger-engine     合并、验证、安全输出与预览抽样
 rust/crates/model-merger-app-core   工作区、设置、五语目录与双并发调度
 rust/crates/model-merger-gui        eframe/egui/wgpu 原生桌面界面
+rust/fuzz                           CAST 解码器模糊测试入口
 src/ 和 tests/                      迁移期间保留的 WPF 兼容性对照与语料
 ```
+
+迁移期 `model-merger-worker` 源码仍保留用于历史协议对照，但已从默认 Rust workspace 和所有正式构建、测试、发布路径中排除。
 
 ## 致谢与许可
 
