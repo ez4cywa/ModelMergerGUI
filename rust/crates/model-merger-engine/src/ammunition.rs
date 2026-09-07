@@ -28,6 +28,8 @@ pub struct FillRequest {
     pub ammunition: PathBuf,
     pub output: PathBuf,
     pub magazines: Vec<String>,
+    /// Explicit opt-in for numbered ammunition bones outside magazine subtrees.
+    pub extra_slots: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -299,15 +301,19 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
     }
     let analysis = analyze(&model);
     let selected: HashSet<_> = request.magazines.iter().collect();
-    if selected.is_empty()
+    if (selected.is_empty() && request.extra_slots.is_empty())
         || selected
             .iter()
             .any(|name| !analysis.magazines.iter().any(|m| &m.name == *name))
+        || request
+            .extra_slots
+            .iter()
+            .any(|name| !analysis.excluded_slots.contains(name))
     {
         return Err(invalid("Select a detected magazine"));
     }
     let mut skipped = 0;
-    let targets: Vec<_> = analysis
+    let mut targets: Vec<_> = analysis
         .magazines
         .iter()
         .filter(|m| selected.contains(&m.name))
@@ -316,6 +322,23 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
             m.slots.iter().filter(|s| !m.occupied.contains(s)).cloned()
         })
         .collect();
+    for name in &analysis.excluded_slots {
+        if !request.extra_slots.contains(name) {
+            continue;
+        }
+        let index = model.bones.iter().position(|b| &b.name == name).unwrap();
+        let occupied = model.meshes.iter().any(|m| {
+            m.weight_bones
+                .iter()
+                .zip(&m.weight_values)
+                .any(|(b, w)| *b as usize == index && *w > 0.0)
+        });
+        if occupied {
+            skipped += 1;
+        } else {
+            targets.push(name.clone());
+        }
+    }
     if targets.is_empty() {
         return Err(invalid(
             "No empty ammunition bones in the selected magazines",

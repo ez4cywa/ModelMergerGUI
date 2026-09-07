@@ -12,6 +12,7 @@ const SHADER: &str = r#"
 struct ViewUniform {
     center_extent: vec4<f32>,
     view: vec4<f32>,
+    model_color: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -61,7 +62,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let normal = input.normal / max(length(input.normal), 0.0001);
     let light = clamp(abs(normal.z), 0.15, 1.0);
-    let color = vec3<f32>(45.0, 93.0, 150.0) / 255.0 + light * vec3<f32>(75.0, 80.0, 65.0) / 255.0;
+    let color = view_uniform.model_color.rgb * (0.45 + 0.55 * light);
     return vec4<f32>(color, 1.0);
 }
 "#;
@@ -78,6 +79,7 @@ struct Vertex {
 struct ViewUniform {
     center_extent: [f32; 4],
     view: [f32; 4],
+    model_color: [f32; 4],
 }
 
 pub struct PreviewModel {
@@ -149,7 +151,7 @@ impl PreviewResources {
             label: Some("preview uniform layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -337,6 +339,7 @@ pub fn paint_callback(
     yaw: f32,
     pitch: f32,
     zoom: f32,
+    model_color: egui::Color32,
 ) -> egui::Shape {
     let aspect = (rect.width() / rect.height().max(1.0)).max(0.0001);
     egui_wgpu::Callback::new_paint_callback(
@@ -351,6 +354,7 @@ pub fn paint_callback(
                     model.extent,
                 ],
                 view: [yaw, pitch, zoom, aspect],
+                model_color: model_color.to_array().map(|v| f32::from(v) / 255.0),
             },
             model,
         },

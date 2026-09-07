@@ -163,15 +163,22 @@ impl PreviewSession {
                         let source_mesh_count = loaded.summary.source_mesh_count;
                         let displayed_triangle_count = loaded.summary.displayed_triangle_count;
                         let is_simplified = loaded.summary.is_simplified;
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(model_name).size(17.0));
-                            ui.label(format!(
-                                "{} {} · {} {}",
-                                source_mesh_count,
-                                catalog.text(TextKey::Meshes),
-                                displayed_triangle_count,
-                                catalog.text(TextKey::Triangles)
-                            ));
+                        ui.horizontal_wrapped(|ui| {
+                            ui.add(
+                                egui::Label::new(RichText::new(&model_name).size(17.0)).truncate(),
+                            )
+                            .on_hover_text(model_name);
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} {} · {} {}",
+                                    source_mesh_count,
+                                    catalog.text(TextKey::Meshes),
+                                    displayed_triangle_count,
+                                    catalog.text(TextKey::Triangles)
+                                ))
+                                .size(13.0)
+                                .color(palette.secondary),
+                            );
                         });
                         if is_simplified {
                             ui.label(
@@ -181,7 +188,7 @@ impl PreviewSession {
                             );
                         }
                         let available = ui.available_size();
-                        let size = egui::vec2(available.x.max(320.0), available.y.max(300.0));
+                        let size = egui::vec2(available.x.max(1.0), available.y.max(1.0));
                         let (response, painter) = ui.allocate_painter(size, Sense::drag());
                         painter.rect_filled(response.rect, 10.0, palette.preview_canvas);
                         if response.dragged() {
@@ -228,6 +235,7 @@ impl PreviewSession {
                             self.yaw,
                             self.pitch,
                             self.zoom,
+                            palette.preview_model,
                         ));
                         painter.rect_stroke(
                             response.rect,

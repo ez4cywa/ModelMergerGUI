@@ -90,6 +90,7 @@ New-Item -ItemType Directory -Force -Path $screenshotDestination | Out-Null
 Copy-Item -LiteralPath (Join-Path $screenshotSource 'main-window-zh.png') -Destination $screenshotDestination
 Copy-Item -LiteralPath (Join-Path $screenshotSource 'main-window-en.png') -Destination $screenshotDestination
 Copy-Item -LiteralPath (Join-Path $screenshotSource 'model-preview-zh.png') -Destination $screenshotDestination
+Copy-Item -LiteralPath (Join-Path $screenshotSource 'model-preview-dark-zh.png') -Destination $screenshotDestination
 Copy-Item -LiteralPath (Join-Path $screenshotSource 'ammo-fill-zh.png') -Destination $screenshotDestination
 
 Compress-Archive -Path (Join-Path $resolvedPublishDirectory '*') -DestinationPath $archivePath -Force

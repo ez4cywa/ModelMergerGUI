@@ -29,6 +29,7 @@ pub struct Palette {
     pub notice_info: Color32,
     pub notice_error: Color32,
     pub preview_canvas: Color32,
+    pub preview_model: Color32,
 }
 
 pub const LIGHT: Palette = Palette {
@@ -50,6 +51,7 @@ pub const LIGHT: Palette = Palette {
     notice_info: Color32::from_rgb(235, 245, 255),
     notice_error: Color32::from_rgb(255, 240, 240),
     preview_canvas: Color32::from_rgb(235, 237, 240),
+    preview_model: Color32::from_rgb(118, 124, 134),
 };
 
 pub const DARK: Palette = Palette {
@@ -71,6 +73,7 @@ pub const DARK: Palette = Palette {
     notice_info: Color32::from_rgb(24, 58, 91),
     notice_error: Color32::from_rgb(74, 32, 32),
     preview_canvas: Color32::from_rgb(32, 33, 36),
+    preview_model: Color32::from_rgb(190, 196, 206),
 };
 
 pub fn palette(ui: &egui::Ui) -> Palette {

@@ -22,6 +22,7 @@ pub struct AmmoTool {
     output: Option<PathBuf>,
     analysis: Option<Analysis>,
     selected: Vec<String>,
+    selected_extra: Vec<String>,
     job: Option<Receiver<Result<JobResult, String>>>,
     observer: Arc<Progress>,
     result: Option<FillResult>,
@@ -86,6 +87,7 @@ impl AmmoTool {
         self.weapon = Some(path.clone());
         self.analysis = None;
         self.selected.clear();
+        self.selected_extra.clear();
         self.result = None;
         self.error = None;
         self.observer = Arc::new(Progress::default());
@@ -111,6 +113,7 @@ impl AmmoTool {
             ammunition: ammunition.clone(),
             output: output.clone(),
             magazines: self.selected.clone(),
+            extra_slots: self.selected_extra.clone(),
         };
         self.result = None;
         self.error = None;
@@ -184,10 +187,20 @@ impl AmmoTool {
                         }
                         ui.label(egui::RichText::new(group.slots.join(", ")).size(13.0).color(p.secondary));
                     }
-                    if !analysis.excluded_slots.is_empty() { ui.label(format!("{}: {}", localized(language,["非弹匣骨骼（不装填）","Non-magazine bones (excluded)","Os hors chargeur (exclus)","Кости вне магазина (исключены)","Huesos fuera del cargador (excluidos)"]),analysis.excluded_slots.join(", "))); }
+                    if !analysis.excluded_slots.is_empty() {
+                        ui.separator();
+                        ui.label(localized(language,["其他子弹骨骼（按需勾选）","Other ammunition bones (optional)","Autres os de munition (facultatif)","Другие кости патронов (по выбору)","Otros huesos de munición (opcionales)"]));
+                        for name in &analysis.excluded_slots {
+                            let mut selected = self.selected_extra.contains(name);
+                            if ui.checkbox(&mut selected, name).changed() {
+                                if selected { self.selected_extra.push(name.clone()); } else { self.selected_extra.retain(|n| n != name); }
+                                self.result = None;
+                            }
+                        }
+                    }
                     ui.label(egui::RichText::new(localized(language,["默认首个弹匣；动画备用弹匣可能与其重叠。已绑定网格的骨骼会跳过。", "First magazine selected by default; animation variants may overlap. Occupied bones are skipped.", "Premier chargeur par défaut ; les variantes d’animation peuvent se superposer. Os occupés ignorés.", "По умолчанию выбран первый магазин; варианты анимации могут совпадать. Занятые кости пропускаются.", "Se selecciona el primer cargador; variantes animadas pueden solaparse. Se omiten huesos ocupados."])).size(13.0).color(p.secondary));
                 }
-                let ready = self.ammo.is_some() && self.output.is_some() && !self.selected.is_empty() && self.analysis.is_some();
+                let ready = self.ammo.is_some() && self.output.is_some() && (!self.selected.is_empty() || !self.selected_extra.is_empty()) && self.analysis.is_some();
                 if ui.add_enabled(ready, egui::Button::new(title(language)).min_size(egui::vec2(140.0,36.0))).clicked() { self.fill(); }
             });
             if self.job.is_some() {

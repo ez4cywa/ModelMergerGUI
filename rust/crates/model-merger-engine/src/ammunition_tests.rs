@@ -69,7 +69,11 @@ fn fill_rotates_about_source_anchor_binds_and_preserves_original_nodes() {
     );
     let model = Model {
         name: "weapon".into(),
-        bones: vec![bone("j_mag1", -1, Vec3::default()), target],
+        bones: vec![
+            bone("j_mag1", -1, Vec3::default()),
+            target,
+            bone("j_ammo_17", -1, Vec3(5.0, 0.0, 0.0)),
+        ],
         meshes: vec![],
         materials: vec![],
         shapes: vec![],
@@ -89,6 +93,7 @@ fn fill_rotates_about_source_anchor_binds_and_preserves_original_nodes() {
         ammunition: ammo_path.clone(),
         output: output.clone(),
         magazines: vec!["j_mag1".into()],
+        extra_slots: vec![],
     };
     let result = fill(request.clone(), &NoopObserver).unwrap();
     assert_eq!(result.inserted, 1);
@@ -108,8 +113,58 @@ fn fill_rotates_about_source_anchor_binds_and_preserves_original_nodes() {
         ammunition: ammo_path,
         output: directory.join("repeat.cast"),
         magazines: vec!["j_mag1".into()],
+        extra_slots: vec![],
     };
     assert!(fill(repeat, &NoopObserver).is_err());
+    let extra_output = directory.join("extra.cast");
+    let extra_request = FillRequest {
+        weapon: weapon.clone(),
+        ammunition: directory.join("ammo.cast"),
+        output: extra_output.clone(),
+        magazines: vec![],
+        extra_slots: vec!["j_ammo_17".into(), "j_ammo_17".into()],
+    };
+    assert_eq!(
+        fill(extra_request.clone(), &NoopObserver).unwrap().inserted,
+        1
+    );
+    let (_, extra_model) = read(&extra_output, &NoopObserver).unwrap();
+    assert_eq!(extra_model.meshes[0].weight_bones, vec![2; 3]);
+    assert!(
+        fill(
+            FillRequest {
+                weapon: extra_output,
+                output: directory.join("extra-repeat.cast"),
+                ..extra_request.clone()
+            },
+            &NoopObserver
+        )
+        .is_err()
+    );
+    assert!(
+        fill(
+            FillRequest {
+                output: directory.join("invalid.cast"),
+                extra_slots: vec!["j_mag1".into()],
+                ..extra_request.clone()
+            },
+            &NoopObserver
+        )
+        .is_err()
+    );
+    assert_eq!(
+        fill(
+            FillRequest {
+                output: directory.join("both.cast"),
+                magazines: vec!["j_mag1".into()],
+                ..extra_request
+            },
+            &NoopObserver
+        )
+        .unwrap()
+        .inserted,
+        2
+    );
     assert_eq!(std::fs::read(&weapon).unwrap(), original);
     std::fs::remove_dir_all(directory).unwrap();
 }
