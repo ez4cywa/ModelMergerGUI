@@ -22,6 +22,7 @@ declare_text_keys!(
     NewGroup,
     SaveSettings,
     RestoreDefaults,
+    About,
     Group,
     ModelParts,
     ModelPartsHint,
@@ -158,6 +159,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::NewGroup => "新建模型组",
         TextKey::SaveSettings => "保存设置",
         TextKey::RestoreDefaults => "恢复默认",
+        TextKey::About => "关于",
         TextKey::Group => "模型组",
         TextKey::ModelParts => "模型部件",
         TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
@@ -264,6 +266,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::NewGroup => "New model group",
         TextKey::SaveSettings => "Save settings",
         TextKey::RestoreDefaults => "Restore defaults",
+        TextKey::About => "About",
         TextKey::Group => "Model group",
         TextKey::ModelParts => "Model parts",
         TextKey::ModelPartsHint => {
@@ -386,6 +389,7 @@ fn french(key: TextKey) -> &'static str {
         TextKey::NewGroup => "Nouveau groupe",
         TextKey::SaveSettings => "Enregistrer",
         TextKey::RestoreDefaults => "Valeurs par défaut",
+        TextKey::About => "À propos",
         TextKey::Group => "Groupe de modèles",
         TextKey::ModelParts => "Pièces du modèle",
         TextKey::ModelPartsHint => {
@@ -514,6 +518,7 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::NewGroup => "Новая группа",
         TextKey::SaveSettings => "Сохранить настройки",
         TextKey::RestoreDefaults => "По умолчанию",
+        TextKey::About => "О программе",
         TextKey::Group => "Группа моделей",
         TextKey::ModelParts => "Детали модели",
         TextKey::ModelPartsHint => {
@@ -634,6 +639,7 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::NewGroup => "Nuevo grupo",
         TextKey::SaveSettings => "Guardar ajustes",
         TextKey::RestoreDefaults => "Restaurar valores",
+        TextKey::About => "Acerca de",
         TextKey::Group => "Grupo de modelos",
         TextKey::ModelParts => "Piezas del modelo",
         TextKey::ModelPartsHint => {

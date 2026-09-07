@@ -61,6 +61,7 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - A fully native Rust architecture handles CAST parsing, merging, scheduling, settings, five-language UI and previews in one process. See the [full migration record (Chinese)](docs/full-rust-migration.md).
 - Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
 - Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
+- Open **About** in the top toolbar to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
 - Save the interface language, output folder, root-model mode and window position. Selected model paths are not persisted.
 
 The original WPF and command-line projects remain in the source tree for compatibility reference but are no longer included in release packages. The Rust GUI accepts 2–15 `.cast` parts per merge group and produces read-back-validated `.cast` output.

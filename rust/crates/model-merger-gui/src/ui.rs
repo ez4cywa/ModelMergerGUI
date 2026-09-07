@@ -30,6 +30,7 @@ pub struct NativeApp {
     pending_overwrites: VecDeque<GroupId>,
     render_state: Option<eframe::egui_wgpu::RenderState>,
     ammunition: crate::ammunition::AmmoTool,
+    about: crate::about::AboutDialog,
 }
 
 impl NativeApp {
@@ -60,6 +61,7 @@ impl NativeApp {
             pending_overwrites: VecDeque::new(),
             render_state: creation.wgpu_render_state.clone(),
             ammunition: Default::default(),
+            about: Default::default(),
         };
         for path in std::env::args_os().skip(1).map(PathBuf::from).take(5) {
             if path.is_file()
@@ -305,12 +307,18 @@ impl NativeApp {
                             if language != self.state.language() {
                                 self.state.set_language(language);
                             }
+                            if sized_button(ui, catalog.text(TextKey::About)).clicked() {
+                                self.about.open();
+                            }
                         });
                     });
                 } else {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| top_title(ui, catalog));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if sized_button(ui, catalog.text(TextKey::About)).clicked() {
+                                self.about.open();
+                            }
                             if ui
                                 .add_enabled(
                                     can_restore_defaults,
@@ -1042,7 +1050,9 @@ impl eframe::App for NativeApp {
             ));
         }
         self.refresh_tasks();
-        self.handle_keyboard_shortcuts(&context);
+        if !self.about.is_open() {
+            self.handle_keyboard_shortcuts(&context);
+        }
         self.top_bar(ui);
         self.bottom_bar(ui);
         self.central_workspace(ui);
@@ -1052,6 +1062,7 @@ impl eframe::App for NativeApp {
         if let Some(path) = self.ammunition.show(&context, self.state.language()) {
             self.open_preview(&path);
         }
+        self.about.show(&context, self.state.language());
         if self
             .state
             .groups()
@@ -1203,11 +1214,12 @@ fn top_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
             TextKey::NewGroup,
             TextKey::SaveSettings,
             TextKey::RestoreDefaults,
+            TextKey::About,
         ]
         .into_iter()
         .map(|key| command_width(ui, catalog, key, 80.0))
         .sum::<f32>()
-        + 6.0 * ui.spacing().item_spacing.x
+        + 7.0 * ui.spacing().item_spacing.x
         + 24.0
 }
 
@@ -1324,6 +1336,7 @@ mod tests {
                     pending_overwrites: VecDeque::new(),
                     render_state: None,
                     ammunition: Default::default(),
+                    about: Default::default(),
                 };
                 for frame in 0..3 {
                     let mut output = context.run_ui(
@@ -1386,6 +1399,7 @@ mod tests {
                 pending_overwrites: VecDeque::new(),
                 render_state: None,
                 ammunition: Default::default(),
+                about: Default::default(),
             };
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -1478,6 +1492,7 @@ mod tests {
             pending_overwrites: VecDeque::new(),
             render_state: None,
             ammunition: Default::default(),
+            about: Default::default(),
         };
 
         app.set_group_notice(0, UiNotice::AddPart(AddPartStatus::Duplicate));
@@ -1538,6 +1553,7 @@ mod tests {
             pending_overwrites: VecDeque::new(),
             render_state: None,
             ammunition: Default::default(),
+            about: Default::default(),
         };
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(

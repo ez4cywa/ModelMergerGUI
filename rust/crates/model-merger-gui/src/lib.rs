@@ -1,3 +1,4 @@
+mod about;
 mod ammunition;
 pub mod diagnostics;
 mod messages;
