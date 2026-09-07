@@ -1,5 +1,7 @@
 # Cast Model Merger GUI
 
+简体中文 | [English](README.en.md)
+
 一个基于 [echo000/ModelMerger](https://github.com/echo000/ModelMerger) 的 Windows 图形界面工具。可同时管理多个模型组，每组把 2 至 15 个 Cast 模型部件合并为一个 `.cast` 文件。
 
 ## 界面截图
@@ -97,9 +99,7 @@
 
 目前识别 `j_mag`、`j_mag数字` 或 `tag_clip` 子树中的 `j_ammo_数字` / `tag_ammo_数字`，不按现实武器容量猜测数量。非弹匣子树的编号子弹骨骼默认不选，但可以按需勾选装填。支持单位缩放刚体骨骼；多骨骼子弹、模型级变换、非单位骨骼缩放会明确报错。一次最多 512 个槽位、500 万个新增顶点。详细样本关系见[骨骼研究](docs/ammo-bone-research.md)。
 
-English: Click **Fill magazine** in a group's parts area, select a weapon/magazine CAST and a single-bone `tag_ammo` ammunition CAST, select magazine groups and/or **Other ammunition bones (optional)**, choose a new output file, then fill and preview. The first magazine is selected by default; other bones such as `j_ammo_17` are opt-in. Occupied bones are skipped. This operates on model bones, not inferred real-world capacities. Unit-scale rigid skeletons only; existing output files are never overwritten.
-
-v2.2.0 also introduces a macOS-inspired layout, system light/dark themes, compact 36 px path/name inputs, and `Ctrl+N` / `Ctrl+S` / `Ctrl+Enter` shortcuts.
+软件采用 macOS 风格布局，支持跟随系统明暗主题、紧凑的 36 px 路径与文件名输入框，以及 `Ctrl+N` / `Ctrl+S` / `Ctrl+Enter` 快捷键。
 
 ### 预览单个部件
 
