@@ -283,13 +283,13 @@ impl NativeApp {
                             let mut language = self.state.language();
                             language_selector(ui, &mut language);
                             if sized_button(ui, catalog.text(TextKey::NewGroup))
-                                .on_hover_text("Ctrl/⌘N")
+                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::N))
                                 .clicked()
                             {
                                 self.state.add_group();
                             }
                             if sized_button(ui, catalog.text(TextKey::SaveSettings))
-                                .on_hover_text("Ctrl/⌘S")
+                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::S))
                                 .clicked()
                             {
                                 self.save_settings();
@@ -330,13 +330,13 @@ impl NativeApp {
                                 self.restore_defaults();
                             }
                             if sized_button(ui, catalog.text(TextKey::SaveSettings))
-                                .on_hover_text("Ctrl/⌘S")
+                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::S))
                                 .clicked()
                             {
                                 self.save_settings();
                             }
                             if sized_button(ui, catalog.text(TextKey::NewGroup))
-                                .on_hover_text("Ctrl/⌘N")
+                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::N))
                                 .clicked()
                             {
                                 self.state.add_group();
@@ -432,7 +432,7 @@ impl NativeApp {
         }
         let merge = ui
             .add_enabled(ready > 0, merge_button)
-            .on_hover_text("Ctrl/⌘Enter");
+            .on_hover_text(shortcut_label(ui.ctx(), egui::Key::Enter));
         if merge.clicked() {
             self.merge_all_ready();
         }
@@ -1197,6 +1197,10 @@ fn text_width(ui: &egui::Ui, text: &str, size: f32) -> f32 {
         .x
 }
 
+fn shortcut_label(context: &egui::Context, key: egui::Key) -> String {
+    context.format_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, key))
+}
+
 fn command_width(ui: &egui::Ui, catalog: Catalog, key: TextKey, minimum: f32) -> f32 {
     (text_width(ui, catalog.text(key), 15.0) + ui.spacing().button_padding.x * 2.0).max(minimum)
 }
@@ -1311,6 +1315,25 @@ fn saved_position_is_visible(_bounds: WindowBounds) -> bool {
 mod tests {
     use super::*;
     use eframe::egui::accesskit::Role;
+
+    #[test]
+    fn shortcut_labels_follow_the_host_platform() {
+        let context = egui::Context::default();
+        context.set_os(egui::os::OperatingSystem::Windows);
+        for (key, expected) in [
+            (egui::Key::N, "Ctrl+N"),
+            (egui::Key::S, "Ctrl+S"),
+            (egui::Key::Enter, "Ctrl+Enter"),
+        ] {
+            assert_eq!(shortcut_label(&context, key), expected);
+        }
+        context.set_os(egui::os::OperatingSystem::Mac);
+        context
+            .run_ui(Default::default(), |ui| {
+                assert!(!shortcut_label(ui.ctx(), egui::Key::S).contains("Ctrl"));
+            })
+            .drop_without_applying_deltas();
+    }
 
     #[test]
     fn localized_command_bars_fit_without_text_collisions() {
