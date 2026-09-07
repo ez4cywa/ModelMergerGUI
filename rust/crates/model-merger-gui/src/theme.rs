@@ -80,6 +80,36 @@ pub fn palette(ui: &egui::Ui) -> Palette {
     if ui.visuals().dark_mode { DARK } else { LIGHT }
 }
 
+#[cfg(test)]
+pub(crate) fn review_text(
+    shapes: &[egui::epaint::ClippedShape],
+) -> Vec<(egui::Rect, String, egui::Rect)> {
+    fn collect(
+        shape: &egui::Shape,
+        clip: egui::Rect,
+        result: &mut Vec<(egui::Rect, String, egui::Rect)>,
+    ) {
+        match shape {
+            egui::Shape::Text(text) => result.push((
+                text.visual_bounding_rect(),
+                text.galley.job.text.clone(),
+                clip,
+            )),
+            egui::Shape::Vec(children) => {
+                for child in children {
+                    collect(child, clip, result);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut result = Vec::new();
+    for shape in shapes {
+        collect(&shape.shape, shape.clip_rect, &mut result);
+    }
+    result
+}
+
 pub fn configure(context: &egui::Context, language: AppLanguage) {
     context.set_theme(egui::ThemePreference::System);
     install_fonts(context, language);

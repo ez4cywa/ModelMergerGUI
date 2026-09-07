@@ -112,24 +112,39 @@ impl PreviewSession {
                     .inner_margin(egui::Margin::same(8))
                     .show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            if control(ui, catalog.text(TextKey::RotateLeft)).clicked() {
+                            let (left, right) = paired_controls(
+                                ui,
+                                catalog.text(TextKey::RotateLeft),
+                                catalog.text(TextKey::RotateRight),
+                            );
+                            if left {
                                 self.yaw -= 0.18;
                             }
-                            if control(ui, catalog.text(TextKey::RotateRight)).clicked() {
+                            if right {
                                 self.yaw += 0.18;
                             }
-                            if control(ui, catalog.text(TextKey::ZoomIn)).clicked() {
+                            let (zoom_in, zoom_out) = paired_controls(
+                                ui,
+                                catalog.text(TextKey::ZoomIn),
+                                catalog.text(TextKey::ZoomOut),
+                            );
+                            if zoom_in {
                                 self.zoom = (self.zoom * 1.15).min(8.0);
                             }
-                            if control(ui, catalog.text(TextKey::ZoomOut)).clicked() {
+                            if zoom_out {
                                 self.zoom = (self.zoom / 1.15).max(0.2);
                             }
-                            if control(ui, catalog.text(TextKey::ResetView)).clicked() {
+                            let (reset, close) = paired_controls(
+                                ui,
+                                catalog.text(TextKey::ResetView),
+                                catalog.text(TextKey::Close),
+                            );
+                            if reset {
                                 self.yaw = -0.55;
                                 self.pitch = 0.35;
                                 self.zoom = 1.0;
                             }
-                            if control(ui, catalog.text(TextKey::Close)).clicked() {
+                            if close {
                                 self.open = false;
                             }
                         });
@@ -288,7 +303,33 @@ impl Drop for PreviewSession {
 }
 
 fn control(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    ui.add(egui::Button::new(label).min_size(egui::vec2(92.0, 40.0)))
+    ui.add(
+        egui::Button::new(label)
+            .min_size(egui::vec2(92.0, 40.0))
+            .wrap_mode(egui::TextWrapMode::Extend),
+    )
+}
+
+fn paired_controls(ui: &mut egui::Ui, first: &str, second: &str) -> (bool, bool) {
+    let width = [first, second]
+        .into_iter()
+        .map(|label| {
+            let text = ui.painter().layout_no_wrap(
+                label.to_owned(),
+                egui::FontId::proportional(15.0),
+                ui.visuals().text_color(),
+            );
+            (text.size().x + ui.spacing().button_padding.x * 2.0).max(92.0)
+        })
+        .sum::<f32>()
+        + ui.spacing().item_spacing.x
+        + 2.0;
+    ui.allocate_ui_with_layout(
+        egui::vec2(width, 40.0),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| (control(ui, first).clicked(), control(ui, second).clicked()),
+    )
+    .inner
 }
 
 fn short_name(path: &Path) -> String {
@@ -301,6 +342,61 @@ fn short_name(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn localized_preview_commands_fit_the_minimum_window() {
+        for language in model_merger_app_core::AppLanguage::ALL {
+            let context = egui::Context::default();
+            theme::configure(&context, language);
+            let catalog = Catalog::new(language);
+            let mut preview = PreviewSession {
+                id: 1,
+                open: true,
+                title: "sample.cast".into(),
+                state: PreviewLoadState::Failed(PreviewFailure::WorkerStopped),
+                yaw: 0.0,
+                pitch: 0.0,
+                zoom: 1.0,
+                cancelled: Arc::new(AtomicBool::new(false)),
+                worker: None,
+            };
+            for frame in 0..3 {
+                let mut output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(640.0, 480.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| preview.show(ui, catalog),
+                );
+                let labels = theme::review_text(&output.shapes);
+                output.textures_delta.clear();
+                if frame < 2 {
+                    continue;
+                }
+                for key in [
+                    TextKey::RotateLeft,
+                    TextKey::RotateRight,
+                    TextKey::ZoomIn,
+                    TextKey::ZoomOut,
+                    TextKey::ResetView,
+                    TextKey::Close,
+                ] {
+                    let (rect, _, clip) = labels
+                        .iter()
+                        .find(|(_, text, _)| text == catalog.text(key))
+                        .expect("preview command missing");
+                    assert!(
+                        rect.left() >= 0.0 && rect.right() <= 640.0 && clip.contains_rect(*rect),
+                        "{language:?}: clipped {key:?}"
+                    );
+                }
+                output.drop_without_applying_deltas();
+            }
+        }
+    }
 
     #[test]
     fn preview_title_keeps_the_selected_file_name() {

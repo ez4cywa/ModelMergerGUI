@@ -161,8 +161,10 @@ impl AmmoTool {
         }
         let mut open = self.open;
         let mut preview = None;
-        egui::Window::new(title(language)).open(&mut open).default_width(560.0).default_height(650.0).default_pos(context.content_rect().center() - egui::vec2(280.0, 340.0)).resizable(true).vscroll(true).show(context, |ui| {
+        let height = (context.content_rect().height() - 112.0).clamp(280.0, 650.0);
+        egui::Window::new(title(language)).open(&mut open).default_width(560.0).max_width((context.content_rect().width() - 48.0).max(280.0)).default_height(height).max_height(height).default_pos(context.content_rect().center() - egui::vec2(280.0, height / 2.0 + 20.0)).resizable(true).show(context, |ui| {
             let p = theme::palette(ui);
+            egui::ScrollArea::vertical().id_salt("ammo-content").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).max_height((ui.available_height() - 92.0).max(160.0)).auto_shrink([false, true]).show(ui, |ui| {
             ui.label(localized(language, ["按弹匣骨骼放置子弹模型，并另存 CAST。", "Place ammunition at magazine bones and save a new CAST.", "Placer les munitions sur les os du chargeur et enregistrer un nouveau CAST.", "Разместить патроны по костям магазина и сохранить новый CAST.", "Colocar munición en los huesos del cargador y guardar un CAST nuevo."]));
             ui.add_enabled_ui(self.job.is_none(), |ui| {
                 let weapon_label = localized(language, ["武器 / 弹匣模型", "Weapon / magazine model", "Modèle d’arme / chargeur", "Модель оружия / магазина", "Modelo de arma / cargador"]);
@@ -200,19 +202,21 @@ impl AmmoTool {
                     }
                     ui.label(egui::RichText::new(localized(language,["默认首个弹匣；动画备用弹匣可能与其重叠。已绑定网格的骨骼会跳过。", "First magazine selected by default; animation variants may overlap. Occupied bones are skipped.", "Premier chargeur par défaut ; les variantes d’animation peuvent se superposer. Os occupés ignorés.", "По умолчанию выбран первый магазин; варианты анимации могут совпадать. Занятые кости пропускаются.", "Se selecciona el primer cargador; variantes animadas pueden solaparse. Se omiten huesos ocupados."])).size(13.0).color(p.secondary));
                 }
-                let ready = self.ammo.is_some() && self.output.is_some() && (!self.selected.is_empty() || !self.selected_extra.is_empty()) && self.analysis.is_some();
-                if ui.add_enabled(ready, egui::Button::new(title(language)).min_size(egui::vec2(140.0,36.0))).clicked() { self.fill(); }
             });
-            if self.job.is_some() {
-                ui.add(egui::ProgressBar::new(*self.observer.fraction.lock().unwrap()).desired_width(ui.available_width()));
-                if ui.button(localized(language,["取消","Cancel","Annuler","Отмена","Cancelar"])).clicked() { self.observer.cancelled.store(true,Ordering::Relaxed); }
-            }
             if let Some(error) = &self.error { ui.colored_label(p.destructive, format!("{}: {error}",localized(language,["操作失败","Operation failed","Échec","Ошибка","Error"]))); }
             if let Some(result) = &self.result {
                 ui.label(format!("{}: {} · {}: {}", localized(language,["已装填","Inserted","Insérés","Добавлено","Insertados"]),result.inserted, localized(language,["已跳过","Skipped","Ignorés","Пропущено","Omitidos"]),result.skipped));
-                ui.label(result.output.display().to_string());
+                ui.add(egui::Label::new(result.output.display().to_string()).truncate()).on_hover_text(result.output.display().to_string());
                 if ui.button(localized(language,["预览装填模型","Preview filled model","Aperçu du modèle rempli","Просмотр результата","Vista previa del resultado"])).clicked() { preview = Some(result.output.clone()); }
             }
+            });
+            ui.separator();
+            let ready = self.job.is_none() && self.ammo.is_some() && self.output.is_some() && (!self.selected.is_empty() || !self.selected_extra.is_empty()) && self.analysis.is_some();
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(ready, egui::Button::new(title(language)).min_size(egui::vec2(140.0,36.0))).clicked() { self.fill(); }
+                if self.job.is_some() && ui.button(localized(language,["取消","Cancel","Annuler","Отмена","Cancelar"])).clicked() { self.observer.cancelled.store(true,Ordering::Relaxed); }
+            });
+            if self.job.is_some() { ui.add(egui::ProgressBar::new(*self.observer.fraction.lock().unwrap()).desired_width(ui.available_width())); }
         });
         self.open = open;
         if !open {
@@ -234,6 +238,7 @@ fn picker(current: &Option<PathBuf>) -> rfd::FileDialog {
     }
     dialog
 }
+
 fn path_row(ui: &mut egui::Ui, label: &str, path: &Option<PathBuf>) -> bool {
     ui.label(label);
     let text = path
@@ -252,4 +257,58 @@ fn path_row(ui: &mut egui::Ui, label: &str, path: &Option<PathBuf>) -> bool {
     )
     .on_hover_text(text)
     .clicked()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fill_action_stays_visible_with_long_localized_content() {
+        for language in AppLanguage::ALL {
+            let context = egui::Context::default();
+            theme::configure(&context, language);
+            let mut tool = AmmoTool::default();
+            tool.start(None);
+            tool.analysis = Some(Analysis {
+                magazines: vec![ammunition::Magazine {
+                    name: "j_mag1".into(),
+                    slots: (0..128).map(|n| format!("j_ammo_{n:03}")).collect(),
+                    occupied: vec![],
+                }],
+                excluded_slots: vec!["j_ammo_999".into()],
+            });
+            for frame in 0..3 {
+                let mut output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(900.0, 680.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        tool.show(ui.ctx(), language);
+                    },
+                );
+                let labels = theme::review_text(&output.shapes);
+                output.textures_delta.clear();
+                if frame < 2 {
+                    continue;
+                }
+                let visible_titles = labels
+                    .iter()
+                    .filter(|(rect, text, clip)| {
+                        text == title(language)
+                            && rect.bottom() <= 680.0
+                            && clip.contains_rect(*rect)
+                    })
+                    .count();
+                assert!(
+                    visible_titles >= 2,
+                    "{language:?}: window title or fill action hidden"
+                );
+                output.drop_without_applying_deltas();
+            }
+        }
+    }
 }

@@ -273,7 +273,7 @@ impl NativeApp {
                     .inner_margin(egui::Margin::symmetric(24, 14)),
             )
             .show(root, |ui| {
-                if ui.available_width() < 1050.0 {
+                if ui.available_width() < top_bar_required_width(ui, catalog) {
                     ui.vertical(|ui| {
                         top_title(ui, catalog);
                         ui.horizontal_wrapped(|ui| {
@@ -362,7 +362,7 @@ impl NativeApp {
                     .inner_margin(egui::Margin::symmetric(24, 10)),
             )
             .show(root, |ui| {
-                if ui.available_width() < 1000.0 {
+                if ui.available_width() < bottom_bar_required_width(ui, catalog) {
                     ui.horizontal(|ui| {
                         ui.label(format!(
                             "{} · {}",
@@ -562,7 +562,7 @@ impl NativeApp {
                     return;
                 }
                 ui.separator();
-                ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                     let width = ui.available_width();
                     let settings_width = SETTINGS_PANE_WIDTH;
                     let slots_width = (width - settings_width - 8.0).max(280.0);
@@ -642,7 +642,7 @@ impl NativeApp {
                     .size(13.0)
                     .color(palette.secondary),
             );
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if sized_button(ui, catalog.text(TextKey::AddNext)).clicked() {
                     self.add_part_dialog(group_index, None);
                 }
@@ -702,9 +702,9 @@ impl NativeApp {
             .inner_margin(egui::Margin::same(8))
             .show(ui, |ui| {
                 ui.set_width(content_width);
-                ui.set_min_height(108.0);
                 ui.vertical(|ui| {
                     ui.set_width(content_width);
+                    ui.set_min_height(132.0);
                     ui.label(
                         RichText::new(format!("{:02}", slot + 1))
                             .size(12.0)
@@ -723,11 +723,13 @@ impl NativeApp {
                                 catalog.text(TextKey::FileMissing),
                             );
                         }
-                        ui.horizontal_wrapped(|ui| {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().button_padding.x = 4.0;
                             if ui
-                                .add(
+                                .add_sized(
+                                    [content_width, 36.0],
                                     egui::Button::new(catalog.text(TextKey::Preview))
-                                        .min_size(egui::vec2(64.0, 36.0)),
+                                        .wrap_mode(egui::TextWrapMode::Extend),
                                 )
                                 .clicked()
                             {
@@ -817,7 +819,11 @@ impl NativeApp {
             ui.label(catalog.text(TextKey::OutputFolder));
             let mut output_directory = snapshot.output_directory.display().to_string();
             ui.horizontal(|ui| {
-                let field_width = (ui.available_width() - 88.0).max(96.0);
+                let browse_width = text_width(ui, catalog.text(TextKey::Browse), 15.0)
+                    + ui.spacing().button_padding.x * 2.0;
+                let browse_width = browse_width.max(80.0);
+                let field_width =
+                    (ui.available_width() - browse_width - ui.spacing().item_spacing.x).max(96.0);
                 ui.add_sized(
                     [field_width, INPUT_HEIGHT],
                     egui::TextEdit::singleline(&mut output_directory).interactive(false),
@@ -825,7 +831,7 @@ impl NativeApp {
                 if ui
                     .add(
                         egui::Button::new(catalog.text(TextKey::Browse))
-                            .min_size(egui::vec2(80.0, INPUT_HEIGHT)),
+                            .min_size(egui::vec2(browse_width, INPUT_HEIGHT)),
                     )
                     .clicked()
                 {
@@ -1077,10 +1083,26 @@ fn sized_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
 
 fn disclosure_button(ui: &mut egui::Ui, label: &str, collapsed: bool) -> egui::Response {
     let palette = theme::palette(ui);
+    let galley = ui.painter().layout_no_wrap(
+        label.to_owned(),
+        egui::FontId::proportional(17.0),
+        palette.foreground,
+    );
     let response = ui.add(
-        egui::Button::new(RichText::new(format!("   {label}")).size(17.0))
+        egui::Button::new("")
             .frame(false)
-            .min_size(egui::vec2(108.0, 36.0)),
+            .min_size(egui::vec2((galley.size().x + 36.0).max(108.0), 36.0)),
+    );
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
+    });
+    ui.painter().galley(
+        egui::pos2(
+            response.rect.left() + 28.0,
+            response.rect.center().y - galley.size().y / 2.0,
+        ),
+        galley,
+        palette.foreground,
     );
     let center = egui::pos2(response.rect.left() + 12.0, response.rect.center().y);
     let stroke = Stroke::new(1.5, palette.foreground);
@@ -1151,6 +1173,52 @@ fn top_title(ui: &mut egui::Ui, catalog: Catalog) {
             .size(13.0)
             .color(palette.secondary),
     );
+}
+
+fn text_width(ui: &egui::Ui, text: &str, size: f32) -> f32 {
+    ui.painter()
+        .layout_no_wrap(
+            text.to_owned(),
+            egui::FontId::proportional(size),
+            ui.visuals().text_color(),
+        )
+        .size()
+        .x
+}
+
+fn command_width(ui: &egui::Ui, catalog: Catalog, key: TextKey, minimum: f32) -> f32 {
+    (text_width(ui, catalog.text(key), 15.0) + ui.spacing().button_padding.x * 2.0).max(minimum)
+}
+
+fn top_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
+    let title = text_width(ui, catalog.text(TextKey::AppTitle), 22.0).max(text_width(
+        ui,
+        catalog.text(TextKey::AppSubtitle),
+        13.0,
+    ));
+    title
+        + text_width(ui, catalog.text(TextKey::Language), 15.0)
+        + 100.0
+        + [
+            TextKey::NewGroup,
+            TextKey::SaveSettings,
+            TextKey::RestoreDefaults,
+        ]
+        .into_iter()
+        .map(|key| command_width(ui, catalog, key, 80.0))
+        .sum::<f32>()
+        + 6.0 * ui.spacing().item_spacing.x
+        + 24.0
+}
+
+fn bottom_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
+    text_width(ui, catalog.text(TextKey::Attribution), 13.0)
+        + text_width(ui, catalog.text(TextKey::RememberOutput), 15.0)
+        + 24.0
+        + command_width(ui, catalog, TextKey::MergeAllReady, 200.0)
+        + command_width(ui, catalog, TextKey::CancelAll, 80.0)
+        + 5.0 * ui.spacing().item_spacing.x
+        + 16.0
 }
 
 fn language_selector(ui: &mut egui::Ui, language: &mut AppLanguage) {
@@ -1231,6 +1299,69 @@ fn saved_position_is_visible(_bounds: WindowBounds) -> bool {
 mod tests {
     use super::*;
     use eframe::egui::accesskit::Role;
+
+    #[test]
+    fn localized_command_bars_fit_without_text_collisions() {
+        for language in AppLanguage::ALL {
+            for width in [900.0, 1180.0, 1440.0] {
+                let context = egui::Context::default();
+                theme::configure(&context, language);
+                let mut app = NativeApp {
+                    state: NativeAppState::new(model_merger_app_core::AppSettings {
+                        language: Some(language),
+                        ..Default::default()
+                    }),
+                    store: SettingsStore::new(
+                        std::env::temp_dir().join("unused-layout-settings.json"),
+                    ),
+                    scheduler: TaskScheduler::native(2).unwrap(),
+                    notices: Default::default(),
+                    configured_language: language,
+                    previews: Vec::new(),
+                    next_preview_id: 1,
+                    drop_target: None,
+                    pending_group_delete: None,
+                    pending_overwrites: VecDeque::new(),
+                    render_state: None,
+                    ammunition: Default::default(),
+                };
+                for frame in 0..3 {
+                    let mut output = context.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(egui::Rect::from_min_size(
+                                egui::Pos2::ZERO,
+                                egui::vec2(width, 680.0),
+                            )),
+                            ..Default::default()
+                        },
+                        |ui| {
+                            app.top_bar(ui);
+                            app.bottom_bar(ui);
+                        },
+                    );
+                    let labels = theme::review_text(&output.shapes);
+                    output.textures_delta.clear();
+                    if frame < 2 {
+                        continue;
+                    }
+                    for (index, (rect, text, _)) in labels.iter().enumerate() {
+                        assert!(
+                            rect.left() >= 0.0 && rect.right() <= width + 1.0,
+                            "{language:?} at {width}: clipped {text}"
+                        );
+                        for (other, other_text, _) in labels.iter().skip(index + 1) {
+                            assert!(
+                                !rect.shrink(1.0).intersects(other.shrink(1.0)),
+                                "{language:?} at {width}: {text} overlaps {other_text}"
+                            );
+                        }
+                    }
+                    assert!(labels.len() > 8);
+                    output.drop_without_applying_deltas();
+                }
+            }
+        }
+    }
 
     #[test]
     fn native_workspace_exposes_buttons_and_text_fields_to_accesskit() {
