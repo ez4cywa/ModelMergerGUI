@@ -34,6 +34,8 @@ if (-not $SkipTests) {
     }
 }
 
+& (Join-Path $PSScriptRoot 'Test-NativeIntegrations.ps1')
+
 & cargo build `
     --manifest-path (Join-Path $rustRoot 'Cargo.toml') `
     --release `

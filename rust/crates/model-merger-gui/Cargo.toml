@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 bytemuck = { version = "1.25", features = ["derive"] }
-eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "wgpu"] }
+eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "links", "wgpu"] }
 model-merger-app-core.workspace = true
 model-merger-engine.workspace = true
 rfd = "0.15.4"

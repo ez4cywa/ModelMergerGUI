@@ -1,5 +1,100 @@
 use super::*;
 
+struct InteractionHarness {
+    context: egui::Context,
+    dialog: AboutDialog,
+}
+
+impl InteractionHarness {
+    fn new() -> Self {
+        let context = egui::Context::default();
+        theme::configure(&context, AppLanguage::English);
+        context.global_style_mut(|style| style.animation_time = 0.0);
+        let mut dialog = AboutDialog::default();
+        dialog.open();
+        let mut harness = Self { context, dialog };
+        for _ in 0..3 {
+            harness.frame(vec![]).drop_without_applying_deltas();
+        }
+        harness
+    }
+
+    fn frame(&mut self, events: Vec<egui::Event>) -> egui::FullOutput {
+        self.context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1180.0, 1000.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| self.dialog.show(ui.ctx(), AppLanguage::English),
+        )
+    }
+
+    fn click(&mut self, label: &str) -> Vec<egui::OutputCommand> {
+        let output = self.frame(vec![]);
+        let position = theme::review_text(&output.shapes)
+            .iter()
+            .find(|(rect, text, clip)| text == label && clip.contains_rect(*rect))
+            .unwrap_or_else(|| panic!("Control not visible: {label}"))
+            .0
+            .center();
+        output.drop_without_applying_deltas();
+        self.frame(vec![egui::Event::PointerMoved(position)])
+            .drop_without_applying_deltas();
+        self.frame(vec![egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: Default::default(),
+        }])
+        .drop_without_applying_deltas();
+        let mut output = self.frame(vec![egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        }]);
+        let commands = std::mem::take(&mut output.platform_output.commands);
+        output.drop_without_applying_deltas();
+        commands
+    }
+}
+
+#[test]
+fn about_clicks_dispatch_browser_clipboard_and_close_actions() {
+    let mut harness = InteractionHarness::new();
+    for (label, expected) in [
+        ("ez4cywa / ModelMergerGUI", PROJECT_URL),
+        ("Download releases", RELEASES_URL),
+        ("Report an issue", ISSUES_URL),
+    ] {
+        let commands = harness.click(label);
+        assert!(commands.iter().any(|command| matches!(command, egui::OutputCommand::OpenUrl(url) if url.url == expected)), "{label}: missing browser command");
+        assert!(harness.dialog.is_open());
+    }
+    let commands = harness.click("Copy project link");
+    assert!(commands.iter().any(
+        |command| matches!(command, egui::OutputCommand::CopyText(text) if text == PROJECT_URL)
+    ));
+    assert!(harness.dialog.copied);
+    harness.click("Credits and licenses");
+    for _ in 0..3 {
+        harness.frame(vec![]).drop_without_applying_deltas();
+    }
+    for (label, expected) in [
+        ("Upstream project", UPSTREAM_URL),
+        ("MIT License", LICENSE_URL),
+        ("Third-party notices", NOTICES_URL),
+    ] {
+        assert!(harness.click(label).iter().any(|command| matches!(command, egui::OutputCommand::OpenUrl(url) if url.url == expected)), "{label}: missing browser command");
+    }
+    harness.click("Close");
+    assert!(!harness.dialog.is_open());
+}
+
 #[test]
 fn about_dialog_fits_all_languages_and_themes() {
     for language in AppLanguage::ALL {
