@@ -834,7 +834,9 @@ impl NativeApp {
                     (ui.available_width() - browse_width - ui.spacing().item_spacing.x).max(96.0);
                 ui.add_sized(
                     [field_width, INPUT_HEIGHT],
-                    egui::TextEdit::singleline(&mut output_directory).interactive(false),
+                    egui::TextEdit::singleline(&mut output_directory)
+                        .vertical_align(egui::Align::Center)
+                        .interactive(false),
                 );
                 if ui
                     .add(
@@ -856,7 +858,9 @@ impl NativeApp {
                 .show(ui, |ui| {
                     ui.add_sized(
                         [ui.available_width(), INPUT_HEIGHT - 2.0],
-                        egui::TextEdit::singleline(&mut output_name).frame(egui::Frame::NONE),
+                        egui::TextEdit::singleline(&mut output_name)
+                            .vertical_align(egui::Align::Center)
+                            .frame(egui::Frame::NONE),
                     )
                 })
                 .inner;
