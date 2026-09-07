@@ -1,5 +1,5 @@
 use crate::{preview_gpu, theme};
-use eframe::egui::{self, Color32, RichText, Sense};
+use eframe::egui::{self, RichText, Sense};
 use model_merger_app_core::{Catalog, TextKey};
 use model_merger_engine::PreviewError;
 use std::path::Path;
@@ -97,39 +97,47 @@ impl PreviewSession {
             return;
         }
         self.receive_preview();
+        let palette = theme::palette(ui);
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
-                    .fill(theme::BACKGROUND)
+                    .fill(palette.background)
                     .inner_margin(egui::Margin::same(16)),
             )
             .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    if control(ui, catalog.text(TextKey::RotateLeft)).clicked() {
-                        self.yaw -= 0.18;
-                    }
-                    if control(ui, catalog.text(TextKey::RotateRight)).clicked() {
-                        self.yaw += 0.18;
-                    }
-                    if control(ui, catalog.text(TextKey::ZoomIn)).clicked() {
-                        self.zoom = (self.zoom * 1.15).min(8.0);
-                    }
-                    if control(ui, catalog.text(TextKey::ZoomOut)).clicked() {
-                        self.zoom = (self.zoom / 1.15).max(0.2);
-                    }
-                    if control(ui, catalog.text(TextKey::ResetView)).clicked() {
-                        self.yaw = -0.55;
-                        self.pitch = 0.35;
-                        self.zoom = 1.0;
-                    }
-                    if control(ui, catalog.text(TextKey::Close)).clicked() {
-                        self.open = false;
-                    }
-                });
+                egui::Frame::new()
+                    .fill(palette.toolbar)
+                    .stroke(egui::Stroke::new(1.0, palette.border))
+                    .corner_radius(10.0)
+                    .inner_margin(egui::Margin::same(8))
+                    .show(ui, |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            if control(ui, catalog.text(TextKey::RotateLeft)).clicked() {
+                                self.yaw -= 0.18;
+                            }
+                            if control(ui, catalog.text(TextKey::RotateRight)).clicked() {
+                                self.yaw += 0.18;
+                            }
+                            if control(ui, catalog.text(TextKey::ZoomIn)).clicked() {
+                                self.zoom = (self.zoom * 1.15).min(8.0);
+                            }
+                            if control(ui, catalog.text(TextKey::ZoomOut)).clicked() {
+                                self.zoom = (self.zoom / 1.15).max(0.2);
+                            }
+                            if control(ui, catalog.text(TextKey::ResetView)).clicked() {
+                                self.yaw = -0.55;
+                                self.pitch = 0.35;
+                                self.zoom = 1.0;
+                            }
+                            if control(ui, catalog.text(TextKey::Close)).clicked() {
+                                self.open = false;
+                            }
+                        });
+                    });
                 ui.label(
                     RichText::new(catalog.text(TextKey::PreviewInstructions))
                         .size(13.0)
-                        .color(theme::SECONDARY),
+                        .color(palette.secondary),
                 );
                 ui.add_space(8.0);
                 match &self.state {
@@ -148,7 +156,7 @@ impl PreviewSession {
                                 catalog.text(TextKey::PreviewWorkerStopped).to_owned()
                             }
                         };
-                        ui.colored_label(theme::DESTRUCTIVE, message);
+                        ui.colored_label(palette.destructive, message);
                     }
                     PreviewLoadState::Ready(loaded) => {
                         let model_name = loaded.summary.model_name.clone();
@@ -169,13 +177,13 @@ impl PreviewSession {
                             ui.label(
                                 RichText::new(catalog.text(TextKey::PreviewSimplified))
                                     .size(13.0)
-                                    .color(theme::SECONDARY),
+                                    .color(palette.secondary),
                             );
                         }
                         let available = ui.available_size();
                         let size = egui::vec2(available.x.max(320.0), available.y.max(300.0));
                         let (response, painter) = ui.allocate_painter(size, Sense::drag());
-                        painter.rect_filled(response.rect, 6.0, Color32::from_rgb(241, 245, 249));
+                        painter.rect_filled(response.rect, 10.0, palette.preview_canvas);
                         if response.dragged() {
                             let delta = ui.input(|input| input.pointer.delta());
                             self.yaw += delta.x * 0.01;
@@ -223,8 +231,8 @@ impl PreviewSession {
                         ));
                         painter.rect_stroke(
                             response.rect,
-                            6.0,
-                            egui::Stroke::new(1.0, theme::BORDER),
+                            10.0,
+                            egui::Stroke::new(1.0, palette.border),
                             egui::StrokeKind::Inside,
                         );
                     }
@@ -272,7 +280,7 @@ impl Drop for PreviewSession {
 }
 
 fn control(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    ui.add(egui::Button::new(label).min_size(egui::vec2(92.0, 44.0)))
+    ui.add(egui::Button::new(label).min_size(egui::vec2(92.0, 40.0)))
 }
 
 fn short_name(path: &Path) -> String {

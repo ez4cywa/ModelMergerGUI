@@ -1,39 +1,141 @@
-use eframe::egui::{self, Color32, FontData, FontDefinitions, FontFamily, FontId, TextStyle};
+use eframe::egui::{
+    self, Color32, FontData, FontDefinitions, FontFamily, FontId, Stroke, TextStyle,
+};
 use model_merger_app_core::AppLanguage;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 const MISANS_MEDIUM: &[u8] = include_bytes!("../assets/fonts/MiSans-Medium.ttf");
 
-pub const BACKGROUND: Color32 = Color32::from_rgb(248, 250, 252);
-pub const PANEL: Color32 = Color32::WHITE;
-pub const FOREGROUND: Color32 = Color32::from_rgb(15, 23, 42);
-pub const SECONDARY: Color32 = Color32::from_rgb(71, 85, 105);
-pub const BORDER: Color32 = Color32::from_rgb(203, 213, 225);
-pub const PROGRESS_TRACK: Color32 = BORDER;
-pub const PRIMARY: Color32 = Color32::from_rgb(37, 99, 235);
-pub const ON_PRIMARY: Color32 = Color32::WHITE;
-pub const DESTRUCTIVE: Color32 = Color32::from_rgb(220, 38, 38);
-pub const DISABLED_ALPHA: f32 = 0.85;
+pub const DISABLED_ALPHA: f32 = 0.78;
+
+#[derive(Clone, Copy)]
+pub struct Palette {
+    pub background: Color32,
+    pub panel: Color32,
+    pub toolbar: Color32,
+    pub sidebar: Color32,
+    pub surface: Color32,
+    pub foreground: Color32,
+    pub secondary: Color32,
+    pub border: Color32,
+    pub border_strong: Color32,
+    pub control: Color32,
+    pub hover: Color32,
+    pub progress_track: Color32,
+    pub primary: Color32,
+    pub on_primary: Color32,
+    pub destructive: Color32,
+    pub notice_info: Color32,
+    pub notice_error: Color32,
+    pub preview_canvas: Color32,
+}
+
+pub const LIGHT: Palette = Palette {
+    background: Color32::from_rgb(245, 245, 247),
+    panel: Color32::WHITE,
+    toolbar: Color32::from_rgb(247, 247, 249),
+    sidebar: Color32::from_rgb(246, 246, 248),
+    surface: Color32::from_rgb(250, 250, 251),
+    foreground: Color32::from_rgb(29, 29, 31),
+    secondary: Color32::from_rgb(84, 84, 88),
+    border: Color32::from_rgb(209, 209, 214),
+    border_strong: Color32::from_rgb(174, 174, 178),
+    control: Color32::from_rgb(233, 233, 236),
+    hover: Color32::from_rgb(223, 224, 228),
+    progress_track: Color32::from_rgb(217, 217, 222),
+    primary: Color32::from_rgb(0, 102, 204),
+    on_primary: Color32::WHITE,
+    destructive: Color32::from_rgb(198, 40, 40),
+    notice_info: Color32::from_rgb(235, 245, 255),
+    notice_error: Color32::from_rgb(255, 240, 240),
+    preview_canvas: Color32::from_rgb(235, 237, 240),
+};
+
+pub const DARK: Palette = Palette {
+    background: Color32::from_rgb(28, 28, 30),
+    panel: Color32::from_rgb(36, 36, 38),
+    toolbar: Color32::from_rgb(42, 42, 44),
+    sidebar: Color32::from_rgb(44, 44, 46),
+    surface: Color32::from_rgb(50, 50, 52),
+    foreground: Color32::from_rgb(245, 245, 247),
+    secondary: Color32::from_rgb(190, 190, 196),
+    border: Color32::from_rgb(72, 72, 74),
+    border_strong: Color32::from_rgb(99, 99, 102),
+    control: Color32::from_rgb(58, 58, 60),
+    hover: Color32::from_rgb(72, 72, 74),
+    progress_track: Color32::from_rgb(76, 76, 78),
+    primary: Color32::from_rgb(10, 114, 232),
+    on_primary: Color32::WHITE,
+    destructive: Color32::from_rgb(255, 105, 97),
+    notice_info: Color32::from_rgb(24, 58, 91),
+    notice_error: Color32::from_rgb(74, 32, 32),
+    preview_canvas: Color32::from_rgb(32, 33, 36),
+};
+
+pub fn palette(ui: &egui::Ui) -> Palette {
+    if ui.visuals().dark_mode { DARK } else { LIGHT }
+}
 
 pub fn configure(context: &egui::Context, language: AppLanguage) {
-    context.set_theme(egui::ThemePreference::Light);
+    context.set_theme(egui::ThemePreference::System);
     install_fonts(context, language);
-    let mut style = (*context.style_of(egui::Theme::Light)).clone();
+    configure_style(context, egui::Theme::Light, LIGHT, egui::Visuals::light());
+    configure_style(context, egui::Theme::Dark, DARK, egui::Visuals::dark());
+}
+
+fn configure_style(
+    context: &egui::Context,
+    theme: egui::Theme,
+    palette: Palette,
+    mut visuals: egui::Visuals,
+) {
+    let mut style = (*context.style_of(theme)).clone();
+    style.animation_time = 0.18;
     style.spacing.item_spacing = egui::vec2(8.0, 8.0);
-    style.spacing.button_padding = egui::vec2(14.0, 10.0);
-    style.spacing.interact_size.y = 44.0;
-    style.visuals = egui::Visuals::light();
-    style.visuals.panel_fill = BACKGROUND;
-    style.visuals.window_fill = PANEL;
-    style.visuals.extreme_bg_color = PANEL;
-    style.visuals.override_text_color = Some(FOREGROUND);
-    style.visuals.selection.bg_fill = PRIMARY;
-    style.visuals.disabled_alpha = DISABLED_ALPHA;
-    style.visuals.widgets.noninteractive.bg_stroke.color = BORDER;
-    style.visuals.widgets.inactive.bg_stroke.color = BORDER;
-    style.visuals.widgets.hovered.bg_stroke.color = PRIMARY;
-    style.visuals.widgets.active.bg_stroke.color = PRIMARY;
+    style.spacing.button_padding = egui::vec2(14.0, 8.0);
+    style.spacing.interact_size.y = 36.0;
+
+    visuals.panel_fill = palette.background;
+    visuals.window_fill = palette.panel;
+    visuals.extreme_bg_color = palette.surface;
+    visuals.override_text_color = Some(palette.foreground);
+    visuals.selection.bg_fill = palette.primary;
+    visuals.selection.stroke = Stroke::new(1.0, palette.on_primary);
+    visuals.disabled_alpha = DISABLED_ALPHA;
+    visuals.widgets.noninteractive.bg_fill = palette.panel;
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, palette.border);
+    visuals.widgets.noninteractive.corner_radius = 7.0.into();
+    visuals.widgets.inactive.bg_fill = palette.control;
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, palette.border);
+    visuals.widgets.inactive.corner_radius = 7.0.into();
+    visuals.widgets.hovered.bg_fill = palette.hover;
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, palette.border_strong);
+    visuals.widgets.hovered.corner_radius = 7.0.into();
+    visuals.widgets.active.bg_fill = palette.primary;
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0, palette.primary);
+    visuals.widgets.active.fg_stroke = Stroke::new(1.0, palette.on_primary);
+    visuals.widgets.active.corner_radius = 7.0.into();
+    visuals.widgets.open.bg_fill = palette.hover;
+    visuals.widgets.open.bg_stroke = Stroke::new(1.0, palette.border_strong);
+    visuals.widgets.open.corner_radius = 7.0.into();
+    visuals.window_corner_radius = 12.0.into();
+    visuals.menu_corner_radius = 9.0.into();
+    visuals.window_shadow = egui::epaint::Shadow {
+        offset: [0, 8],
+        blur: 24,
+        spread: 0,
+        color: Color32::from_black_alpha(if visuals.dark_mode { 96 } else { 38 }),
+    };
+    visuals.window_stroke = Stroke::new(1.0, palette.border);
+    visuals.popup_shadow = egui::epaint::Shadow {
+        offset: [0, 6],
+        blur: 18,
+        spread: 0,
+        color: Color32::from_black_alpha(if visuals.dark_mode { 104 } else { 34 }),
+    };
+
+    style.visuals = visuals;
     style.text_styles = [
         (TextStyle::Heading, FontId::proportional(24.0)),
         (TextStyle::Body, FontId::proportional(15.0)),
@@ -42,7 +144,7 @@ pub fn configure(context: &egui::Context, language: AppLanguage) {
         (TextStyle::Monospace, FontId::monospace(14.0)),
     ]
     .into();
-    context.set_style_of(egui::Theme::Light, style);
+    context.set_style_of(theme, style);
 }
 
 fn install_fonts(context: &egui::Context, language: AppLanguage) {
@@ -99,29 +201,41 @@ mod tests {
         0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
     }
 
-    #[test]
-    fn primary_button_text_meets_wcag_aa_contrast() {
-        let lighter = luminance(ON_PRIMARY);
-        let darker = luminance(PRIMARY);
-        let ratio = (lighter + 0.05) / (darker + 0.05);
+    fn contrast(left: Color32, right: Color32) -> f32 {
+        let left = luminance(left);
+        let right = luminance(right);
+        (left.max(right) + 0.05) / (left.min(right) + 0.05)
+    }
 
-        assert!(ratio >= 4.5, "primary contrast was {ratio:.2}:1");
+    fn blended(foreground: Color32, background: Color32, alpha: f32) -> Color32 {
+        let channel = |foreground: u8, background: u8| {
+            (f32::from(foreground) * alpha + f32::from(background) * (1.0 - alpha)).round() as u8
+        };
+        Color32::from_rgb(
+            channel(foreground.r(), background.r()),
+            channel(foreground.g(), background.g()),
+            channel(foreground.b(), background.b()),
+        )
     }
 
     #[test]
-    fn disabled_body_text_remains_legible_on_the_background() {
-        let blend = |foreground: u8, background: u8| {
-            (f32::from(foreground) * DISABLED_ALPHA
-                + f32::from(background) * (1.0 - DISABLED_ALPHA))
-                .round() as u8
-        };
-        let disabled = Color32::from_rgb(
-            blend(FOREGROUND.r(), BACKGROUND.r()),
-            blend(FOREGROUND.g(), BACKGROUND.g()),
-            blend(FOREGROUND.b(), BACKGROUND.b()),
-        );
-        let ratio = (luminance(BACKGROUND) + 0.05) / (luminance(disabled) + 0.05);
+    fn semantic_text_colors_meet_wcag_aa_in_both_themes() {
+        for palette in [LIGHT, DARK] {
+            assert!(contrast(palette.foreground, palette.background) >= 4.5);
+            assert!(contrast(palette.secondary, palette.background) >= 4.5);
+            assert!(contrast(palette.on_primary, palette.primary) >= 4.5);
+        }
+    }
 
-        assert!(ratio >= 4.5, "disabled contrast was {ratio:.2}:1");
+    #[test]
+    fn disabled_body_text_remains_legible_in_both_themes() {
+        for palette in [LIGHT, DARK] {
+            let disabled = blended(palette.foreground, palette.background, DISABLED_ALPHA);
+            assert!(
+                contrast(disabled, palette.background) >= 4.5,
+                "disabled contrast was {:.2}:1",
+                contrast(disabled, palette.background)
+            );
+        }
     }
 }

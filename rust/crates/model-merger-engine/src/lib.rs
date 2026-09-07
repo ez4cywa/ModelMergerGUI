@@ -1,3 +1,4 @@
+pub mod ammunition;
 mod cast_model;
 mod domain;
 mod math;

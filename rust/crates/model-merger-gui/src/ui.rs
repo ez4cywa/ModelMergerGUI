@@ -3,7 +3,7 @@ use crate::notices::{NoticeCenter, UiNotice};
 use crate::preview::PreviewSession;
 use crate::preview_gpu;
 use crate::{GroupLog, NativeAppState, slot_columns, theme};
-use eframe::egui::{self, Color32, RichText, Stroke};
+use eframe::egui::{self, RichText, Stroke};
 use model_merger_app_core::{
     AddPartResult, AddPartStatus, AppLanguage, Catalog, GroupId, RootMode, SettingsStore,
     TaskScheduler, TextKey, WindowBounds,
@@ -15,6 +15,7 @@ use std::time::Duration;
 const SLOT_COUNT: usize = 15;
 const SETTINGS_PANE_WIDTH: f32 = 300.0;
 const MINIMUM_SLOT_CARD_WIDTH: f32 = 136.0;
+const INPUT_HEIGHT: f32 = 36.0;
 
 pub struct NativeApp {
     state: NativeAppState,
@@ -28,6 +29,7 @@ pub struct NativeApp {
     pending_group_delete: Option<usize>,
     pending_overwrites: VecDeque<GroupId>,
     render_state: Option<eframe::egui_wgpu::RenderState>,
+    ammunition: crate::ammunition::AmmoTool,
 }
 
 impl NativeApp {
@@ -57,6 +59,7 @@ impl NativeApp {
             pending_group_delete: None,
             pending_overwrites: VecDeque::new(),
             render_state: creation.wgpu_render_state.clone(),
+            ammunition: Default::default(),
         };
         for path in std::env::args_os().skip(1).map(PathBuf::from).take(5) {
             if path.is_file()
@@ -209,15 +212,66 @@ impl NativeApp {
         }
     }
 
+    fn merge_all_ready(&mut self) {
+        let indices: Vec<_> = self
+            .state
+            .groups()
+            .iter()
+            .enumerate()
+            .filter_map(|(index, group)| {
+                (group.plan.state().is_ready && group.task_id().is_none()).then_some(index)
+            })
+            .collect();
+        for index in indices {
+            self.schedule_group(index, false);
+        }
+    }
+
+    fn handle_keyboard_shortcuts(&mut self, context: &egui::Context) {
+        let new_group = context.input_mut(|input| {
+            input.consume_shortcut(&egui::KeyboardShortcut::new(
+                egui::Modifiers::COMMAND,
+                egui::Key::N,
+            ))
+        });
+        let save = context.input_mut(|input| {
+            input.consume_shortcut(&egui::KeyboardShortcut::new(
+                egui::Modifiers::COMMAND,
+                egui::Key::S,
+            ))
+        });
+        let merge = context.input_mut(|input| {
+            input.consume_shortcut(&egui::KeyboardShortcut::new(
+                egui::Modifiers::COMMAND,
+                egui::Key::Enter,
+            ))
+        });
+        if new_group {
+            self.state.add_group();
+        }
+        if save {
+            self.save_settings();
+        }
+        if merge {
+            self.merge_all_ready();
+        }
+    }
+
     fn top_bar(&mut self, root: &mut egui::Ui) {
         let catalog = self.catalog();
+        let palette = theme::palette(root);
         let can_restore_defaults = self
             .state
             .groups()
             .iter()
             .all(|group| group.task_id().is_none());
         egui::Panel::top("top-command-bar")
-            .frame(panel_frame().inner_margin(egui::Margin::symmetric(28, 16)))
+            .frame(
+                egui::Frame::new()
+                    .fill(palette.toolbar)
+                    .stroke(Stroke::new(1.0, palette.border))
+                    .inner_margin(egui::Margin::symmetric(24, 14)),
+            )
             .show(root, |ui| {
                 if ui.available_width() < 1050.0 {
                     ui.vertical(|ui| {
@@ -226,17 +280,23 @@ impl NativeApp {
                             ui.label(catalog.text(TextKey::Language));
                             let mut language = self.state.language();
                             language_selector(ui, &mut language);
-                            if sized_button(ui, catalog.text(TextKey::NewGroup)).clicked() {
+                            if sized_button(ui, catalog.text(TextKey::NewGroup))
+                                .on_hover_text("Ctrl/⌘N")
+                                .clicked()
+                            {
                                 self.state.add_group();
                             }
-                            if sized_button(ui, catalog.text(TextKey::SaveSettings)).clicked() {
+                            if sized_button(ui, catalog.text(TextKey::SaveSettings))
+                                .on_hover_text("Ctrl/⌘S")
+                                .clicked()
+                            {
                                 self.save_settings();
                             }
                             if ui
                                 .add_enabled(
                                     can_restore_defaults,
                                     egui::Button::new(catalog.text(TextKey::RestoreDefaults))
-                                        .min_size(egui::vec2(80.0, 44.0)),
+                                        .min_size(egui::vec2(80.0, 40.0)),
                                 )
                                 .clicked()
                             {
@@ -255,16 +315,22 @@ impl NativeApp {
                                 .add_enabled(
                                     can_restore_defaults,
                                     egui::Button::new(catalog.text(TextKey::RestoreDefaults))
-                                        .min_size(egui::vec2(80.0, 44.0)),
+                                        .min_size(egui::vec2(80.0, 40.0)),
                                 )
                                 .clicked()
                             {
                                 self.restore_defaults();
                             }
-                            if sized_button(ui, catalog.text(TextKey::SaveSettings)).clicked() {
+                            if sized_button(ui, catalog.text(TextKey::SaveSettings))
+                                .on_hover_text("Ctrl/⌘S")
+                                .clicked()
+                            {
                                 self.save_settings();
                             }
-                            if sized_button(ui, catalog.text(TextKey::NewGroup)).clicked() {
+                            if sized_button(ui, catalog.text(TextKey::NewGroup))
+                                .on_hover_text("Ctrl/⌘N")
+                                .clicked()
+                            {
                                 self.state.add_group();
                             }
                             let mut language = self.state.language();
@@ -281,6 +347,7 @@ impl NativeApp {
 
     fn bottom_bar(&mut self, root: &mut egui::Ui) {
         let catalog = self.catalog();
+        let palette = theme::palette(root);
         let ready = self
             .state
             .groups()
@@ -288,76 +355,106 @@ impl NativeApp {
             .filter(|group| group.plan.state().is_ready && group.task_id().is_none())
             .count();
         egui::Panel::bottom("bottom-action-bar")
-            .frame(panel_frame().inner_margin(egui::Margin::symmetric(28, 12)))
+            .frame(
+                egui::Frame::new()
+                    .fill(palette.toolbar)
+                    .stroke(Stroke::new(1.0, palette.border))
+                    .inner_margin(egui::Margin::symmetric(24, 10)),
+            )
             .show(root, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.vertical(|ui| {
+                if ui.available_width() < 1000.0 {
+                    ui.horizontal(|ui| {
                         ui.label(format!(
                             "{} · {}",
                             catalog.text(TextKey::Concurrency),
                             ready
                         ));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.remember_output_control(ui, catalog);
+                        });
+                    });
+                    ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(catalog.text(TextKey::Attribution))
                                 .size(13.0)
-                                .color(theme::SECONDARY),
+                                .color(palette.secondary),
                         );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.bottom_action_controls(ui, catalog, ready, palette);
+                        });
                     });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let merge_text = RichText::new(catalog.text(TextKey::MergeAllReady)).color(
-                            if ready > 0 {
-                                theme::ON_PRIMARY
-                            } else {
-                                theme::FOREGROUND
-                            },
-                        );
-                        let mut merge_button =
-                            egui::Button::new(merge_text).min_size(egui::vec2(200.0, 44.0));
-                        if ready > 0 {
-                            merge_button = merge_button.fill(theme::PRIMARY);
-                        }
-                        let merge = ui.add_enabled(ready > 0, merge_button);
-                        if merge.clicked() {
-                            let indices: Vec<_> = self
-                                .state
-                                .groups()
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(index, group)| {
-                                    (group.plan.state().is_ready && group.task_id().is_none())
-                                        .then_some(index)
-                                })
-                                .collect();
-                            for index in indices {
-                                self.schedule_group(index, false);
-                            }
-                        }
-                        if sized_button(ui, catalog.text(TextKey::CancelAll)).clicked() {
-                            for group in self.state.groups() {
-                                if let Some(task_id) = group.task_id() {
-                                    self.scheduler.cancel(task_id);
-                                }
-                            }
-                        }
-                        let mut remember = self.state.settings().remember_output_directory;
-                        if ui
-                            .checkbox(&mut remember, catalog.text(TextKey::RememberOutput))
-                            .changed()
-                        {
-                            self.state.set_remember_output(remember);
-                        }
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
+                            ui.label(format!(
+                                "{} · {}",
+                                catalog.text(TextKey::Concurrency),
+                                ready
+                            ));
+                            ui.label(
+                                RichText::new(catalog.text(TextKey::Attribution))
+                                    .size(13.0)
+                                    .color(palette.secondary),
+                            );
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.bottom_action_controls(ui, catalog, ready, palette);
+                            self.remember_output_control(ui, catalog);
+                        });
                     });
-                });
+                }
             });
+    }
+
+    fn bottom_action_controls(
+        &mut self,
+        ui: &mut egui::Ui,
+        catalog: Catalog,
+        ready: usize,
+        palette: theme::Palette,
+    ) {
+        let merge_text = RichText::new(catalog.text(TextKey::MergeAllReady)).color(if ready > 0 {
+            palette.on_primary
+        } else {
+            palette.foreground
+        });
+        let mut merge_button = egui::Button::new(merge_text).min_size(egui::vec2(200.0, 40.0));
+        if ready > 0 {
+            merge_button = merge_button.fill(palette.primary);
+        }
+        let merge = ui
+            .add_enabled(ready > 0, merge_button)
+            .on_hover_text("Ctrl/⌘Enter");
+        if merge.clicked() {
+            self.merge_all_ready();
+        }
+        if sized_button(ui, catalog.text(TextKey::CancelAll)).clicked() {
+            for group in self.state.groups() {
+                if let Some(task_id) = group.task_id() {
+                    self.scheduler.cancel(task_id);
+                }
+            }
+        }
+    }
+
+    fn remember_output_control(&mut self, ui: &mut egui::Ui, catalog: Catalog) {
+        let mut remember = self.state.settings().remember_output_directory;
+        if ui
+            .checkbox(&mut remember, catalog.text(TextKey::RememberOutput))
+            .changed()
+        {
+            self.state.set_remember_output(remember);
+        }
     }
 
     fn central_workspace(&mut self, root: &mut egui::Ui) {
         self.drop_target = None;
+        let palette = theme::palette(root);
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
-                    .fill(theme::BACKGROUND)
-                    .inner_margin(egui::Margin::same(28)),
+                    .fill(palette.background)
+                    .inner_margin(egui::Margin::same(24)),
             )
             .show(root, |ui| {
                 self.notices.show_global(ui, self.catalog());
@@ -383,31 +480,42 @@ impl NativeApp {
 
     fn group_card(&mut self, ui: &mut egui::Ui, group_index: usize) {
         let catalog = self.catalog();
+        let palette = theme::palette(ui);
         let group_snapshot = self.state.groups()[group_index].plan.state();
         let collapsed = self.state.groups()[group_index].collapsed;
         let group_id = self.state.groups()[group_index].id();
         let task_id = self.state.groups()[group_index].task_id();
-        let group_inner_width = (visible_available_width(ui) - 32.0).max(280.0);
-        let response = panel_frame()
+        // Reserve space for the card's 2 px offset/10 px blur so its shadow never widens the
+        // workspace or encroaches on the settings pane at the minimum window size.
+        let group_inner_width = (visible_available_width(ui) - 44.0).max(280.0);
+        let response = panel_frame(ui)
             .inner_margin(egui::Margin::same(16))
             .show(ui, |ui| {
                 ui.set_width(group_inner_width);
                 ui.horizontal_wrapped(|ui| {
-                    if sized_button(
+                    if disclosure_button(
                         ui,
                         &format!("{} {}", catalog.text(TextKey::Group), group_index + 1),
+                        collapsed,
                     )
                     .clicked()
                     {
                         self.state.set_collapsed(group_index, !collapsed);
                     }
-                    ui.label(
-                        RichText::new(format!(
-                            "{} / {SLOT_COUNT}",
-                            group_snapshot.part_files.len()
-                        ))
-                        .color(theme::PRIMARY),
-                    );
+                    egui::Frame::new()
+                        .fill(palette.notice_info)
+                        .corner_radius(10.0)
+                        .inner_margin(egui::Margin::symmetric(8, 3))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} / {SLOT_COUNT}",
+                                    group_snapshot.part_files.len()
+                                ))
+                                .size(13.0)
+                                .color(palette.primary),
+                            );
+                        });
                     ui.label(if group_snapshot.is_ready {
                         catalog.text(TextKey::Ready)
                     } else {
@@ -421,13 +529,13 @@ impl NativeApp {
                                 egui::Button::new(
                                     RichText::new(catalog.text(TextKey::DeleteGroup)).color(
                                         if can_delete {
-                                            theme::DESTRUCTIVE
+                                            palette.destructive
                                         } else {
-                                            theme::FOREGROUND
+                                            palette.foreground
                                         },
                                     ),
                                 )
-                                .min_size(egui::vec2(96.0, 44.0)),
+                                .min_size(egui::vec2(96.0, 40.0)),
                             )
                             .clicked()
                         {
@@ -441,7 +549,7 @@ impl NativeApp {
                             .add_enabled(
                                 group_snapshot.is_ready,
                                 egui::Button::new(catalog.text(TextKey::StartGroup))
-                                    .min_size(egui::vec2(112.0, 44.0)),
+                                    .min_size(egui::vec2(112.0, 40.0)),
                             )
                             .clicked()
                         {
@@ -460,7 +568,7 @@ impl NativeApp {
                     let slots_width = (width - settings_width - 8.0).max(280.0);
                     let columns = slot_columns(slots_width);
                     let rows = SLOT_COUNT.div_ceil(columns);
-                    let panel_height = 128.0 + rows as f32 * 116.0;
+                    let panel_height = 124.0 + rows as f32 * 116.0;
                     ui.allocate_ui_with_layout(
                         egui::vec2(slots_width, panel_height),
                         egui::Layout::top_down(egui::Align::Min),
@@ -474,7 +582,16 @@ impl NativeApp {
                         egui::Layout::top_down(egui::Align::Min),
                         |ui| {
                             ui.set_width(settings_width);
-                            self.settings_panel(ui, group_index, task_id.is_some());
+                            egui::Frame::new()
+                                .fill(palette.sidebar)
+                                .stroke(Stroke::new(1.0, palette.border))
+                                .corner_radius(10.0)
+                                .inner_margin(egui::Margin::same(14))
+                                .show(ui, |ui| {
+                                    ui.set_width(settings_width - 28.0);
+                                    ui.set_min_height(panel_height - 28.0);
+                                    self.settings_panel(ui, group_index, task_id.is_some());
+                                });
                         },
                     );
                 });
@@ -489,15 +606,12 @@ impl NativeApp {
             self.drop_target = Some(group_index);
             if ui.ctx().input(|input| !input.raw.hovered_files.is_empty()) {
                 let overlay = response.rect.shrink(2.0);
-                ui.painter().rect_filled(
-                    overlay,
-                    8.0,
-                    Color32::from_rgba_premultiplied(239, 246, 255, 224),
-                );
+                ui.painter()
+                    .rect_filled(overlay, 12.0, palette.notice_info.gamma_multiply(0.94));
                 ui.painter().rect_stroke(
                     overlay,
-                    8.0,
-                    Stroke::new(3.0, theme::PRIMARY),
+                    12.0,
+                    Stroke::new(2.0, palette.primary),
                     egui::StrokeKind::Inside,
                 );
                 ui.painter().text(
@@ -505,7 +619,7 @@ impl NativeApp {
                     egui::Align2::CENTER_CENTER,
                     catalog.text(TextKey::DropHere),
                     egui::FontId::proportional(18.0),
-                    theme::PRIMARY,
+                    palette.primary,
                 );
             }
         }
@@ -519,23 +633,31 @@ impl NativeApp {
         panel_width: f32,
     ) {
         let catalog = self.catalog();
+        let palette = theme::palette(ui);
         let snapshot = self.state.groups()[group_index].plan.state();
         ui.add_enabled_ui(!locked, |ui| {
-            ui.label(RichText::new(catalog.text(TextKey::ModelParts)).size(18.0));
+            ui.label(RichText::new(catalog.text(TextKey::ModelParts)).size(17.0));
             ui.label(
                 RichText::new(catalog.text(TextKey::ModelPartsHint))
                     .size(13.0)
-                    .color(theme::SECONDARY),
+                    .color(palette.secondary),
             );
             ui.horizontal(|ui| {
                 if sized_button(ui, catalog.text(TextKey::AddNext)).clicked() {
                     self.add_part_dialog(group_index, None);
                 }
+                if sized_button(ui, crate::ammunition::title(self.state.language())).clicked() {
+                    let source = self.state.groups()[group_index]
+                        .last_output()
+                        .map(Path::to_path_buf)
+                        .or_else(|| snapshot.part_files.first().cloned());
+                    self.ammunition.start(source);
+                }
                 if ui
                     .add_enabled(
                         !snapshot.part_files.is_empty(),
                         egui::Button::new(catalog.text(TextKey::Clear))
-                            .min_size(egui::vec2(80.0, 44.0)),
+                            .min_size(egui::vec2(80.0, 40.0)),
                     )
                     .clicked()
                 {
@@ -567,18 +689,27 @@ impl NativeApp {
         card_width: f32,
     ) {
         let catalog = self.catalog();
+        let palette = theme::palette(ui);
         let content_width = (card_width - 16.0).max(96.0);
         egui::Frame::new()
-            .fill(theme::PANEL)
-            .stroke(Stroke::new(1.0, theme::BORDER))
-            .corner_radius(6.0)
+            .fill(if parts.get(slot).is_some() {
+                palette.panel
+            } else {
+                palette.surface
+            })
+            .stroke(Stroke::new(1.0, palette.border))
+            .corner_radius(9.0)
             .inner_margin(egui::Margin::same(8))
             .show(ui, |ui| {
                 ui.set_width(content_width);
                 ui.set_min_height(108.0);
                 ui.vertical(|ui| {
                     ui.set_width(content_width);
-                    ui.label(RichText::new(format!("{:02}", slot + 1)).size(13.0));
+                    ui.label(
+                        RichText::new(format!("{:02}", slot + 1))
+                            .size(12.0)
+                            .color(palette.secondary),
+                    );
                     if let Some(path) = parts.get(slot) {
                         let file_name = path.file_name().unwrap_or_default().to_string_lossy();
                         ui.add_sized(
@@ -588,7 +719,7 @@ impl NativeApp {
                         .on_hover_text(path.display().to_string());
                         if !path.is_file() {
                             ui.colored_label(
-                                theme::DESTRUCTIVE,
+                                palette.destructive,
                                 catalog.text(TextKey::FileMissing),
                             );
                         }
@@ -596,7 +727,7 @@ impl NativeApp {
                             if ui
                                 .add(
                                     egui::Button::new(catalog.text(TextKey::Preview))
-                                        .min_size(egui::vec2(64.0, 44.0)),
+                                        .min_size(egui::vec2(64.0, 36.0)),
                                 )
                                 .clicked()
                             {
@@ -614,7 +745,7 @@ impl NativeApp {
                                 if ui
                                     .button(
                                         RichText::new(catalog.text(TextKey::Remove))
-                                            .color(theme::DESTRUCTIVE),
+                                            .color(palette.destructive),
                                     )
                                     .clicked()
                                 {
@@ -626,7 +757,11 @@ impl NativeApp {
                     } else if ui
                         .add_sized(
                             [content_width, 72.0],
-                            egui::Button::new(catalog.text(TextKey::AddPart)),
+                            egui::Button::new(
+                                RichText::new(format!("+\n{}", catalog.text(TextKey::AddPart)))
+                                    .color(palette.secondary),
+                            )
+                            .frame(false),
                         )
                         .clicked()
                     {
@@ -638,9 +773,10 @@ impl NativeApp {
 
     fn settings_panel(&mut self, ui: &mut egui::Ui, group_index: usize, locked: bool) {
         let catalog = self.catalog();
+        let palette = theme::palette(ui);
         let snapshot = self.state.groups()[group_index].plan.state();
         ui.add_enabled_ui(!locked, |ui| {
-            ui.label(RichText::new(catalog.text(TextKey::RootModel)).size(18.0));
+            ui.label(RichText::new(catalog.text(TextKey::RootModel)).size(17.0));
             let mut root_mode = snapshot.root_mode;
             ui.horizontal_wrapped(|ui| {
                 ui.radio_value(
@@ -683,23 +819,29 @@ impl NativeApp {
             ui.horizontal(|ui| {
                 let field_width = (ui.available_width() - 88.0).max(96.0);
                 ui.add_sized(
-                    [field_width, 44.0],
+                    [field_width, INPUT_HEIGHT],
                     egui::TextEdit::singleline(&mut output_directory).interactive(false),
                 );
-                if sized_button(ui, catalog.text(TextKey::Browse)).clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(catalog.text(TextKey::Browse))
+                            .min_size(egui::vec2(80.0, INPUT_HEIGHT)),
+                    )
+                    .clicked()
+                {
                     self.choose_output_directory(group_index);
                 }
             });
             ui.label(catalog.text(TextKey::OutputFileName));
             let mut output_name = snapshot.output_file_name;
             let output_name_response = egui::Frame::new()
-                .fill(theme::PANEL)
-                .stroke(Stroke::new(1.0, theme::BORDER))
-                .corner_radius(2.0)
+                .fill(palette.panel)
+                .stroke(Stroke::new(1.0, palette.border))
+                .corner_radius(7.0)
                 .inner_margin(egui::Margin::same(1))
                 .show(ui, |ui| {
                     ui.add_sized(
-                        [ui.available_width(), 42.0],
+                        [ui.available_width(), INPUT_HEIGHT - 2.0],
                         egui::TextEdit::singleline(&mut output_name).frame(egui::Frame::NONE),
                     )
                 })
@@ -722,21 +864,21 @@ impl NativeApp {
                 normalized_progress(progress.current, progress.total)
             });
         ui.horizontal(|ui| {
-            ui.label(RichText::new(catalog.text(TextKey::GroupStatus)).size(18.0));
+            ui.label(RichText::new(catalog.text(TextKey::GroupStatus)).size(17.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    RichText::new(format!("{:.0}%", progress_value * 100.0)).color(theme::PRIMARY),
+                    RichText::new(format!("{:.0}%", progress_value * 100.0)).color(palette.primary),
                 );
             });
         });
         ui.scope(|ui| {
-            ui.style_mut().visuals.extreme_bg_color = theme::PROGRESS_TRACK;
+            ui.style_mut().visuals.extreme_bg_color = palette.progress_track;
             ui.add(
                 egui::ProgressBar::new(progress_value)
                     .desired_width(ui.available_width())
-                    .desired_height(28.0)
+                    .desired_height(12.0)
                     .corner_radius(6.0)
-                    .fill(theme::PRIMARY),
+                    .fill(palette.primary),
             );
         });
         let status = progress
@@ -750,7 +892,7 @@ impl NativeApp {
                 |task_progress| messages::task_progress(catalog, task_progress),
             );
         ui.label(status);
-        ui.label(RichText::new(catalog.text(TextKey::RunLog)).size(17.0));
+        ui.label(RichText::new(catalog.text(TextKey::RunLog)).size(16.0));
         egui::ScrollArea::vertical()
             .max_height(120.0)
             .show(ui, |ui| {
@@ -763,7 +905,7 @@ impl NativeApp {
                             .replace("{0}", &path.display().to_string()),
                         GroupLog::Error(error) => messages::task_error(catalog, error),
                     };
-                    ui.label(RichText::new(message).size(13.0).color(theme::SECONDARY));
+                    ui.label(RichText::new(message).size(13.0).color(palette.secondary));
                 }
             });
         if let Some(path) = self.state.groups()[group_index]
@@ -846,6 +988,7 @@ impl NativeApp {
         };
         let catalog = self.catalog();
         egui::Modal::new(egui::Id::new("overwrite-confirmation")).show(context, |ui| {
+            let palette = theme::palette(ui);
             ui.set_min_width(360.0);
             ui.label(RichText::new(catalog.text(TextKey::Overwrite)).size(18.0));
             ui.label(catalog.text(TextKey::OverwriteQuestion));
@@ -856,10 +999,10 @@ impl NativeApp {
                 if ui
                     .add(
                         egui::Button::new(
-                            RichText::new(catalog.text(TextKey::Yes)).color(theme::ON_PRIMARY),
+                            RichText::new(catalog.text(TextKey::Yes)).color(palette.on_primary),
                         )
-                        .min_size(egui::vec2(80.0, 44.0))
-                        .fill(theme::PRIMARY),
+                        .min_size(egui::vec2(80.0, 40.0))
+                        .fill(palette.primary),
                     )
                     .clicked()
                 {
@@ -893,12 +1036,16 @@ impl eframe::App for NativeApp {
             ));
         }
         self.refresh_tasks();
+        self.handle_keyboard_shortcuts(&context);
         self.top_bar(ui);
         self.bottom_bar(ui);
         self.central_workspace(ui);
         self.handle_dropped_files(&context);
         self.overwrite_dialog(&context);
         self.preview_windows(&context);
+        if let Some(path) = self.ammunition.show(&context, self.state.language()) {
+            self.open_preview(&path);
+        }
         if self
             .state
             .groups()
@@ -910,15 +1057,49 @@ impl eframe::App for NativeApp {
     }
 }
 
-fn panel_frame() -> egui::Frame {
+fn panel_frame(ui: &egui::Ui) -> egui::Frame {
+    let palette = theme::palette(ui);
     egui::Frame::new()
-        .fill(theme::PANEL)
-        .stroke(Stroke::new(1.0, theme::BORDER))
-        .corner_radius(8.0)
+        .fill(palette.panel)
+        .stroke(Stroke::new(1.0, palette.border))
+        .corner_radius(12.0)
+        .shadow(egui::epaint::Shadow {
+            offset: [0, 2],
+            blur: 10,
+            spread: 0,
+            color: egui::Color32::from_black_alpha(if ui.visuals().dark_mode { 48 } else { 14 }),
+        })
 }
 
 fn sized_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    ui.add(egui::Button::new(label).min_size(egui::vec2(80.0, 44.0)))
+    ui.add(egui::Button::new(label).min_size(egui::vec2(80.0, 40.0)))
+}
+
+fn disclosure_button(ui: &mut egui::Ui, label: &str, collapsed: bool) -> egui::Response {
+    let palette = theme::palette(ui);
+    let response = ui.add(
+        egui::Button::new(RichText::new(format!("   {label}")).size(17.0))
+            .frame(false)
+            .min_size(egui::vec2(108.0, 36.0)),
+    );
+    let center = egui::pos2(response.rect.left() + 12.0, response.rect.center().y);
+    let stroke = Stroke::new(1.5, palette.foreground);
+    let points = if collapsed {
+        [
+            egui::pos2(center.x - 2.5, center.y - 4.0),
+            egui::pos2(center.x + 2.0, center.y),
+            egui::pos2(center.x - 2.5, center.y + 4.0),
+        ]
+    } else {
+        [
+            egui::pos2(center.x - 4.0, center.y - 2.5),
+            egui::pos2(center.x, center.y + 2.0),
+            egui::pos2(center.x + 4.0, center.y - 2.5),
+        ]
+    };
+    ui.painter().line_segment([points[0], points[1]], stroke);
+    ui.painter().line_segment([points[1], points[2]], stroke);
+    response
 }
 
 fn visible_available_width(ui: &egui::Ui) -> f32 {
@@ -959,15 +1140,16 @@ fn truncated_file_name_label(file_name: &str) -> egui::Label {
 }
 
 fn top_title(ui: &mut egui::Ui, catalog: Catalog) {
+    let palette = theme::palette(ui);
     ui.label(
         RichText::new(catalog.text(TextKey::AppTitle))
-            .size(24.0)
-            .color(theme::FOREGROUND),
+            .size(22.0)
+            .color(palette.foreground),
     );
     ui.label(
         RichText::new(catalog.text(TextKey::AppSubtitle))
-            .size(15.0)
-            .color(theme::SECONDARY),
+            .size(13.0)
+            .color(palette.secondary),
     );
 }
 
@@ -1072,6 +1254,7 @@ mod tests {
                 pending_group_delete: None,
                 pending_overwrites: VecDeque::new(),
                 render_state: None,
+                ammunition: Default::default(),
             };
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -1163,6 +1346,7 @@ mod tests {
             pending_group_delete: None,
             pending_overwrites: VecDeque::new(),
             render_state: None,
+            ammunition: Default::default(),
         };
 
         app.set_group_notice(0, UiNotice::AddPart(AddPartStatus::Duplicate));
@@ -1222,6 +1406,7 @@ mod tests {
             pending_group_delete: None,
             pending_overwrites: VecDeque::new(),
             render_state: None,
+            ammunition: Default::default(),
         };
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(

@@ -1,5 +1,5 @@
 use crate::{messages, theme};
-use eframe::egui::{self, Color32, Stroke};
+use eframe::egui::{self, Stroke};
 use model_merger_app_core::{AddPartStatus, Catalog, GroupId, TextKey};
 use std::collections::HashMap;
 
@@ -75,22 +75,23 @@ impl NoticeCenter {
 }
 
 fn show_banner(ui: &mut egui::Ui, catalog: Catalog, notice: &UiNotice) -> bool {
+    let palette = theme::palette(ui);
     let is_error = notice.is_error();
     let accent = if is_error {
-        theme::DESTRUCTIVE
+        palette.destructive
     } else {
-        theme::PRIMARY
+        palette.primary
     };
     let fill = if is_error {
-        Color32::from_rgb(254, 242, 242)
+        palette.notice_error
     } else {
-        Color32::from_rgb(239, 246, 255)
+        palette.notice_info
     };
     let mut close = false;
     egui::Frame::new()
         .fill(fill)
         .stroke(Stroke::new(1.0, accent))
-        .corner_radius(6.0)
+        .corner_radius(9.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {

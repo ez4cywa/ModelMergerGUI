@@ -4,6 +4,10 @@
 
 ## 界面截图
 
+### 弹匣装填（v2.2.0）
+
+![弹匣骨骼识别与装填](docs/images/rust-native/ammo-fill-zh.png)
+
 | 中文主界面 | English UI |
 | --- | --- |
 | ![Cast 模型合并器中文主界面](docs/images/rust-native/main-window-zh.png) | ![Cast Model Merger English interface](docs/images/rust-native/main-window-en.png) |
@@ -78,6 +82,20 @@
 中文界面嵌入并使用小米 MiSans 字体。MiSans 不属于本项目的 MIT 授权范围，使用和分发遵循小米的 MiSans 字体许可；详情见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 和官方许可页面。
 
 ## 如何预览模型
+
+### 按弹匣骨骼装填子弹模型（v2.2.0）
+
+1. 在任意模型组的部件区点击“弹匣装填”。优先使用本组已合并的文件，也可以在弹窗中直接选择一个武器或弹匣 CAST。
+2. 点击“子弹模型”路径框，选择具有单个 `tag_ammo` 骨骼的子弹 CAST。
+3. 等待骨骼识别，勾选需要装填的弹匣组。程序显示每组骨骼数及已占用数，默认仅选第一组。动画备用弹匣的静态位置可能重合，请按需要选择。
+4. 点击“另存文件”路径框选择输出位置；默认在武器旁生成 `_filled.cast`。必须使用新文件名，原模型不会被覆盖。
+5. 点击“弹匣装填”。每个空子弹骨骼生成一份模型并刚性绑定，已有网格绑定的目标自动跳过。完成后点击“预览装填模型”。
+
+目前识别 `j_mag`、`j_mag数字` 或 `tag_clip` 子树中的 `j_ammo_数字` / `tag_ammo_数字`，不按现实武器容量猜测数量。非弹匣子树的子弹骨骼不会装填。支持单位缩放刚体骨骼；多骨骼子弹、模型级变换、非单位骨骼缩放会明确报错。一次最多 512 个槽位、500 万个新增顶点。详细样本关系见[骨骼研究](docs/ammo-bone-research.md)。
+
+English: Click **Fill magazine** in a group's parts area, select a weapon/magazine CAST and a single-bone `tag_ammo` ammunition CAST, select the detected magazine groups, choose a new output file, then fill and preview. The first magazine is selected by default; occupied bones and non-magazine slots are excluded. This operates on model bones, not inferred real-world capacities. Unit-scale rigid skeletons only; existing output files are never overwritten.
+
+v2.2.0 also introduces a macOS-inspired layout, system light/dark themes, compact 36 px path/name inputs, and `Ctrl+N` / `Ctrl+S` / `Ctrl+Enter` shortcuts.
 
 ### 预览单个部件
 

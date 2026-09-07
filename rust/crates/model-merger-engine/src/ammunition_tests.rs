@@ -1,0 +1,128 @@
+use super::*;
+use crate::{
+    NoopObserver,
+    domain::{Bone, Mesh},
+    math::Quaternion,
+};
+fn bone(name: &str, parent: i32, position: Vec3) -> Bone {
+    Bone {
+        name: name.into(),
+        parent,
+        local_position: position,
+        local_rotation: Quaternion::IDENTITY,
+        global_position: position,
+        global_rotation: Quaternion::IDENTITY,
+        scale: Vec3(1.0, 1.0, 1.0),
+    }
+}
+fn mesh() -> Mesh {
+    Mesh {
+        positions: vec![
+            Vec3(3.0, 0.0, 0.0),
+            Vec3(2.0, 1.0, 0.0),
+            Vec3(2.0, 0.0, 1.0),
+        ],
+        normals: vec![Vec3(1.0, 0.0, 0.0); 3],
+        tangents: vec![Vec3::default(); 3],
+        colors: vec![[1.0; 4]; 3],
+        uvs: vec![[0.0; 2]; 3],
+        faces: vec![0, 1, 2],
+        weights_per_vertex: 1,
+        weight_bones: vec![0; 3],
+        weight_values: vec![1.0; 3],
+        material_indices: vec![],
+        shape_deltas: vec![],
+    }
+}
+#[test]
+fn groups_follow_ancestry_and_exclude_non_magazine_ammo() {
+    let model = Model {
+        name: "weapon".into(),
+        bones: vec![
+            bone("j_mag1", -1, Vec3::default()),
+            bone("j_ammo_01", 0, Vec3::default()),
+            bone("j_ammo_17", -1, Vec3::default()),
+            bone("j_ammo_helper", 0, Vec3::default()),
+        ],
+        meshes: vec![],
+        materials: vec![],
+        shapes: vec![],
+    };
+    let result = analyze(&model);
+    assert_eq!(result.magazines.len(), 1);
+    assert_eq!(result.magazines[0].slots, vec!["j_ammo_01"]);
+    assert_eq!(result.excluded_slots, vec!["j_ammo_17"]);
+}
+#[test]
+fn fill_rotates_about_source_anchor_binds_and_preserves_original_nodes() {
+    let directory = std::env::temp_dir().join(format!("ammo-placement-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let weapon = directory.join("weapon.cast");
+    let ammo_path = directory.join("ammo.cast");
+    let output = directory.join("filled.cast");
+    let mut target = bone("j_ammo_01", 0, Vec3(10.0, 0.0, 0.0));
+    target.local_rotation = Quaternion(
+        0.0,
+        0.0,
+        std::f32::consts::FRAC_1_SQRT_2,
+        std::f32::consts::FRAC_1_SQRT_2,
+    );
+    let model = Model {
+        name: "weapon".into(),
+        bones: vec![bone("j_mag1", -1, Vec3::default()), target],
+        meshes: vec![],
+        materials: vec![],
+        shapes: vec![],
+    };
+    let ammo = Model {
+        name: "ammo".into(),
+        bones: vec![bone("tag_ammo", -1, Vec3(2.0, 0.0, 0.0))],
+        meshes: vec![mesh()],
+        materials: vec![],
+        shapes: vec![],
+    };
+    let original = cast_model::encode_model(&model).unwrap();
+    std::fs::write(&weapon, &original).unwrap();
+    std::fs::write(&ammo_path, cast_model::encode_model(&ammo).unwrap()).unwrap();
+    let request = FillRequest {
+        weapon: weapon.clone(),
+        ammunition: ammo_path.clone(),
+        output: output.clone(),
+        magazines: vec!["j_mag1".into()],
+    };
+    let result = fill(request.clone(), &NoopObserver).unwrap();
+    assert_eq!(result.inserted, 1);
+    let (mut raw, decoded) = read(&output, &NoopObserver).unwrap();
+    let v = decoded.meshes[0].positions[0];
+    assert!((v.0 - 10.0).abs() < 0.0001 && (v.1 - 1.0).abs() < 0.0001);
+    assert_eq!(decoded.meshes[0].weight_bones, vec![1; 3]);
+    assert_eq!(decoded.meshes[0].weight_values, vec![1.0; 3]);
+    let mut original_raw = CastFile::decode(&original).unwrap();
+    assert_eq!(
+        model_node(&mut raw).unwrap().children[0],
+        model_node(&mut original_raw).unwrap().children[0]
+    );
+    assert!(fill(request, &NoopObserver).is_err());
+    let repeat = FillRequest {
+        weapon: output,
+        ammunition: ammo_path,
+        output: directory.join("repeat.cast"),
+        magazines: vec!["j_mag1".into()],
+    };
+    assert!(fill(repeat, &NoopObserver).is_err());
+    assert_eq!(std::fs::read(&weapon).unwrap(), original);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
+fn cancelled_inspection_never_reads_the_file() {
+    struct Cancel;
+    impl MergeObserver for Cancel {
+        fn is_cancelled(&self) -> bool {
+            true
+        }
+    }
+    assert!(matches!(
+        inspect(Path::new("missing.cast"), &Cancel),
+        Err(MergeError::Cancelled)
+    ));
+}
