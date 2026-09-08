@@ -6,6 +6,7 @@ use model_merger_app_core::{AppLanguage, Catalog, TextKey};
 #[derive(Debug, PartialEq)]
 pub(crate) enum Action {
     NewGroup,
+    OpenPreview,
     SaveSettings,
     RestoreDefaults,
     Language(AppLanguage),
@@ -51,6 +52,17 @@ pub(crate) fn show(
                         .clicked()
                     {
                         action = Some(Action::NewGroup);
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui
+                        .add(
+                            egui::Button::new(catalog.text(TextKey::OpenPreview))
+                                .shortcut_text(shortcut(ui, egui::Key::O)),
+                        )
+                        .clicked()
+                    {
+                        action = Some(Action::OpenPreview);
                         ui.close();
                     }
                 });
@@ -240,6 +252,9 @@ mod tests {
                 h.click(file);
                 h.click(catalog.text(TextKey::NewGroup));
                 assert_eq!(h.action, Some(Action::NewGroup));
+                h.click(file);
+                h.click(catalog.text(TextKey::OpenPreview));
+                assert_eq!(h.action, Some(Action::OpenPreview));
                 h.click(settings);
                 h.click(catalog.text(TextKey::RestoreDefaults));
                 assert_eq!(h.action, None);

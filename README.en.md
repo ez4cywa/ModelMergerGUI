@@ -62,6 +62,7 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
 - Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
 - The compact **File / Settings / Help** menu bar replaces the repeated heading and introduction. Create groups under **File**; choose a language or save/restore settings under **Settings**. Existing shortcuts are unchanged.
+- Use **File → Open model preview…** (**Ctrl+O**) to open a CAST file in a standalone 3D preview without adding it to a merge group. Rotate, zoom and reset the view without changing the source file.
 - Open **Help → About** to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
 - Check GitHub updates manually in **About**, or opt into startup checks (off by default). Same-version package refreshes are detected; downloads require a click and the app is never replaced automatically.
 - Copy a source magazine's local ammunition positions and rotations to spare magazines without placement bones. Spares are individually selected and unchecked by default; new ammunition follows its own magazine bones.

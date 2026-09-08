@@ -175,6 +175,20 @@ impl NativeApp {
         self.next_preview_id += 1;
     }
 
+    fn open_preview_dialog(&mut self) {
+        let path = rfd::FileDialog::new()
+            .set_title(self.catalog().text(TextKey::OpenPreview))
+            .add_filter("Cast", &["cast"])
+            .pick_file();
+        self.open_preview_selection(path);
+    }
+
+    fn open_preview_selection(&mut self, path: Option<PathBuf>) {
+        if let Some(path) = path {
+            self.open_preview(&path);
+        }
+    }
+
     fn schedule_group(&mut self, group_index: usize, overwrite: bool) {
         let Some(request) = self.state.groups()[group_index]
             .plan
@@ -233,6 +247,12 @@ impl NativeApp {
     }
 
     fn handle_keyboard_shortcuts(&mut self, context: &egui::Context) {
+        let open_preview = context.input_mut(|input| {
+            input.consume_shortcut(&egui::KeyboardShortcut::new(
+                egui::Modifiers::COMMAND,
+                egui::Key::O,
+            ))
+        });
         let new_group = context.input_mut(|input| {
             input.consume_shortcut(&egui::KeyboardShortcut::new(
                 egui::Modifiers::COMMAND,
@@ -254,6 +274,9 @@ impl NativeApp {
         if new_group {
             self.state.add_group();
         }
+        if open_preview {
+            self.open_preview_dialog();
+        }
         if save {
             self.save_settings();
         }
@@ -273,6 +296,7 @@ impl NativeApp {
                 self.state.add_group();
             }
             Some(crate::menu_bar::Action::SaveSettings) => self.save_settings(),
+            Some(crate::menu_bar::Action::OpenPreview) => self.open_preview_dialog(),
             Some(crate::menu_bar::Action::RestoreDefaults) => self.restore_defaults(),
             Some(crate::menu_bar::Action::Language(language)) => self.state.set_language(language),
             Some(crate::menu_bar::Action::About) => self.about.open(),
@@ -1218,6 +1242,7 @@ mod tests {
         context.set_os(egui::os::OperatingSystem::Windows);
         for (key, expected) in [
             (egui::Key::N, "Ctrl+N"),
+            (egui::Key::O, "Ctrl+O"),
             (egui::Key::S, "Ctrl+S"),
             (egui::Key::Enter, "Ctrl+Enter"),
         ] {
@@ -1441,6 +1466,47 @@ mod tests {
         assert_eq!(144.0, slot_card_width(760.0, 5));
         assert_eq!(136.0, slot_card_width(430.0, 3));
         assert_eq!(176.0, slot_card_width(360.0, 2));
+    }
+
+    #[test]
+    fn standalone_preview_selection_does_not_add_groups_or_parts() {
+        let mut app = NativeApp {
+            state: NativeAppState::new(Default::default()),
+            store: SettingsStore::new(std::env::temp_dir().join("unused-preview-settings.json")),
+            scheduler: TaskScheduler::native(2).unwrap(),
+            notices: NoticeCenter::default(),
+            configured_language: AppLanguage::English,
+            previews: Vec::new(),
+            next_preview_id: 1,
+            drop_target: None,
+            pending_group_delete: None,
+            pending_overwrites: VecDeque::new(),
+            render_state: None,
+            ammunition: Default::default(),
+            about: Default::default(),
+        };
+        app.open_preview_selection(None);
+        assert!(app.previews.is_empty());
+        assert_eq!(app.next_preview_id, 1);
+        // Preview requires no model parts and does not populate the empty workspace.
+        let group_count = app.state.groups().len();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/rust-migration/golden-small/part-00.cast");
+        let original = std::fs::read(&path).unwrap();
+        app.open_preview_selection(Some(path.clone()));
+        assert_eq!(app.previews.len(), 1);
+        assert_eq!(app.previews[0].title, "part-00.cast");
+        assert!(app.previews[0].open);
+        assert_eq!(app.state.groups().len(), group_count);
+        assert!(
+            app.state
+                .groups()
+                .iter()
+                .all(|group| group.plan.state().part_files.is_empty())
+        );
+        app.open_preview_selection(None);
+        assert_eq!(app.previews.len(), 1);
+        assert_eq!(std::fs::read(path).unwrap(), original);
     }
 
     #[test]
