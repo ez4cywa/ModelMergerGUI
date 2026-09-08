@@ -99,6 +99,10 @@ impl WorkspaceState {
         &self.settings
     }
 
+    pub fn set_check_updates_on_startup(&mut self, enabled: bool) {
+        self.settings.check_updates_on_startup = enabled;
+    }
+
     pub fn groups(&self) -> &[GroupSession] {
         &self.groups
     }

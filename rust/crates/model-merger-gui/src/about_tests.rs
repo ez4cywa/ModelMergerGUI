@@ -34,7 +34,30 @@ impl InteractionHarness {
     }
 
     fn click(&mut self, label: &str) -> Vec<egui::OutputCommand> {
-        let output = self.frame(vec![]);
+        let mut output = self.frame(vec![]);
+        for _ in 0..12 {
+            if theme::review_text(&output.shapes)
+                .iter()
+                .any(|(rect, text, clip)| text == label && clip.contains_rect(*rect))
+            {
+                break;
+            }
+            output.drop_without_applying_deltas();
+            output = self.frame(vec![
+                egui::Event::PointerMoved(egui::pos2(600.0, 600.0)),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -100.0),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: Default::default(),
+                },
+            ]);
+            output.drop_without_applying_deltas();
+            for _ in 0..60 {
+                self.frame(vec![]).drop_without_applying_deltas();
+            }
+            output = self.frame(vec![]);
+        }
         let position = theme::review_text(&output.shapes)
             .iter()
             .find(|(rect, text, clip)| text == label && clip.contains_rect(*rect))

@@ -62,6 +62,9 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
 - Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
 - Open **About** in the top toolbar to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
+- Check GitHub updates manually in **About**, or opt into startup checks (off by default). Same-version package refreshes are detected; downloads require a click and the app is never replaced automatically.
+- Copy a source magazine's local ammunition positions and rotations to spare magazines without placement bones. Spares are individually selected and unchecked by default; new ammunition follows its own magazine bones.
+- Magazine output also supports Windows filesystems without hard links, while preserving the requirement to save to a new filename.
 - Save the interface language, output folder, root-model mode and window position. Selected model paths are not persisted.
 
 The original WPF and command-line projects remain in the source tree for compatibility reference but are no longer included in release packages. The Rust GUI accepts 2–15 `.cast` parts per merge group and produces read-back-validated `.cast` output.

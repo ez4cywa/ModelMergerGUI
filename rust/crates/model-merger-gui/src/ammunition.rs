@@ -23,6 +23,8 @@ pub struct AmmoTool {
     analysis: Option<Analysis>,
     selected: Vec<String>,
     selected_extra: Vec<String>,
+    replica_source: String,
+    selected_spares: Vec<String>,
     job: Option<Receiver<Result<JobResult, String>>>,
     observer: Arc<Progress>,
     result: Option<FillResult>,
@@ -88,6 +90,8 @@ impl AmmoTool {
         self.analysis = None;
         self.selected.clear();
         self.selected_extra.clear();
+        self.replica_source.clear();
+        self.selected_spares.clear();
         self.result = None;
         self.error = None;
         self.observer = Arc::new(Progress::default());
@@ -114,6 +118,14 @@ impl AmmoTool {
             output: output.clone(),
             magazines: self.selected.clone(),
             extra_slots: self.selected_extra.clone(),
+            replicas: self
+                .selected_spares
+                .iter()
+                .map(|target| ammunition::MagazineReplica {
+                    source: self.replica_source.clone(),
+                    target: target.clone(),
+                })
+                .collect(),
         };
         self.result = None;
         self.error = None;
@@ -136,6 +148,11 @@ impl AmmoTool {
                     self.job = None;
                     match result {
                         Ok(JobResult::Analysis(analysis)) => {
+                            self.replica_source = analysis
+                                .magazines
+                                .first()
+                                .map(|magazine| magazine.name.clone())
+                                .unwrap_or_default();
                             self.selected = analysis
                                 .magazines
                                 .first()
@@ -189,6 +206,23 @@ impl AmmoTool {
                         }
                         ui.label(egui::RichText::new(group.slots.join(", ")).size(13.0).color(p.secondary));
                     }
+                    if !analysis.spare_magazines.is_empty() && !analysis.magazines.is_empty() {
+                        ui.separator();
+                        ui.label(localized(language,["备用弹匣（复制子弹布局，默认不选）", "Spare magazines (copy layout, optional)", "Chargeurs de réserve (copie facultative)", "Запасные магазины (копия по выбору)", "Cargadores de repuesto (copia opcional)"]));
+                        ui.label(egui::RichText::new(localized(language,["仅复制子弹的位置和朝向，不复制弹匣网格；新增定位骨骼随备用弹匣运动。", "Copy ammunition positions and rotations, not magazine meshes. New placement bones follow each spare magazine.", "Copier les positions et rotations des munitions, sans le maillage du chargeur. Les nouveaux os suivent le chargeur.", "Копируются положения и повороты патронов, а не сетка магазина. Новые кости следуют за запасным магазином.", "Copia posiciones y rotaciones de munición, no la malla del cargador. Los nuevos huesos siguen al cargador de repuesto."])).size(13.0).color(p.secondary));
+                        egui::ComboBox::from_id_salt("ammo-template").selected_text(&self.replica_source).show_ui(ui, |ui| {
+                            for magazine in &analysis.magazines {
+                                if ui.selectable_value(&mut self.replica_source, magazine.name.clone(), &magazine.name).changed() { self.result = None; }
+                            }
+                        });
+                        for name in &analysis.spare_magazines {
+                            let mut selected = self.selected_spares.contains(name);
+                            if ui.checkbox(&mut selected, name).changed() {
+                                if selected { self.selected_spares.push(name.clone()); } else { self.selected_spares.retain(|value| value != name); }
+                                self.result = None;
+                            }
+                        }
+                    }
                     if !analysis.excluded_slots.is_empty() {
                         ui.separator();
                         ui.label(localized(language,["其他子弹骨骼（按需勾选）","Other ammunition bones (optional)","Autres os de munition (facultatif)","Другие кости патронов (по выбору)","Otros huesos de munición (opcionales)"]));
@@ -211,7 +245,7 @@ impl AmmoTool {
             }
             });
             ui.separator();
-            let ready = self.job.is_none() && self.ammo.is_some() && self.output.is_some() && (!self.selected.is_empty() || !self.selected_extra.is_empty()) && self.analysis.is_some();
+            let ready = self.job.is_none() && self.ammo.is_some() && self.output.is_some() && (!self.selected.is_empty() || !self.selected_extra.is_empty() || (!self.selected_spares.is_empty() && !self.replica_source.is_empty())) && self.analysis.is_some();
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(ready, egui::Button::new(title(language)).min_size(egui::vec2(140.0,36.0))).clicked() { self.fill(); }
                 if self.job.is_some() && ui.button(localized(language,["取消","Cancel","Annuler","Отмена","Cancelar"])).clicked() { self.observer.cancelled.store(true,Ordering::Relaxed); }
@@ -276,6 +310,7 @@ mod tests {
                     occupied: vec![],
                 }],
                 excluded_slots: vec!["j_ammo_999".into()],
+                spare_magazines: vec!["j_mag2".into(), "j_mag3".into()],
             });
             for frame in 0..3 {
                 let mut output = context.run_ui(

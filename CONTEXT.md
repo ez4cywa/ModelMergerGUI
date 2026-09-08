@@ -23,3 +23,11 @@ The native application core owns editable merge groups, schema-compatible settin
 ## Model preview
 
 A model preview is a bounded, read-only projection of Cast mesh geometry for interactive display. Core owns loading, statistics, validation and triangle sampling; the native WGPU module owns camera transforms, lighting and depth-tested rendering. Preview sampling never changes the selected part or merged output.
+
+## Ammunition placement
+
+The ammunition engine owns skeleton analysis, rigid placement, optional spare-magazine layout replication, and no-overwrite output publication. Spare layouts are transformed relative to the chosen source magazine and receive new bones under the target magazine. Magazine ancestors such as `tag_clip` are not themselves spare targets. On Windows filesystems without hard-link support, a same-directory move without replacement publishes the verified temporary file.
+
+## Release checks
+
+GitHub release checks are explicit or opt-in at startup; `checkUpdatesOnStartup` defaults to false in existing and new settings. Checks run off the UI thread, compare release versions and source commit identities for same-version refreshes, and only expose this repository's portable ZIP download. Checking never downloads or installs an update automatically.

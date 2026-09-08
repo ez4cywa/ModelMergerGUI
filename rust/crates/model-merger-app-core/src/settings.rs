@@ -43,6 +43,7 @@ pub struct AppSettings {
     pub language: Option<AppLanguage>,
     pub preferred_output_directory: Option<PathBuf>,
     pub remember_output_directory: bool,
+    pub check_updates_on_startup: bool,
     #[serde(rename = "rootSelectionMode")]
     pub root_mode: RootMode,
     pub window_bounds: Option<WindowBounds>,
@@ -55,6 +56,7 @@ impl Default for AppSettings {
             language: None,
             preferred_output_directory: None,
             remember_output_directory: false,
+            check_updates_on_startup: false,
             root_mode: RootMode::Automatic,
             window_bounds: None,
         }

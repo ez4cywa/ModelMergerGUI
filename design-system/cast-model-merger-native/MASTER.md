@@ -2,7 +2,7 @@
 
 **Product:** a focused desktop utility for assembling two to fifteen Cast model parts in one or more independent groups.
 
-**Design direction:** calm macOS-inspired utility interface implemented with native egui controls. Preserve the host operating system's title bar and window behavior; never imitate macOS traffic-light controls on Windows.
+**Design direction:** calm macOS-inspired utility interface implemented with native egui controls. At the user's explicit request (2026-09-08), the main window uses an application-drawn macOS-style title bar with red/yellow/green window controls and a centered title. Preserve native Windows drag, resize, minimize, maximize/restore and close behavior underneath; do not replace other platform interactions.
 
 ## Product character
 

@@ -63,6 +63,8 @@ impl NativeApp {
             ammunition: Default::default(),
             about: Default::default(),
         };
+        app.about
+            .set_update_preference(app.state.settings().check_updates_on_startup);
         for path in std::env::args_os().skip(1).map(PathBuf::from).take(5) {
             if path.is_file()
                 && path
@@ -89,6 +91,7 @@ impl NativeApp {
 
     fn restore_defaults(&mut self) {
         self.state.reset_defaults();
+        self.about.set_update_preference(false);
         self.notices
             .set_global(UiNotice::Key(TextKey::DefaultsRestored));
     }
@@ -1054,12 +1057,18 @@ impl eframe::App for NativeApp {
             ));
         }
         self.refresh_tasks();
+        if self.about.poll_updates(&context) {
+            self.notices
+                .set_global(UiNotice::Key(TextKey::UpdateAvailable));
+        }
         if !self.about.is_open() {
             self.handle_keyboard_shortcuts(&context);
         }
+        crate::chrome::show(ui, self.state.language());
         self.top_bar(ui);
         self.bottom_bar(ui);
         self.central_workspace(ui);
+        crate::chrome::resize_edges(ui);
         self.handle_dropped_files(&context);
         self.overwrite_dialog(&context);
         self.preview_windows(&context);
@@ -1067,6 +1076,10 @@ impl eframe::App for NativeApp {
             self.open_preview(&path);
         }
         self.about.show(&context, self.state.language());
+        if let Some(enabled) = self.about.take_update_preference() {
+            self.state.set_check_updates_on_startup(enabled);
+            self.save_settings();
+        }
         if self
             .state
             .groups()
@@ -1272,6 +1285,7 @@ fn default_settings_store() -> SettingsStore {
 pub fn startup_viewport() -> egui::ViewportBuilder {
     let settings = default_settings_store().load();
     let mut viewport = egui::ViewportBuilder::default()
+        .with_decorations(false)
         .with_inner_size([1180.0, 860.0])
         .with_min_inner_size([900.0, 680.0]);
     if let Some(bounds) = settings.window_bounds {

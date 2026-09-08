@@ -2,6 +2,7 @@ pub mod ammunition;
 mod cast_model;
 mod domain;
 mod math;
+mod output;
 mod preview;
 
 pub use preview::{PreviewBounds, PreviewData, PreviewError, PreviewMesh, load_preview};

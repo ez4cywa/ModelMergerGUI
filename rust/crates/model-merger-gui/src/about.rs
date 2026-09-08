@@ -18,6 +18,10 @@ pub struct AboutDialog {
     open: bool,
     copied: bool,
     icon: Option<egui::TextureHandle>,
+    updates: crate::updates::UpdateChecker,
+    automatic_updates: bool,
+    preference_changed: bool,
+    update_notified: bool,
 }
 
 fn text(language: AppLanguage, variants: [&'static str; 5]) -> &'static str {
@@ -25,6 +29,22 @@ fn text(language: AppLanguage, variants: [&'static str; 5]) -> &'static str {
 }
 
 impl AboutDialog {
+    pub fn set_update_preference(&mut self, enabled: bool) {
+        self.automatic_updates = enabled;
+    }
+
+    pub fn take_update_preference(&mut self) -> Option<bool> {
+        std::mem::take(&mut self.preference_changed).then_some(self.automatic_updates)
+    }
+
+    pub fn poll_updates(&mut self, context: &egui::Context) -> bool {
+        self.updates.poll(context, self.automatic_updates);
+        if self.updates.available() && !self.update_notified {
+            self.update_notified = true;
+            return true;
+        }
+        false
+    }
     pub fn open(&mut self) {
         self.open = true;
         self.copied = false;
@@ -56,11 +76,14 @@ impl AboutDialog {
         let mut close = false;
         let response = egui::Modal::new(egui::Id::new("about-dialog")).frame(egui::Frame::popup(&context.style_of(context.theme())).inner_margin(20)).show(context, |ui| {
             ui.set_width((context.content_rect().width() - 96.0).clamp(280.0, 520.0));
+            // Reserve the scroll viewport plus header/footer on the first frame; otherwise
+            // the centered area grows toward its content height over several frames.
+            ui.set_height(height + 104.0);
             ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
             let palette = theme::palette(ui);
             ui.heading(catalog.text(TextKey::About));
             ui.add_space(8.0);
-            egui::ScrollArea::vertical().id_salt("about-content").auto_shrink([false, true]).max_height(height).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt("about-content").auto_shrink([false, false]).max_height(height).show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     if let Some(icon) = &self.icon { ui.image((icon.id(), egui::vec2(64.0,64.0))); }
                         ui.label(RichText::new(catalog.text(TextKey::AppTitle)).size(22.0));
@@ -85,6 +108,9 @@ impl AboutDialog {
                 if self.copied { ui.label(RichText::new(text(language,["已复制","Copied","Copié","Скопировано","Copiado"])).size(13.0).color(palette.secondary)); }
                 });
                 });
+                ui.add_space(8.0);
+                ui.separator();
+                self.preference_changed |= self.updates.show(ui, language, &mut self.automatic_updates);
                 ui.add_space(8.0);
                 ui.separator();
                 egui::CollapsingHeader::new(RichText::new(text(language,["致谢与许可","Credits and licenses","Crédits et licences","Авторы и лицензии","Créditos y licencias"])).size(17.0)).id_salt("about-credits").show(ui, |ui| {

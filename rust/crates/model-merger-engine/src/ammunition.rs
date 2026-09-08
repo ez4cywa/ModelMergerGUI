@@ -20,6 +20,14 @@ pub struct Magazine {
 pub struct Analysis {
     pub magazines: Vec<Magazine>,
     pub excluded_slots: Vec<String>,
+    /// Recognized magazine bones with no ammunition placement bones of their own.
+    pub spare_magazines: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MagazineReplica {
+    pub source: String,
+    pub target: String,
 }
 
 #[derive(Debug, Clone)]
@@ -30,6 +38,8 @@ pub struct FillRequest {
     pub magazines: Vec<String>,
     /// Explicit opt-in for numbered ammunition bones outside magazine subtrees.
     pub extra_slots: Vec<String>,
+    /// Opt-in copies of a source magazine's local ammunition layout.
+    pub replicas: Vec<MagazineReplica>,
 }
 
 #[derive(Debug, Clone)]
@@ -116,18 +126,29 @@ fn numbered(name: &str, prefix: &str) -> bool {
         .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
 }
 
+fn magazine_bone(name: &str) -> bool {
+    ["j_mag", "tag_clip", "tag_mag", "j_magazine", "tag_magazine"]
+        .iter()
+        .any(|prefix| {
+            name == *prefix || numbered(name, prefix) || numbered(name, &format!("{prefix}_"))
+        })
+}
+
 fn analyze(model: &Model) -> Analysis {
     let mut magazines: Vec<Magazine> = Vec::new();
     let mut excluded_slots = Vec::new();
     for (index, bone) in model.bones.iter().enumerate() {
-        if !numbered(&bone.name, "j_ammo_") && !numbered(&bone.name, "tag_ammo_") {
+        if !numbered(&bone.name, "j_ammo_")
+            && !numbered(&bone.name, "tag_ammo_")
+            && !numbered(&bone.name, "cmm_ammo_")
+        {
             continue;
         }
         let mut parent = bone.parent;
         let mut magazine = None;
         while parent >= 0 {
             let b = &model.bones[parent as usize];
-            if numbered(&b.name, "j_mag") || b.name == "j_mag" || b.name == "tag_clip" {
+            if magazine_bone(&b.name) {
                 magazine = Some(b.name.clone());
                 break;
             }
@@ -166,10 +187,101 @@ fn analyze(model: &Model) -> Analysis {
                 .unwrap_or(0)
         });
     }
+    let spare_magazines = model
+        .bones
+        .iter()
+        .filter(|bone| {
+            magazine_bone(&bone.name) && !magazines.iter().any(|group| group.name == bone.name)
+        })
+        .filter(|candidate| {
+            !magazines.iter().any(|group| {
+                let mut parent = model
+                    .bones
+                    .iter()
+                    .find(|bone| bone.name == group.name)
+                    .unwrap()
+                    .parent;
+                while parent >= 0 {
+                    let bone = &model.bones[parent as usize];
+                    if bone.name == candidate.name {
+                        return true;
+                    }
+                    parent = bone.parent;
+                }
+                false
+            })
+        })
+        .map(|bone| bone.name.clone())
+        .collect();
     Analysis {
         magazines,
         excluded_slots,
+        spare_magazines,
     }
+}
+
+fn replica_layout(
+    model: &mut Model,
+    analysis: &Analysis,
+    replicas: &[MagazineReplica],
+) -> Result<Vec<crate::domain::Bone>, MergeError> {
+    let mut result = Vec::new();
+    let mut seen = HashSet::new();
+    for replica in replicas {
+        let source = analysis
+            .magazines
+            .iter()
+            .find(|magazine| magazine.name == replica.source)
+            .ok_or_else(|| invalid("Select a source magazine with ammunition bones"))?;
+        if !analysis.spare_magazines.contains(&replica.target) || !seen.insert(&replica.target) {
+            return Err(invalid("Select each empty spare magazine only once"));
+        }
+        if result.len() + source.slots.len() > 512 || model.bones.len() + source.slots.len() > 16384
+        {
+            return Err(invalid(
+                "Spare magazine placement exceeds the bone / slot limit",
+            ));
+        }
+        let source_bone = model
+            .bones
+            .iter()
+            .find(|bone| bone.name == source.name)
+            .unwrap()
+            .clone();
+        let target_index = model
+            .bones
+            .iter()
+            .position(|bone| bone.name == replica.target)
+            .unwrap();
+        let target = model.bones[target_index].clone();
+        let inverse = source_bone.global_rotation.inverse();
+        for name in &source.slots {
+            let slot = model.bones.iter().find(|bone| &bone.name == name).unwrap();
+            let local_position = inverse.rotate(slot.global_position - source_bone.global_position);
+            let local_rotation = inverse.multiply(slot.global_rotation);
+            let mut suffix = model.bones.len();
+            let name = loop {
+                let name = format!("cmm_ammo_{suffix}");
+                if !model.bones.iter().any(|bone| bone.name == name) {
+                    break name;
+                }
+                suffix += 1;
+            };
+            let bone = crate::domain::Bone {
+                name,
+                parent: target_index as i32,
+                local_position,
+                local_rotation,
+                global_position: target.global_position
+                    + target.global_rotation.rotate(local_position),
+                global_rotation: target.global_rotation.multiply(local_rotation),
+                scale: Vec3(1.0, 1.0, 1.0),
+            };
+            model.bones.push(bone.clone());
+            result.push(bone);
+        }
+    }
+    Ok(result)
 }
 
 pub fn inspect(path: &Path, observer: &impl MergeObserver) -> Result<Analysis, MergeError> {
@@ -291,7 +403,7 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
     {
         return Err(invalid("Output must end in .cast"));
     }
-    let (mut raw, model) = read(&request.weapon, observer)?;
+    let (mut raw, mut model) = read(&request.weapon, observer)?;
     observer.on_progress(MergeStage::Loading, 1, 2, None);
     let (mut ammo_raw, ammo) = read(&request.ammunition, observer)?;
     if ammo.bones.len() != 1 || ammo.bones[0].name != "tag_ammo" || ammo.meshes.is_empty() {
@@ -301,7 +413,7 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
     }
     let analysis = analyze(&model);
     let selected: HashSet<_> = request.magazines.iter().collect();
-    if (selected.is_empty() && request.extra_slots.is_empty())
+    if (selected.is_empty() && request.extra_slots.is_empty() && request.replicas.is_empty())
         || selected
             .iter()
             .any(|name| !analysis.magazines.iter().any(|m| &m.name == *name))
@@ -339,6 +451,8 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
             targets.push(name.clone());
         }
     }
+    let replica_bones = replica_layout(&mut model, &analysis, &request.replicas)?;
+    targets.extend(replica_bones.iter().map(|bone| bone.name.clone()));
     if targets.is_empty() {
         return Err(invalid(
             "No empty ammunition bones in the selected magazines",
@@ -363,12 +477,59 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
     for root in &raw.roots {
         collect_hashes(root, &mut used);
     }
+    let mut next = 0x43414d4d00000001;
     let destination = model_node(&mut raw)?;
+    if !replica_bones.is_empty() {
+        let skeleton = destination
+            .children
+            .iter_mut()
+            .find(|node| node.identifier == u32::from_le_bytes(*b"skel"))
+            .ok_or_else(|| invalid("No skeleton for spare magazine placement"))?;
+        for bone in &replica_bones {
+            while !used.insert(next) {
+                next += 1;
+            }
+            let mut node = CastNode {
+                identifier: u32::from_le_bytes(*b"bone"),
+                hash: next,
+                properties: vec![],
+                children: vec![],
+            };
+            next += 1;
+            set(&mut node, "n", PropertyValues::String(bone.name.clone()));
+            set(
+                &mut node,
+                "p",
+                PropertyValues::Integer32(vec![bone.parent as u32]),
+            );
+            set(
+                &mut node,
+                "lp",
+                PropertyValues::Vector3(vec![bone.local_position.into()]),
+            );
+            set(
+                &mut node,
+                "lr",
+                PropertyValues::Vector4(vec![bone.local_rotation.into()]),
+            );
+            set(
+                &mut node,
+                "wp",
+                PropertyValues::Vector3(vec![bone.global_position.into()]),
+            );
+            set(
+                &mut node,
+                "wr",
+                PropertyValues::Vector4(vec![bone.global_rotation.into()]),
+            );
+            set(&mut node, "s", PropertyValues::Vector3(vec![[1.0; 3]]));
+            skeleton.children.push(node);
+        }
+    }
     resolve_texture_paths(
         destination,
         request.weapon.parent().unwrap_or(Path::new(".")),
     );
-    let mut next = 0x43414d4d00000001;
     let mut material_mapping = HashMap::new();
     for n in source
         .children
@@ -470,10 +631,11 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
         return Err(invalid("Output mesh verification failed"));
     }
     crate::domain::check_cancelled(observer)?;
-    // hard_link creates a new destination atomically and never replaces an existing file.
-    std::fs::hard_link(&temporary_path, &request.output).map_err(|source| MergeError::Io {
-        path: request.output.clone(),
-        source,
+    crate::output::publish_new(&temporary_path, &request.output).map_err(|source| {
+        MergeError::Io {
+            path: request.output.clone(),
+            source,
+        }
     })?;
     drop(temporary);
     observer.on_progress(MergeStage::Completed, 1, 1, None);

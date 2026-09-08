@@ -23,6 +23,7 @@ declare_text_keys!(
     SaveSettings,
     RestoreDefaults,
     About,
+    UpdateAvailable,
     Group,
     ModelParts,
     ModelPartsHint,
@@ -160,6 +161,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::SaveSettings => "保存设置",
         TextKey::RestoreDefaults => "恢复默认",
         TextKey::About => "关于",
+        TextKey::UpdateAvailable => "发现软件更新，可在“关于”中查看和下载。",
         TextKey::Group => "模型组",
         TextKey::ModelParts => "模型部件",
         TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
@@ -267,6 +269,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::SaveSettings => "Save settings",
         TextKey::RestoreDefaults => "Restore defaults",
         TextKey::About => "About",
+        TextKey::UpdateAvailable => "An update is available. Open About to view and download it.",
         TextKey::Group => "Model group",
         TextKey::ModelParts => "Model parts",
         TextKey::ModelPartsHint => {
@@ -390,6 +393,7 @@ fn french(key: TextKey) -> &'static str {
         TextKey::SaveSettings => "Enregistrer",
         TextKey::RestoreDefaults => "Valeurs par défaut",
         TextKey::About => "À propos",
+        TextKey::UpdateAvailable => "Une mise à jour est disponible dans À propos.",
         TextKey::Group => "Groupe de modèles",
         TextKey::ModelParts => "Pièces du modèle",
         TextKey::ModelPartsHint => {
@@ -519,6 +523,7 @@ fn russian(key: TextKey) -> &'static str {
         TextKey::SaveSettings => "Сохранить настройки",
         TextKey::RestoreDefaults => "По умолчанию",
         TextKey::About => "О программе",
+        TextKey::UpdateAvailable => "Доступно обновление. Откройте «О программе» для загрузки.",
         TextKey::Group => "Группа моделей",
         TextKey::ModelParts => "Детали модели",
         TextKey::ModelPartsHint => {
@@ -640,6 +645,7 @@ fn spanish(key: TextKey) -> &'static str {
         TextKey::SaveSettings => "Guardar ajustes",
         TextKey::RestoreDefaults => "Restaurar valores",
         TextKey::About => "Acerca de",
+        TextKey::UpdateAvailable => "Hay una actualización disponible en Acerca de.",
         TextKey::Group => "Grupo de modelos",
         TextKey::ModelParts => "Piezas del modelo",
         TextKey::ModelPartsHint => {

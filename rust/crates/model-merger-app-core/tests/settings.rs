@@ -12,6 +12,7 @@ fn settings_round_trip_uses_schema_two_and_leaves_no_temporary_file() {
         language: Some(AppLanguage::French),
         preferred_output_directory: Some(output.clone()),
         remember_output_directory: true,
+        check_updates_on_startup: true,
         root_mode: RootMode::Manual,
         window_bounds: Some(WindowBounds::new(120.0, 80.0, 1166.0, 854.0)),
         ..AppSettings::default()
@@ -40,6 +41,7 @@ fn corrupt_or_invalid_settings_fall_back_to_sanitized_defaults() {
     std::fs::write(&path, b"not json").unwrap();
     let store = SettingsStore::new(&path);
     assert_eq!(AppSettings::default(), store.load());
+    assert!(!store.load().check_updates_on_startup);
 
     std::fs::write(
         &path,
