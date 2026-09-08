@@ -10,7 +10,7 @@ bytemuck = { version = "1.25", features = ["derive"] }
 eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "links", "wgpu"] }
 model-merger-app-core.workspace = true
 model-merger-engine.workspace = true
-rfd = "0.15.4"
+rfd = "0.17.2"
 serde.workspace = true
 serde_json.workspace = true
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
