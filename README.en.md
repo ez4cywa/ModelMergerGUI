@@ -61,7 +61,8 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - A fully native Rust architecture handles CAST parsing, merging, scheduling, settings, five-language UI and previews in one process. See the [full migration record (Chinese)](docs/full-rust-migration.md).
 - Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
 - Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
-- Open **About** in the top toolbar to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
+- The compact **File / Settings / Help** menu bar replaces the repeated heading and introduction. Create groups under **File**; choose a language or save/restore settings under **Settings**. Existing shortcuts are unchanged.
+- Open **Help → About** to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
 - Check GitHub updates manually in **About**, or opt into startup checks (off by default). Same-version package refreshes are detected; downloads require a click and the app is never replaced automatically.
 - Copy a source magazine's local ammunition positions and rotations to spare magazines without placement bones. Spares are individually selected and unchecked by default; new ammunition follows its own magazine bones.
 - Magazine output also supports Windows filesystems without hard links, while preserving the requirement to save to a new filename.

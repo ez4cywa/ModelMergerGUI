@@ -2,6 +2,7 @@ mod about;
 mod ammunition;
 mod chrome;
 pub mod diagnostics;
+mod menu_bar;
 mod messages;
 mod notices;
 mod preview;

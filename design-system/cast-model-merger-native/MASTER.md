@@ -45,7 +45,7 @@ All normal text/background and button text/fill pairs must meet WCAG AA contrast
 
 ## Interaction contract
 
-- The top toolbar contains language and infrequent workspace commands. The bottom action area contains persistent batch state and the single primary action.
+- Below the separate window title bar, a compact 32 px menu bar contains File, Settings and Help. Do not repeat the app title or introductory text here. Use 26–28 px native desktop menu rows with shortcut hints; language selection lives under Settings. The bottom action area contains persistent batch state and the single primary action.
 - Drag-and-drop is optional acceleration. Every drag action has the labeled Add control as a keyboard and pointer alternative.
 - File names truncate inside fixed slot widths and expose the full path in a tooltip.
 - Keyboard order follows the visible reading order. Preserve visible native focus feedback.

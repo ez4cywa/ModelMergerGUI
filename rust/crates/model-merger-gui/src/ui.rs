@@ -263,97 +263,21 @@ impl NativeApp {
     }
 
     fn top_bar(&mut self, root: &mut egui::Ui) {
-        let catalog = self.catalog();
-        let palette = theme::palette(root);
-        let can_restore_defaults = self
+        let can_restore = self
             .state
             .groups()
             .iter()
             .all(|group| group.task_id().is_none());
-        egui::Panel::top("top-command-bar")
-            .frame(
-                egui::Frame::new()
-                    .fill(palette.toolbar)
-                    .stroke(Stroke::new(1.0, palette.border))
-                    .inner_margin(egui::Margin::symmetric(24, 14)),
-            )
-            .show(root, |ui| {
-                if ui.available_width() < top_bar_required_width(ui, catalog) {
-                    ui.vertical(|ui| {
-                        top_title(ui, catalog);
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(catalog.text(TextKey::Language));
-                            let mut language = self.state.language();
-                            language_selector(ui, &mut language);
-                            if sized_button(ui, catalog.text(TextKey::NewGroup))
-                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::N))
-                                .clicked()
-                            {
-                                self.state.add_group();
-                            }
-                            if sized_button(ui, catalog.text(TextKey::SaveSettings))
-                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::S))
-                                .clicked()
-                            {
-                                self.save_settings();
-                            }
-                            if ui
-                                .add_enabled(
-                                    can_restore_defaults,
-                                    egui::Button::new(catalog.text(TextKey::RestoreDefaults))
-                                        .min_size(egui::vec2(80.0, 40.0)),
-                                )
-                                .clicked()
-                            {
-                                self.restore_defaults();
-                            }
-                            if language != self.state.language() {
-                                self.state.set_language(language);
-                            }
-                            if sized_button(ui, catalog.text(TextKey::About)).clicked() {
-                                self.about.open();
-                            }
-                        });
-                    });
-                } else {
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| top_title(ui, catalog));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if sized_button(ui, catalog.text(TextKey::About)).clicked() {
-                                self.about.open();
-                            }
-                            if ui
-                                .add_enabled(
-                                    can_restore_defaults,
-                                    egui::Button::new(catalog.text(TextKey::RestoreDefaults))
-                                        .min_size(egui::vec2(80.0, 40.0)),
-                                )
-                                .clicked()
-                            {
-                                self.restore_defaults();
-                            }
-                            if sized_button(ui, catalog.text(TextKey::SaveSettings))
-                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::S))
-                                .clicked()
-                            {
-                                self.save_settings();
-                            }
-                            if sized_button(ui, catalog.text(TextKey::NewGroup))
-                                .on_hover_text(shortcut_label(ui.ctx(), egui::Key::N))
-                                .clicked()
-                            {
-                                self.state.add_group();
-                            }
-                            let mut language = self.state.language();
-                            language_selector(ui, &mut language);
-                            ui.label(catalog.text(TextKey::Language));
-                            if language != self.state.language() {
-                                self.state.set_language(language);
-                            }
-                        });
-                    });
-                }
-            });
+        match crate::menu_bar::show(root, self.state.language(), can_restore) {
+            Some(crate::menu_bar::Action::NewGroup) => {
+                self.state.add_group();
+            }
+            Some(crate::menu_bar::Action::SaveSettings) => self.save_settings(),
+            Some(crate::menu_bar::Action::RestoreDefaults) => self.restore_defaults(),
+            Some(crate::menu_bar::Action::Language(language)) => self.state.set_language(language),
+            Some(crate::menu_bar::Action::About) => self.about.open(),
+            None => {}
+        }
     }
 
     fn bottom_bar(&mut self, root: &mut egui::Ui) {
@@ -1189,20 +1113,6 @@ fn truncated_file_name_label(file_name: &str) -> egui::Label {
     egui::Label::new(RichText::new(file_name.to_owned()).size(15.0)).truncate()
 }
 
-fn top_title(ui: &mut egui::Ui, catalog: Catalog) {
-    let palette = theme::palette(ui);
-    ui.label(
-        RichText::new(catalog.text(TextKey::AppTitle))
-            .size(22.0)
-            .color(palette.foreground),
-    );
-    ui.label(
-        RichText::new(catalog.text(TextKey::AppSubtitle))
-            .size(13.0)
-            .color(palette.secondary),
-    );
-}
-
 fn text_width(ui: &egui::Ui, text: &str, size: f32) -> f32 {
     ui.painter()
         .layout_no_wrap(
@@ -1222,28 +1132,6 @@ fn command_width(ui: &egui::Ui, catalog: Catalog, key: TextKey, minimum: f32) ->
     (text_width(ui, catalog.text(key), 15.0) + ui.spacing().button_padding.x * 2.0).max(minimum)
 }
 
-fn top_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
-    let title = text_width(ui, catalog.text(TextKey::AppTitle), 22.0).max(text_width(
-        ui,
-        catalog.text(TextKey::AppSubtitle),
-        13.0,
-    ));
-    title
-        + text_width(ui, catalog.text(TextKey::Language), 15.0)
-        + 100.0
-        + [
-            TextKey::NewGroup,
-            TextKey::SaveSettings,
-            TextKey::RestoreDefaults,
-            TextKey::About,
-        ]
-        .into_iter()
-        .map(|key| command_width(ui, catalog, key, 80.0))
-        .sum::<f32>()
-        + 7.0 * ui.spacing().item_spacing.x
-        + 24.0
-}
-
 fn bottom_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
     text_width(ui, catalog.text(TextKey::Attribution), 13.0)
         + text_width(ui, catalog.text(TextKey::RememberOutput), 15.0)
@@ -1252,16 +1140,6 @@ fn bottom_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
         + command_width(ui, catalog, TextKey::CancelAll, 80.0)
         + 5.0 * ui.spacing().item_spacing.x
         + 16.0
-}
-
-fn language_selector(ui: &mut egui::Ui, language: &mut AppLanguage) {
-    egui::ComboBox::from_id_salt("language")
-        .selected_text(Catalog::new(*language).language_name())
-        .show_ui(ui, |ui| {
-            for candidate in AppLanguage::ALL {
-                ui.selectable_value(language, candidate, Catalog::new(candidate).language_name());
-            }
-        });
 }
 
 fn short_name(path: &Path) -> String {
@@ -1410,7 +1288,17 @@ mod tests {
                             );
                         }
                     }
-                    assert!(labels.len() > 8);
+                    assert!(
+                        labels.iter().all(|(_, text, _)| text
+                            != Catalog::new(language).text(TextKey::AppSubtitle))
+                    );
+                    assert!(
+                        labels
+                            .iter()
+                            .filter(|(rect, _, _)| rect.top() < 40.0)
+                            .count()
+                            == 3
+                    );
                     output.drop_without_applying_deltas();
                 }
             }
@@ -1480,8 +1368,8 @@ mod tests {
             assert!(text_input_count >= 2, "expected labeled output fields");
             assert!(progress_count >= 1, "expected an accessible progress bar");
             assert!(
-                tree.contains(Catalog::new(language).text(TextKey::AppTitle)),
-                "localized title should be present in the accessibility tree"
+                tree.contains(crate::menu_bar::labels(language)[0]),
+                "menu controls should be present in the accessibility tree"
             );
             output.drop_without_applying_deltas();
         }
