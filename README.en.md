@@ -18,7 +18,7 @@ The following feature screenshots show the Chinese interface. The application al
 
 ### Model preview
 
-Preview windows follow the application's light/dark theme, typography, rounded controls and colors. Neutral shading makes the model's shape easier to inspect.
+All preview entry points share a full-window layout: a compact name row, model and perspective grid, lower-left camera tools, and bottom Viewport / Model info tabs. The existing macOS-inspired styling, light/dark themes and neutral model shading are preserved.
 
 | Light theme | Dark theme |
 | --- | --- |
@@ -134,6 +134,8 @@ Only unit-scale rigid skeletons are supported. Multi-bone cartridge sources, mod
 | Step rotation | Use the rotate-left/right buttons or arrow keys |
 | Zoom | Mouse wheel, zoom buttons, or `+` / `-` |
 | Reset view | Reset-view button or `R` |
+| Show or hide ground grid | Grid button or `G` |
+| Inspect geometry and dimensions | Model info tab at the bottom |
 | Close preview | Close button or `Esc` |
 
 Previewing is read-only: it does not change parts, merge plans or output files. Geometry is prepared once in the background; the GPU handles rotation, zoom, shading and occlusion. A preview displays at most 250,000 triangles and shows a notice when sampled. Merging still uses the full model data.

@@ -13,6 +13,9 @@ struct ViewUniform {
     center_extent: vec4<f32>,
     view: vec4<f32>,
     model_color: vec4<f32>,
+    grid_color: vec4<f32>,
+    axis_color: vec4<f32>,
+    grid: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -45,15 +48,22 @@ fn rotate(point: vec3<f32>, yaw: f32, pitch: f32) -> vec3<f32> {
     );
 }
 
+fn project(point: vec3<f32>) -> vec4<f32> {
+    let rotated = rotate(point, view_uniform.view.x, view_uniform.view.y);
+    let scale = 2.35 * view_uniform.view.z;
+    let aspect = view_uniform.view.w;
+    let fit = select(vec2<f32>(1.0, aspect), vec2<f32>(1.0 / aspect, 1.0), aspect >= 1.0);
+    let depth = 2.8 - rotated.z;
+    // Perspective depth in WebGPU's [0, 1] range, near = .01 and far = 100.
+    return vec4<f32>(rotated.x * scale * fit.x, -rotated.y * scale * fit.y,
+        100.0 / 99.99 * depth - 1.0 / 99.99, depth);
+}
+
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     let normalized = (input.position - view_uniform.center_extent.xyz) / view_uniform.center_extent.w;
-    let rotated = rotate(normalized, view_uniform.view.x, view_uniform.view.y);
-    let scale = 0.84 * view_uniform.view.z;
-    let aspect = view_uniform.view.w;
-    let fit = select(vec2<f32>(1.0, aspect), vec2<f32>(1.0 / aspect, 1.0), aspect >= 1.0);
     var output: VertexOutput;
-    output.clip_position = vec4<f32>(rotated.x * scale * fit.x, -rotated.y * scale * fit.y, 0.5 - rotated.z * 0.45, 1.0);
+    output.clip_position = project(normalized);
     output.normal = rotate(input.normal, view_uniform.view.x, view_uniform.view.y);
     return output;
 }
@@ -64,6 +74,29 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let light = clamp(abs(normal.z), 0.15, 1.0);
     let color = view_uniform.model_color.rgb * (0.45 + 0.55 * light);
     return vec4<f32>(color, 1.0);
+}
+
+struct GridOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) plane: vec2<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+@vertex
+fn vs_grid(input: VertexInput) -> GridOutput {
+    var output: GridOutput;
+    let point = vec3<f32>(input.position.x, view_uniform.grid.x, input.position.z);
+    output.clip_position = project(point);
+    output.plane = point.xz;
+    output.color = select(view_uniform.grid_color, view_uniform.axis_color, input.normal.x > 0.5);
+    output.color.a *= input.normal.y;
+    return output;
+}
+
+@fragment
+fn fs_grid(input: GridOutput) -> @location(0) vec4<f32> {
+    let fade = 1.0 - smoothstep(2.0, 8.0, length(input.plane));
+    return vec4<f32>(input.color.rgb, input.color.a * fade);
 }
 "#;
 
@@ -80,6 +113,9 @@ struct ViewUniform {
     center_extent: [f32; 4],
     view: [f32; 4],
     model_color: [f32; 4],
+    grid_color: [f32; 4],
+    axis_color: [f32; 4],
+    grid: [f32; 4],
 }
 
 pub struct PreviewModel {
@@ -87,6 +123,7 @@ pub struct PreviewModel {
     indices: Vec<u32>,
     center: [f32; 3],
     extent: f32,
+    floor: f32,
 }
 
 impl PreviewModel {
@@ -114,6 +151,10 @@ impl PreviewModel {
         }
         let minimum = data.bounds.minimum;
         let maximum = data.bounds.maximum;
+        let extent = (maximum[0] - minimum[0])
+            .max(maximum[1] - minimum[1])
+            .max(maximum[2] - minimum[2])
+            .max(0.0001);
         Self {
             vertices,
             indices,
@@ -122,10 +163,9 @@ impl PreviewModel {
                 (minimum[1] + maximum[1]) * 0.5,
                 (minimum[2] + maximum[2]) * 0.5,
             ],
-            extent: (maximum[0] - minimum[0])
-                .max(maximum[1] - minimum[1])
-                .max(maximum[2] - minimum[2])
-                .max(0.0001),
+            extent,
+            // Existing preview coordinates use positive Y down; keep the floor below the model.
+            floor: (maximum[1] - minimum[1]) * 0.5 / extent + 0.025,
         }
     }
 }
@@ -140,6 +180,9 @@ struct ModelBuffers {
 
 struct PreviewResources {
     pipeline: wgpu::RenderPipeline,
+    grid_pipeline: wgpu::RenderPipeline,
+    grid_vertex: wgpu::Buffer,
+    grid_vertex_count: u32,
     uniform_layout: wgpu::BindGroupLayout,
     models: HashMap<u64, ModelBuffers>,
 }
@@ -169,7 +212,7 @@ impl PreviewResources {
             bind_group_layouts: &[Some(&uniform_layout)],
             immediate_size: 0,
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let mut pipeline_descriptor = wgpu::RenderPipelineDescriptor {
             label: Some("preview pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
@@ -215,9 +258,35 @@ impl PreviewResources {
             },
             multiview_mask: None,
             cache: None,
+        };
+        let pipeline = device.create_render_pipeline(&pipeline_descriptor);
+        pipeline_descriptor.label = Some("preview ground grid pipeline");
+        pipeline_descriptor.vertex.entry_point = Some("vs_grid");
+        let grid_targets = [Some(wgpu::ColorTargetState {
+            format: render_state.target_format,
+            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+            write_mask: wgpu::ColorWrites::ALL,
+        })];
+        if let Some(fragment) = &mut pipeline_descriptor.fragment {
+            fragment.entry_point = Some("fs_grid");
+            fragment.targets = &grid_targets;
+        }
+        pipeline_descriptor.primitive.topology = wgpu::PrimitiveTopology::LineList;
+        if let Some(depth) = &mut pipeline_descriptor.depth_stencil {
+            depth.depth_write_enabled = Some(false);
+        }
+        let grid_pipeline = device.create_render_pipeline(&pipeline_descriptor);
+        let grid = grid_vertices();
+        let grid_vertex = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("preview ground grid vertices"),
+            contents: bytemuck::cast_slice(&grid),
+            usage: wgpu::BufferUsages::VERTEX,
         });
         Self {
             pipeline,
+            grid_pipeline,
+            grid_vertex,
+            grid_vertex_count: grid.len() as u32,
             uniform_layout,
             models: HashMap::new(),
         }
@@ -310,6 +379,11 @@ impl CallbackTrait for PreviewCallback {
         render_pass.set_vertex_buffer(0, model.vertex.slice(..));
         render_pass.set_index_buffer(model.index.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..model.index_count, 0, 0..1);
+        if self.uniform.grid[1] > 0.5 {
+            render_pass.set_pipeline(&resources.grid_pipeline);
+            render_pass.set_vertex_buffer(0, resources.grid_vertex.slice(..));
+            render_pass.draw(0..resources.grid_vertex_count, 0..1);
+        }
     }
 }
 
@@ -332,14 +406,42 @@ pub fn retain_models(
     }
 }
 
+pub struct ViewSettings {
+    pub yaw: f32,
+    pub pitch: f32,
+    pub zoom: f32,
+    pub show_grid: bool,
+    pub model_color: egui::Color32,
+    pub grid_color: egui::Color32,
+    pub axis_color: egui::Color32,
+}
+
+fn grid_vertices() -> Vec<Vertex> {
+    let mut vertices = Vec::with_capacity(65 * 4);
+    for index in -32i32..=32 {
+        let coordinate = index as f32 * 0.25;
+        let normal = [
+            if index == 0 { 1.0 } else { 0.0 },
+            if index % 4 == 0 { 0.38 } else { 0.18 },
+            0.0,
+        ];
+        for position in [
+            [-8.0, 0.0, coordinate],
+            [8.0, 0.0, coordinate],
+            [coordinate, 0.0, -8.0],
+            [coordinate, 0.0, 8.0],
+        ] {
+            vertices.push(Vertex { position, normal });
+        }
+    }
+    vertices
+}
+
 pub fn paint_callback(
     rect: egui::Rect,
     id: u64,
     model: Arc<PreviewModel>,
-    yaw: f32,
-    pitch: f32,
-    zoom: f32,
-    model_color: egui::Color32,
+    settings: ViewSettings,
 ) -> egui::Shape {
     let aspect = (rect.width() / rect.height().max(1.0)).max(0.0001);
     egui_wgpu::Callback::new_paint_callback(
@@ -353,8 +455,19 @@ pub fn paint_callback(
                     model.center[2],
                     model.extent,
                 ],
-                view: [yaw, pitch, zoom, aspect],
-                model_color: model_color.to_array().map(|v| f32::from(v) / 255.0),
+                view: [settings.yaw, settings.pitch, settings.zoom, aspect],
+                model_color: settings
+                    .model_color
+                    .to_array()
+                    .map(|v| f32::from(v) / 255.0),
+                grid_color: settings.grid_color.to_array().map(|v| f32::from(v) / 255.0),
+                axis_color: settings.axis_color.to_array().map(|v| f32::from(v) / 255.0),
+                grid: [
+                    model.floor,
+                    if settings.show_grid { 1.0 } else { 0.0 },
+                    0.0,
+                    0.0,
+                ],
             },
             model,
         },
@@ -367,6 +480,27 @@ mod tests {
     use super::*;
     use model_merger_engine::{PreviewBounds, PreviewMesh};
     use std::path::PathBuf;
+
+    #[test]
+    fn perspective_and_grid_shader_validate_together() {
+        let module = wgpu::naga::front::wgsl::parse_str(SHADER).expect("valid preview WGSL");
+        wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::empty(),
+        )
+        .validate(&module)
+        .expect("valid model/grid projection and shader stages");
+        let grid = grid_vertices();
+        assert_eq!(260, grid.len());
+        assert!(
+            grid.iter()
+                .all(|vertex| vertex.position.iter().all(|value| value.is_finite()))
+        );
+        assert_eq!(
+            4,
+            grid.iter().filter(|vertex| vertex.normal[0] == 1.0).count()
+        );
+    }
 
     #[test]
     fn preview_model_concatenates_mesh_indices_and_bounds() {
@@ -396,5 +530,6 @@ mod tests {
         assert_eq!(&[0, 1, 2, 3, 4, 5], model.indices.as_slice());
         assert_eq!([1.0, 1.0, 0.0], model.center);
         assert_eq!(2.0, model.extent);
+        assert!((model.floor - 0.525).abs() < 0.0001);
     }
 }

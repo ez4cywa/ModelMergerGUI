@@ -52,6 +52,15 @@ All normal text/background and button text/fill pairs must meet WCAG AA contrast
 - Shortcuts: `Ctrl/⌘N` new group, `Ctrl/⌘S` save settings, `Ctrl/⌘Enter` merge all ready groups.
 - Loading, ready, disabled, error, missing-file, empty, completed, drag-over, and overwrite-confirmation states must remain explicit and readable.
 
-## Finish gate
+## Shared preview layout
+
+- All CAST preview entry points share one full-window viewport, not a nested card beneath a large toolbar.
+- Keep the macOS-style window controls and a compact name row at the top. Long names truncate and expose the full value on hover.
+- Anchor a small, labeled, keyboard-accessible monoline tool strip at the lower left of the viewport: reset, ground grid, rotation, and zoom. The active grid state must remain clear in both themes.
+- Use real Viewport / Model info tabs in a fixed bottom strip, with compact geometry counts and an accessible Close action. Do not add unsupported text, binary, or audio tabs.
+- Model and ground grid share a perspective camera and depth testing. The grid fades toward the distance and can be hidden; it never changes exported geometry.
+- Loading and errors stay centered and readable; camera tools and model information are disabled until a model is ready. Model information scrolls instead of widening the window.
+
+## Preview finish gate
 
 Before shipping, inspect a real render at default and minimum size in both light and dark modes. Reject the build for clipped labels, horizontal overflow, hidden focus, low contrast, overlong filenames widening the layout, competing primary actions, or missing task feedback.

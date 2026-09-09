@@ -904,6 +904,7 @@ impl NativeApp {
                 viewport_id,
                 egui::ViewportBuilder::default()
                     .with_title(title)
+                    .with_decorations(false)
                     .with_inner_size([900.0, 700.0])
                     .with_min_inner_size([640.0, 480.0]),
                 |ui, _class| preview.show(ui, catalog),

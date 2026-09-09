@@ -8,6 +8,10 @@ fn text(language: AppLanguage, choices: [&'static str; 5]) -> &'static str {
 }
 
 pub(crate) fn show(ui: &mut egui::Ui, language: AppLanguage) {
+    show_with_title(ui, language, Catalog::new(language).text(TextKey::AppTitle));
+}
+
+pub(crate) fn show_with_title(ui: &mut egui::Ui, language: AppLanguage, title: &str) {
     let palette = theme::palette(ui);
     let catalog = Catalog::new(language);
     let (maximized, focused) = ui.ctx().input(|input| {
@@ -147,7 +151,7 @@ pub(crate) fn show(ui: &mut egui::Ui, language: AppLanguage) {
             ui.painter().text(
                 rect.center(),
                 Align2::CENTER_CENTER,
-                catalog.text(TextKey::AppTitle),
+                title,
                 FontId::proportional(13.0),
                 if focused {
                     palette.foreground

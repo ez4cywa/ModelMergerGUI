@@ -6,6 +6,7 @@ mod menu_bar;
 mod messages;
 mod notices;
 mod preview;
+mod preview_controls;
 mod preview_gpu;
 mod state;
 mod theme;
