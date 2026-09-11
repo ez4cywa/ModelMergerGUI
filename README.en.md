@@ -128,6 +128,8 @@ Only unit-scale rigid skeletons are supported. Multi-bone cartridge sources, mod
 
 ### Preview controls
 
+Drop one or more `.cast` files onto blank space in the main workspace to open separate previews. Dropping onto a model group or part slot still adds parts. Blank-space drops ignore non-CAST files and leave groups and settings unchanged.
+
 | Action | Mouse or keyboard |
 | --- | --- |
 | Free rotation | Hold the left mouse button and drag |

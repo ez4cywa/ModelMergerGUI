@@ -28,6 +28,7 @@ declare_text_keys!(
     ModelParts,
     ModelPartsHint,
     DropHere,
+    DropPreview,
     AddNext,
     Clear,
     RootModel,
@@ -175,6 +176,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::ModelParts => "模型部件",
         TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
         TextKey::DropHere => "松开鼠标，将文件添加到本组",
+        TextKey::DropPreview => "松开以预览 CAST 模型",
         TextKey::AddNext => "添加下一个",
         TextKey::Clear => "清空",
         TextKey::RootModel => "根模型",
@@ -294,6 +296,7 @@ fn english(key: TextKey) -> &'static str {
             "Use Add next or an empty slot to select multiple .cast files, or drop them here"
         }
         TextKey::DropHere => "Release to add files to this group",
+        TextKey::DropPreview => "Release to preview CAST models",
         TextKey::AddNext => "Add next",
         TextKey::Clear => "Clear",
         TextKey::RootModel => "Root model",
@@ -427,6 +430,7 @@ fn french(key: TextKey) -> &'static str {
             "Ajoutez plusieurs fichiers .cast avec Ajouter ou un emplacement vide, ou déposez-les ici"
         }
         TextKey::DropHere => "Relâchez pour ajouter les fichiers à ce groupe",
+        TextKey::DropPreview => "Relâchez pour prévisualiser les modèles CAST",
         TextKey::AddNext => "Ajouter le suivant",
         TextKey::Clear => "Effacer",
         TextKey::RootModel => "Modèle racine",
@@ -566,6 +570,7 @@ fn russian(key: TextKey) -> &'static str {
             "Выберите несколько файлов .cast через добавление или пустую ячейку либо перетащите их сюда"
         }
         TextKey::DropHere => "Отпустите, чтобы добавить файлы в эту группу",
+        TextKey::DropPreview => "Отпустите для просмотра моделей CAST",
         TextKey::AddNext => "Добавить следующую",
         TextKey::Clear => "Очистить",
         TextKey::RootModel => "Корневая модель",
@@ -697,6 +702,7 @@ fn spanish(key: TextKey) -> &'static str {
             "Selecciona varios archivos .cast con Añadir o un espacio vacío, o arrástralos aquí"
         }
         TextKey::DropHere => "Suelta para añadir los archivos a este grupo",
+        TextKey::DropPreview => "Suelta para previsualizar modelos CAST",
         TextKey::AddNext => "Añadir siguiente",
         TextKey::Clear => "Vaciar",
         TextKey::RootModel => "Modelo raíz",

@@ -17,6 +17,12 @@ const SETTINGS_PANE_WIDTH: f32 = 300.0;
 const MINIMUM_SLOT_CARD_WIDTH: f32 = 136.0;
 const INPUT_HEIGHT: f32 = 36.0;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum FileDropTarget {
+    Group(usize),
+    Preview(egui::Rect),
+}
+
 pub struct NativeApp {
     state: NativeAppState,
     store: SettingsStore,
@@ -25,7 +31,7 @@ pub struct NativeApp {
     configured_language: AppLanguage,
     previews: Vec<PreviewSession>,
     next_preview_id: u64,
-    drop_target: Option<usize>,
+    drop_target: Option<FileDropTarget>,
     pending_group_delete: Option<usize>,
     pending_overwrites: VecDeque<GroupId>,
     render_state: Option<eframe::egui_wgpu::RenderState>,
@@ -407,7 +413,10 @@ impl NativeApp {
     }
 
     fn central_workspace(&mut self, root: &mut egui::Ui) {
-        self.drop_target = None;
+        let workspace_rect = root.available_rect_before_wrap();
+        self.drop_target = root
+            .rect_contains_pointer(workspace_rect)
+            .then_some(FileDropTarget::Preview(workspace_rect));
         let palette = theme::palette(root);
         egui::CentralPanel::default()
             .frame(
@@ -435,6 +444,48 @@ impl NativeApp {
                     self.state.delete_group(index);
                 }
             });
+        if self.about.is_open() || self.ammunition.open || !self.pending_overwrites.is_empty() {
+            self.drop_target = None;
+        }
+        if let Some(FileDropTarget::Preview(rect)) = self.drop_target
+            && root.ctx().input(|input| {
+                input
+                    .raw
+                    .hovered_files
+                    .iter()
+                    .any(|file| file.path.as_deref().is_some_and(is_cast_path))
+            })
+        {
+            let painter = root.painter();
+            painter.rect_stroke(
+                rect.shrink(3.0),
+                8.0,
+                Stroke::new(2.0, palette.primary),
+                egui::StrokeKind::Inside,
+            );
+            let text = painter.layout(
+                self.catalog().text(TextKey::DropPreview).to_owned(),
+                egui::FontId::proportional(15.0),
+                palette.foreground,
+                (rect.width() - 40.0).clamp(1.0, 360.0),
+            );
+            let size = text.size() + egui::vec2(24.0, 16.0);
+            let pointer = root.ctx().pointer_hover_pos().unwrap_or(rect.center());
+            let position = egui::pos2(
+                (pointer.x + 16.0)
+                    .min(rect.right() - size.x - 8.0)
+                    .max(rect.left() + 8.0),
+                (pointer.y + 16.0)
+                    .min(rect.bottom() - size.y - 8.0)
+                    .max(rect.top() + 8.0),
+            );
+            painter.rect_filled(
+                egui::Rect::from_min_size(position, size),
+                8.0,
+                palette.notice_info,
+            );
+            painter.galley(position + egui::vec2(12.0, 8.0), text, palette.foreground);
+        }
     }
 
     fn group_card(&mut self, ui: &mut egui::Ui, group_index: usize) {
@@ -556,14 +607,10 @@ impl NativeApp {
                 });
             })
             .response;
-        if task_id.is_none()
-            && ui
-                .ctx()
-                .input(|input| input.pointer.hover_pos())
-                .is_some_and(|position| response.rect.contains(position))
-        {
-            self.drop_target = Some(group_index);
-            if ui.ctx().input(|input| !input.raw.hovered_files.is_empty()) {
+        if ui.rect_contains_pointer(response.rect.intersect(ui.clip_rect())) {
+            // Busy groups still own their drop region: never fall through to preview.
+            self.drop_target = Some(FileDropTarget::Group(group_index));
+            if task_id.is_none() && ui.ctx().input(|input| !input.raw.hovered_files.is_empty()) {
                 let overlay = response.rect.shrink(2.0);
                 ui.painter()
                     .rect_filled(overlay, 12.0, palette.notice_info.gamma_multiply(0.94));
@@ -931,13 +978,27 @@ impl NativeApp {
         if paths.is_empty() {
             return;
         }
-        let Some(group_index) = self.drop_target.filter(|index| {
-            self.state
-                .groups()
-                .get(*index)
-                .is_some_and(|group| group.task_id().is_none())
-        }) else {
-            return;
+        self.dispatch_file_drop(paths);
+    }
+
+    fn dispatch_file_drop(&mut self, paths: Vec<PathBuf>) {
+        let group_index = match self.drop_target {
+            Some(FileDropTarget::Preview(_)) => {
+                for path in paths.iter().filter(|path| is_cast_path(path)) {
+                    self.open_preview(path);
+                }
+                return;
+            }
+            Some(FileDropTarget::Group(index))
+                if self
+                    .state
+                    .groups()
+                    .get(index)
+                    .is_some_and(|group| group.task_id().is_none()) =>
+            {
+                index
+            }
+            _ => return,
         };
         let results = self.state.add_parts(group_index, paths);
         if let Some(status) = latest_add_part_error(&results) {
@@ -982,6 +1043,12 @@ impl NativeApp {
             });
         });
     }
+}
+
+fn is_cast_path(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("cast"))
+        && !path.is_dir()
 }
 
 impl eframe::App for NativeApp {
@@ -1236,6 +1303,121 @@ fn saved_position_is_visible(_bounds: WindowBounds) -> bool {
 mod tests {
     use super::*;
     use eframe::egui::accesskit::Role;
+
+    fn drop_test_app() -> NativeApp {
+        NativeApp {
+            state: NativeAppState::new(Default::default()),
+            store: SettingsStore::new(std::env::temp_dir().join("unused-drop-settings.json")),
+            scheduler: TaskScheduler::native(2).unwrap(),
+            notices: Default::default(),
+            configured_language: AppLanguage::English,
+            previews: Vec::new(),
+            next_preview_id: 1,
+            drop_target: None,
+            pending_group_delete: None,
+            pending_overwrites: VecDeque::new(),
+            render_state: None,
+            ammunition: Default::default(),
+            about: Default::default(),
+        }
+    }
+
+    #[test]
+    fn file_drop_routes_once_and_preview_does_not_change_groups() {
+        let mut app = drop_test_app();
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/rust-migration/golden-small/part-00.cast");
+        let before = app.state.groups()[0].plan.state();
+        app.drop_target = Some(FileDropTarget::Preview(egui::Rect::EVERYTHING));
+        app.dispatch_file_drop(vec![
+            fixture.clone(),
+            PathBuf::from("missing.CAST"),
+            PathBuf::from("ignore.txt"),
+        ]);
+        assert_eq!(app.previews.len(), 2); // Missing/invalid CAST uses the normal preview error state.
+        assert_eq!(app.state.groups()[0].plan.state(), before);
+        app.drop_target = Some(FileDropTarget::Group(0));
+        app.dispatch_file_drop(vec![fixture.clone()]);
+        assert_eq!(app.previews.len(), 2);
+        assert_eq!(
+            app.state.groups()[0].plan.state().part_files,
+            vec![fixture.clone()]
+        );
+        app.drop_target = Some(FileDropTarget::Group(usize::MAX));
+        app.dispatch_file_drop(vec![fixture.clone()]);
+        app.drop_target = None;
+        app.dispatch_file_drop(vec![fixture]);
+        assert_eq!(app.previews.len(), 2);
+    }
+
+    #[test]
+    fn file_drop_hit_testing_and_feedback_follow_the_visible_region() {
+        for dark in [false, true] {
+            for language in AppLanguage::ALL {
+                let mut app = drop_test_app();
+                app.state.set_language(language);
+                app.state.set_collapsed(0, true);
+                let context = egui::Context::default();
+                theme::configure(&context, language);
+                context.set_theme(if dark {
+                    egui::ThemePreference::Dark
+                } else {
+                    egui::ThemePreference::Light
+                });
+                let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(980.0, 680.0));
+                for (position, group) in [
+                    (egui::pos2(100.0, 50.0), true),
+                    (egui::pos2(15.0, 500.0), false),
+                ] {
+                    for _ in 0..3 {
+                        let mut output = context.run_ui(
+                            egui::RawInput {
+                                screen_rect: Some(screen),
+                                events: vec![egui::Event::PointerMoved(position)],
+                                hovered_files: vec![egui::HoveredFile {
+                                    path: Some(PathBuf::from("test.cast")),
+                                    ..Default::default()
+                                }],
+                                ..Default::default()
+                            },
+                            |ui| app.central_workspace(ui),
+                        );
+                        output.textures_delta.clear();
+                        assert_eq!(
+                            matches!(app.drop_target, Some(FileDropTarget::Group(0))),
+                            group
+                        );
+                        let key = if group {
+                            TextKey::DropHere
+                        } else {
+                            TextKey::DropPreview
+                        };
+                        assert!(
+                            theme::review_text(&output.shapes)
+                                .iter()
+                                .any(|(rect, text, _)| {
+                                    text == Catalog::new(language).text(key)
+                                        && screen.contains_rect(*rect)
+                                }),
+                            "missing/clipped {key:?} in {language:?}"
+                        );
+                        output.drop_without_applying_deltas();
+                    }
+                }
+                app.ammunition.open = true;
+                let mut output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(screen),
+                        ..Default::default()
+                    },
+                    |ui| app.central_workspace(ui),
+                );
+                output.textures_delta.clear();
+                assert_eq!(app.drop_target, None);
+                output.drop_without_applying_deltas();
+            }
+        }
+    }
 
     #[test]
     fn shortcut_labels_follow_the_host_platform() {
