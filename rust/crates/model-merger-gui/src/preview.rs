@@ -52,6 +52,7 @@ struct PreviewSummary {
 
 impl PreviewSession {
     pub fn load(id: u64, path: &Path) -> Self {
+        crate::diagnostics::record_event("preview-open", &format!("id={id} path={path:?}"));
         let title = path
             .file_name()
             .unwrap_or_default()
@@ -61,27 +62,31 @@ impl PreviewSession {
         let (sender, receiver) = mpsc::channel();
         let cancelled = Arc::new(AtomicBool::new(false));
         let worker_cancelled = Arc::clone(&cancelled);
-        let worker = std::thread::spawn(move || {
-            let result = model_merger_engine::load_preview(&path, PREVIEW_TRIANGLE_LIMIT, || {
-                worker_cancelled.load(Ordering::Acquire)
+        let worker = std::thread::Builder::new()
+            .name(format!("preview-{id}"))
+            .spawn(move || {
+                let result =
+                    model_merger_engine::load_preview(&path, PREVIEW_TRIANGLE_LIMIT, || {
+                        worker_cancelled.load(Ordering::Acquire)
+                    })
+                    .map(|data| {
+                        let gpu_model = Arc::new(preview_gpu::PreviewModel::from_preview(&data));
+                        let summary = PreviewSummary {
+                            model_name: data.model_name,
+                            source_mesh_count: data.source_mesh_count,
+                            source_vertex_count: data.source_vertex_count,
+                            source_triangle_count: data.source_triangle_count,
+                            dimensions: std::array::from_fn(|index| {
+                                data.bounds.maximum[index] - data.bounds.minimum[index]
+                            }),
+                            displayed_triangle_count: data.displayed_triangle_count,
+                            is_simplified: data.is_simplified,
+                        };
+                        LoadedPreview { summary, gpu_model }
+                    });
+                let _ = sender.send(result);
             })
-            .map(|data| {
-                let gpu_model = Arc::new(preview_gpu::PreviewModel::from_preview(&data));
-                let summary = PreviewSummary {
-                    model_name: data.model_name,
-                    source_mesh_count: data.source_mesh_count,
-                    source_vertex_count: data.source_vertex_count,
-                    source_triangle_count: data.source_triangle_count,
-                    dimensions: std::array::from_fn(|index| {
-                        data.bounds.maximum[index] - data.bounds.minimum[index]
-                    }),
-                    displayed_triangle_count: data.displayed_triangle_count,
-                    is_simplified: data.is_simplified,
-                };
-                LoadedPreview { summary, gpu_model }
-            });
-            let _ = sender.send(result);
-        });
+            .expect("failed to start preview loader thread");
         Self {
             id,
             open: true,
@@ -498,16 +503,30 @@ impl PreviewSession {
         };
         match receiver.try_recv() {
             Ok(Ok(data)) => {
+                crate::diagnostics::record_event(
+                    "preview-ready",
+                    &format!(
+                        "id={} meshes={} source_vertices={} displayed_triangles={}",
+                        self.id,
+                        data.summary.source_mesh_count,
+                        data.summary.source_vertex_count,
+                        data.summary.displayed_triangle_count
+                    ),
+                );
                 self.finish_worker();
                 self.state = PreviewLoadState::Ready(data);
             }
             Ok(Err(error)) => {
                 self.finish_worker();
-                let detail = error.to_string();
+                let detail = format!("id={} title={:?} error={error:?}", self.id, self.title);
                 crate::diagnostics::record_runtime_error("preview-error", &detail);
                 self.state = PreviewLoadState::Failed(PreviewFailure::Engine(error));
             }
             Err(TryRecvError::Disconnected) => {
+                crate::diagnostics::record_event(
+                    "preview-worker-stopped",
+                    &format!("id={} title={:?}", self.id, self.title),
+                );
                 self.finish_worker();
                 self.state = PreviewLoadState::Failed(PreviewFailure::WorkerStopped);
             }
@@ -524,6 +543,10 @@ impl PreviewSession {
 
 impl Drop for PreviewSession {
     fn drop(&mut self) {
+        crate::diagnostics::record_event(
+            "preview-close",
+            &format!("id={} title={:?}", self.id, self.title),
+        );
         self.cancelled.store(true, Ordering::Release);
         // Dropping a JoinHandle detaches the cancellable loader. Never wait for disk I/O or
         // decoding on the GUI thread when a preview window is dismissed.

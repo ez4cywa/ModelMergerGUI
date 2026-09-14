@@ -10,11 +10,11 @@ fn main() {
         .unwrap_or_else(|_| model_merger_gui::diagnostics::log_directory());
     let result = std::panic::catch_unwind(AssertUnwindSafe(run));
     match result {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) => report_startup_failure(&log_directory, &error.to_string()),
-        Err(_) => report_startup_failure(
+        Ok(Ok(())) => model_merger_gui::diagnostics::record_event("shutdown", "normal exit"),
+        Ok(Err(error)) => report_failure(&log_directory, &error.to_string()),
+        Err(_) => report_failure(
             &log_directory,
-            "The application stopped unexpectedly during startup.",
+            "The application stopped unexpectedly. See the panic entry and backtrace in the log.",
         ),
     }
 }
@@ -38,10 +38,10 @@ fn run() -> eframe::Result {
     )
 }
 
-fn report_startup_failure(log_directory: &Path, details: &str) {
-    model_merger_gui::diagnostics::record_startup_error(details);
+fn report_failure(log_directory: &Path, details: &str) {
+    model_merger_gui::diagnostics::record_runtime_error("fatal", details);
     let message = format!(
-        "Cast 模型合并器无法启动。\n请更新显卡驱动后重试。是否打开诊断日志文件夹？\n\nCast Model Merger could not start.\nUpdate the graphics driver and try again. Open the diagnostics folder?\n\n{}",
+        "Cast 模型合并器遇到错误，已尝试保存诊断日志。\n请将日志文件提供给开发者。是否打开日志文件夹？\n\nCast Model Merger encountered an error.\nOpen the diagnostics folder to share the logs?\n\n{}",
         log_directory.display()
     );
     let result = MessageDialog::new()

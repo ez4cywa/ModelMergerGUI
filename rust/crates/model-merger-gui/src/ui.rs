@@ -19,6 +19,7 @@ const INPUT_HEIGHT: f32 = 36.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum FileDropTarget {
+    Import,
     Group(usize),
     Preview(egui::Rect),
 }
@@ -43,7 +44,17 @@ impl NativeApp {
     pub fn new(creation: &eframe::CreationContext<'_>) -> Self {
         let context = &creation.egui_ctx;
         if let Some(render_state) = &creation.wgpu_render_state {
+            crate::diagnostics::record_event(
+                "gpu-init",
+                &format!(
+                    "adapter={:?} target={:?} samples={}",
+                    render_state.adapter.get_info(),
+                    render_state.target_format,
+                    crate::GPU_SAMPLE_COUNT
+                ),
+            );
             preview_gpu::install(render_state);
+            crate::diagnostics::record_event("gpu-ready", "preview pipelines installed");
         }
         let store = default_settings_store();
         let state = NativeAppState::new(store.load());
@@ -182,11 +193,13 @@ impl NativeApp {
     }
 
     fn open_preview_dialog(&mut self) {
-        let path = rfd::FileDialog::new()
+        let paths = rfd::FileDialog::new()
             .set_title(self.catalog().text(TextKey::OpenPreview))
             .add_filter("Cast", &["cast"])
-            .pick_file();
-        self.open_preview_selection(path);
+            .pick_files();
+        for path in paths.into_iter().flatten() {
+            self.open_preview_selection(Some(path));
+        }
     }
 
     fn open_preview_selection(&mut self, path: Option<PathBuf>) {
@@ -413,10 +426,16 @@ impl NativeApp {
     }
 
     fn central_workspace(&mut self, root: &mut egui::Ui) {
-        let workspace_rect = root.available_rect_before_wrap();
-        self.drop_target = root
-            .rect_contains_pointer(workspace_rect)
-            .then_some(FileDropTarget::Preview(workspace_rect));
+        self.drop_target = file_drop_pointer(root.ctx())
+            .filter(|position| root.ctx().content_rect().contains(*position))
+            .map(|_| FileDropTarget::Import);
+        if self.drop_target.is_none()
+            && root
+                .ctx()
+                .input(|input| !input.raw.dropped_files.is_empty())
+        {
+            self.drop_target = Some(FileDropTarget::Import);
+        }
         let palette = theme::palette(root);
         egui::CentralPanel::default()
             .frame(
@@ -426,6 +445,23 @@ impl NativeApp {
             )
             .show(root, |ui| {
                 self.notices.show_global(ui, self.catalog());
+                let response = ui.add_sized(
+                    [ui.available_width(), 76.0],
+                    egui::Button::new(
+                        RichText::new(self.catalog().text(TextKey::PreviewDropZone)).size(15.0),
+                    )
+                    .wrap()
+                    .fill(palette.surface)
+                    .stroke(Stroke::new(1.0, palette.border))
+                    .corner_radius(10.0),
+                );
+                if file_drop_contains_pointer(ui, response.rect) {
+                    self.drop_target = Some(FileDropTarget::Preview(response.rect));
+                }
+                if response.clicked() {
+                    self.open_preview_dialog();
+                }
+                ui.add_space(16.0);
                 let workspace_width = visible_available_width(ui);
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
@@ -447,7 +483,12 @@ impl NativeApp {
         if self.about.is_open() || self.ammunition.open || !self.pending_overwrites.is_empty() {
             self.drop_target = None;
         }
-        if let Some(FileDropTarget::Preview(rect)) = self.drop_target
+        let drop_feedback = match self.drop_target {
+            Some(FileDropTarget::Preview(rect)) => Some((rect, TextKey::DropPreview)),
+            Some(FileDropTarget::Import) => Some((root.ctx().content_rect(), TextKey::DropBatch)),
+            _ => None,
+        };
+        if let Some((rect, message)) = drop_feedback
             && root.ctx().input(|input| {
                 input
                     .raw
@@ -457,20 +498,23 @@ impl NativeApp {
             })
         {
             let painter = root.painter();
+            if matches!(self.drop_target, Some(FileDropTarget::Preview(_))) {
+                painter.rect_filled(rect.shrink(3.0), 8.0, palette.primary.gamma_multiply(0.12));
+            }
             painter.rect_stroke(
                 rect.shrink(3.0),
                 8.0,
-                Stroke::new(2.0, palette.primary),
+                Stroke::new(3.0, palette.primary),
                 egui::StrokeKind::Inside,
             );
             let text = painter.layout(
-                self.catalog().text(TextKey::DropPreview).to_owned(),
+                self.catalog().text(message).to_owned(),
                 egui::FontId::proportional(15.0),
                 palette.foreground,
                 (rect.width() - 40.0).clamp(1.0, 360.0),
             );
             let size = text.size() + egui::vec2(24.0, 16.0);
-            let pointer = root.ctx().pointer_hover_pos().unwrap_or(rect.center());
+            let pointer = file_drop_pointer(root.ctx()).unwrap_or(rect.center());
             let position = egui::pos2(
                 (pointer.x + 16.0)
                     .min(rect.right() - size.x - 8.0)
@@ -607,17 +651,28 @@ impl NativeApp {
                 });
             })
             .response;
-        if ui.rect_contains_pointer(response.rect.intersect(ui.clip_rect())) {
+        if file_drop_contains_pointer(ui, response.rect.intersect(ui.clip_rect())) {
             // Busy groups still own their drop region: never fall through to preview.
             self.drop_target = Some(FileDropTarget::Group(group_index));
-            if task_id.is_none() && ui.ctx().input(|input| !input.raw.hovered_files.is_empty()) {
-                let overlay = response.rect.shrink(2.0);
+            if task_id.is_none()
+                && !self.about.is_open()
+                && !self.ammunition.open
+                && self.pending_overwrites.is_empty()
+                && ui.ctx().input(|input| {
+                    input
+                        .raw
+                        .hovered_files
+                        .iter()
+                        .any(|file| file.path.as_deref().is_some_and(is_cast_path))
+                })
+            {
+                let overlay = response.rect.intersect(ui.clip_rect()).shrink(2.0);
                 ui.painter()
                     .rect_filled(overlay, 12.0, palette.notice_info.gamma_multiply(0.94));
                 ui.painter().rect_stroke(
                     overlay,
                     12.0,
-                    Stroke::new(2.0, palette.primary),
+                    Stroke::new(3.0, palette.primary),
                     egui::StrokeKind::Inside,
                 );
                 ui.painter().text(
@@ -998,6 +1053,14 @@ impl NativeApp {
             {
                 index
             }
+            Some(FileDropTarget::Import) => self
+                .state
+                .groups()
+                .iter()
+                .position(|group| {
+                    group.task_id().is_none() && group.plan.state().part_files.is_empty()
+                })
+                .unwrap_or_else(|| self.state.add_group()),
             _ => return,
         };
         let results = self.state.add_parts(group_index, paths);
@@ -1051,9 +1114,64 @@ fn is_cast_path(path: &Path) -> bool {
         && !path.is_dir()
 }
 
+fn file_drop_pointer(context: &egui::Context) -> Option<egui::Pos2> {
+    context
+        .data(|data| data.get_temp::<egui::Pos2>(egui::Id::new("native-file-drop-pointer")))
+        .or_else(|| context.pointer_hover_pos())
+}
+
+fn file_drop_contains_pointer(ui: &egui::Ui, rect: egui::Rect) -> bool {
+    if ui
+        .ctx()
+        .input(|input| !input.raw.hovered_files.is_empty() || !input.raw.dropped_files.is_empty())
+    {
+        file_drop_pointer(ui.ctx()).is_some_and(|position| rect.contains(position))
+    } else {
+        ui.rect_contains_pointer(rect)
+    }
+}
+
+#[cfg(windows)]
+fn native_drop_pointer(frame: &eframe::Frame, pixels_per_point: f32) -> Option<egui::Pos2> {
+    #[repr(C)]
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetCursorPos(point: *mut Point) -> i32;
+    }
+    let origin = frame.winit_window()?.inner_position().ok()?;
+    let mut cursor = Point { x: 0, y: 0 };
+    // SAFETY: cursor is a valid writable POINT for the duration of the call.
+    if unsafe { GetCursorPos(&mut cursor) } == 0 {
+        return None;
+    }
+    Some(egui::pos2(
+        (cursor.x as f64 - origin.x as f64) as f32 / pixels_per_point,
+        (cursor.y as f64 - origin.y as f64) as f32 / pixels_per_point,
+    ))
+}
+
 impl eframe::App for NativeApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let context = ui.ctx().clone();
+        let dragging_files = context.input(|input| {
+            !input.raw.hovered_files.is_empty() || !input.raw.dropped_files.is_empty()
+        });
+        context
+            .data_mut(|data| data.remove::<egui::Pos2>(egui::Id::new("native-file-drop-pointer")));
+        if dragging_files {
+            #[cfg(windows)]
+            if let Some(position) = native_drop_pointer(_frame, context.pixels_per_point()) {
+                context.data_mut(|data| {
+                    data.insert_temp(egui::Id::new("native-file-drop-pointer"), position)
+                });
+            }
+            // Windows OLE DragOver does not emit CursorMoved; poll while files hover.
+            context.request_repaint_after(Duration::from_millis(16));
+        }
         if let Some((outer_rect, inner_rect)) =
             context.input(|input| input.viewport().outer_rect.zip(input.viewport().inner_rect))
         {
@@ -1304,6 +1422,89 @@ mod tests {
     use super::*;
     use eframe::egui::accesskit::Role;
 
+    #[derive(Debug)]
+    struct TestDroppedFile(PathBuf);
+    impl egui::DroppedFile for TestDroppedFile {
+        fn path(&self) -> &Path {
+            &self.0
+        }
+        fn bytes(&self) -> Result<Vec<u8>, String> {
+            std::fs::read(&self.0).map_err(|error| error.to_string())
+        }
+    }
+
+    #[test]
+    fn native_drag_positions_override_stale_pointer_and_route_the_drop() {
+        for (position, preview) in [
+            (egui::pos2(100.0, 50.0), true),
+            (egui::pos2(100.0, 145.0), false),
+            (egui::pos2(15.0, 500.0), false),
+        ] {
+            let mut app = drop_test_app();
+            app.state.set_collapsed(0, true);
+            let context = egui::Context::default();
+            let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../tests/fixtures/rust-migration/golden-small/part-00.cast");
+            // Replay OLE: the ordinary pointer remains elsewhere, but the native
+            // cursor sample moves through the target and no CursorMoved arrives.
+            for dropped in [false, false, true] {
+                context.data_mut(|data| {
+                    data.insert_temp(egui::Id::new("native-file-drop-pointer"), position)
+                });
+                let mut input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(980.0, 680.0),
+                    )),
+                    events: vec![egui::Event::PointerMoved(egui::pos2(15.0, 500.0))],
+                    ..Default::default()
+                };
+                if dropped {
+                    input
+                        .dropped_files
+                        .push(std::sync::Arc::new(TestDroppedFile(fixture.clone())));
+                } else {
+                    input.hovered_files.push(egui::HoveredFile {
+                        path: Some(fixture.clone()),
+                        ..Default::default()
+                    });
+                }
+                context
+                    .run_ui(input, |ui| {
+                        app.central_workspace(ui);
+                        app.handle_dropped_files(ui.ctx());
+                    })
+                    .drop_without_applying_deltas();
+            }
+            assert_eq!(app.previews.len(), usize::from(preview));
+            assert_eq!(
+                app.state.groups()[0].plan.state().part_files.len(),
+                usize::from(!preview)
+            );
+        }
+    }
+
+    #[test]
+    fn native_file_drop_without_pointer_event_still_imports() {
+        let mut app = drop_test_app();
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/rust-migration/golden-small/part-00.cast");
+        let context = egui::Context::default();
+        context
+            .run_ui(
+                egui::RawInput {
+                    dropped_files: vec![std::sync::Arc::new(TestDroppedFile(fixture.clone()))],
+                    ..Default::default()
+                },
+                |ui| {
+                    app.central_workspace(ui);
+                    app.handle_dropped_files(ui.ctx());
+                },
+            )
+            .drop_without_applying_deltas();
+        assert_eq!(app.state.groups()[0].plan.state().part_files, vec![fixture]);
+    }
+
     fn drop_test_app() -> NativeApp {
         NativeApp {
             state: NativeAppState::new(Default::default()),
@@ -1351,6 +1552,80 @@ mod tests {
     }
 
     #[test]
+    fn repeated_default_drops_keep_batches_in_separate_groups_without_merging() {
+        let mut app = drop_test_app();
+        let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/rust-migration/golden-small");
+        let first = fixture_dir.join("part-00.cast");
+        let second = fixture_dir.join("part-01.cast");
+        for expected_count in 1..=3 {
+            app.drop_target = Some(FileDropTarget::Import);
+            app.dispatch_file_drop(vec![first.clone()]);
+            assert_eq!(app.state.groups().len(), expected_count);
+            assert!(app.state.groups().iter().all(|group| {
+                group.task_id().is_none() && group.plan.state().part_files == vec![first.clone()]
+            }));
+        }
+        app.drop_target = Some(FileDropTarget::Group(0));
+        app.dispatch_file_drop(vec![second.clone()]);
+        assert_eq!(app.state.groups().len(), 3);
+        assert_eq!(
+            app.state.groups()[0].plan.state().part_files,
+            vec![first.clone(), second]
+        );
+        let empty_group = app.state.add_group();
+        app.drop_target = Some(FileDropTarget::Import);
+        app.dispatch_file_drop(vec![first.clone()]);
+        assert_eq!(app.state.groups().len(), 4);
+        assert_eq!(
+            app.state.groups()[empty_group].plan.state().part_files,
+            vec![first]
+        );
+        assert!(app.previews.is_empty());
+    }
+
+    #[test]
+    fn file_drop_imports_multiple_parts_and_skips_busy_groups() {
+        let mut app = drop_test_app();
+        let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/rust-migration/golden-small");
+        let paths = vec![
+            fixture_dir.join("part-00.cast"),
+            fixture_dir.join("part-01.cast"),
+        ];
+        app.drop_target = Some(FileDropTarget::Import);
+        app.dispatch_file_drop(paths.clone());
+        assert_eq!(app.state.groups()[0].plan.state().part_files, paths);
+        assert!(app.previews.is_empty());
+        // An invalid empty job supplies a real task ID without writing any output.
+        // Leave its workspace snapshot pending to exercise the busy-group guard.
+        let task_id = app
+            .scheduler
+            .schedule(model_merger_engine::MergeRequest {
+                input_files: Vec::new(),
+                output_directory: PathBuf::new(),
+                output_file_name: None,
+                root_selection: model_merger_engine::RootSelection::Automatic,
+                overwrite: false,
+            })
+            .unwrap();
+        assert!(app.state.start_task(0, task_id, None));
+        app.drop_target = Some(FileDropTarget::Group(0));
+        app.dispatch_file_drop(paths.clone());
+        assert_eq!(app.state.groups().len(), 1);
+        assert_eq!(app.state.groups()[0].plan.state().part_files, paths);
+        app.drop_target = Some(FileDropTarget::Import);
+        app.dispatch_file_drop(paths.clone());
+        assert_eq!(app.state.groups().len(), 2);
+        assert_eq!(app.state.groups()[1].plan.state().part_files, paths);
+        assert!(app.previews.is_empty());
+        app.drop_target = Some(FileDropTarget::Preview(egui::Rect::EVERYTHING));
+        app.dispatch_file_drop(paths.clone());
+        assert_eq!(app.previews.len(), 2);
+        assert_eq!(app.state.groups()[1].plan.state().part_files, paths);
+    }
+
+    #[test]
     fn file_drop_hit_testing_and_feedback_follow_the_visible_region() {
         for dark in [false, true] {
             for language in AppLanguage::ALL {
@@ -1365,9 +1640,10 @@ mod tests {
                     egui::ThemePreference::Light
                 });
                 let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(980.0, 680.0));
-                for (position, group) in [
-                    (egui::pos2(100.0, 50.0), true),
-                    (egui::pos2(15.0, 500.0), false),
+                for (position, key) in [
+                    (egui::pos2(100.0, 145.0), TextKey::DropHere),
+                    (egui::pos2(100.0, 50.0), TextKey::DropPreview),
+                    (egui::pos2(15.0, 500.0), TextKey::DropBatch),
                 ] {
                     for _ in 0..3 {
                         let mut output = context.run_ui(
@@ -1385,13 +1661,11 @@ mod tests {
                         output.textures_delta.clear();
                         assert_eq!(
                             matches!(app.drop_target, Some(FileDropTarget::Group(0))),
-                            group
+                            key == TextKey::DropHere
                         );
-                        let key = if group {
-                            TextKey::DropHere
-                        } else {
-                            TextKey::DropPreview
-                        };
+                        assert!(output.shapes.iter().any(|shape| {
+                            matches!(&shape.shape, egui::Shape::Rect(rect) if rect.stroke.width == 3.0)
+                        }), "missing drop highlight for {key:?}");
                         assert!(
                             theme::review_text(&output.shapes)
                                 .iter()
@@ -1404,6 +1678,35 @@ mod tests {
                         output.drop_without_applying_deltas();
                     }
                 }
+                let mut output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(screen),
+                        events: vec![egui::Event::PointerMoved(egui::pos2(15.0, 500.0))],
+                        ..Default::default()
+                    },
+                    |ui| app.central_workspace(ui),
+                );
+                output.textures_delta.clear();
+                assert_eq!(app.drop_target, Some(FileDropTarget::Import));
+                assert!(
+                    !theme::review_text(&output.shapes)
+                        .iter()
+                        .any(|(_, text, _)| {
+                            [TextKey::DropHere, TextKey::DropPreview, TextKey::DropBatch]
+                                .iter()
+                                .any(|key| text == Catalog::new(language).text(*key))
+                        })
+                );
+                assert!(
+                    theme::review_text(&output.shapes)
+                        .iter()
+                        .any(|(rect, text, _)| {
+                            text == Catalog::new(language).text(TextKey::PreviewDropZone)
+                                && screen.contains_rect(*rect)
+                        }),
+                    "missing/clipped preview area in {language:?}"
+                );
+                output.drop_without_applying_deltas();
                 app.ammunition.open = true;
                 let mut output = context.run_ui(
                     egui::RawInput {

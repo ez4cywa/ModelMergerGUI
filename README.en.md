@@ -77,11 +77,13 @@ Settings are stored at:
 %LocalAppData%\CastModelMerger\settings.json
 ```
 
-If window or graphics-renderer initialization fails, a Chinese/English message offers access to the diagnostics folder. Startup crashes and preview decoding errors are logged at:
+For catchable startup or runtime failures, a Chinese/English message offers access to the diagnostics folder. Logs include version, source commit, process and GPU information, preview file paths and loading/closing events. Rust panics force a backtrace; Windows native exceptions record their code and address on a best-effort basis. Normal exits record `shutdown`. Logs are stored at:
 
 ```text
 %LocalAppData%\CastModelMerger\logs\CastModelMerger.log
 ```
+
+For troubleshooting, share the log files in this directory, including `CastModelMerger-concurrent.log` if present. If the directory is unavailable, logs fall back to `%TEMP%\CastModelMerger\logs`. Logs stay local, include model file paths, and are never uploaded automatically. Forced termination or power loss may prevent the final error from being written.
 
 ## Usage
 
@@ -128,7 +130,7 @@ Only unit-scale rigid skeletons are supported. Multi-bone cartridge sources, mod
 
 ### Preview controls
 
-Drop one or more `.cast` files onto blank space in the main workspace to open separate previews. Dropping onto a model group or part slot still adds parts. Blank-space drops ignore non-CAST files and leave groups and settings unchanged.
+Drop one or more `.cast` files onto the dedicated **Model preview area** at the top of the workspace to open separate previews, or click it to select multiple files. This area ignores non-CAST files and leaves groups and settings unchanged. Dropping onto a group or part slot appends parts to that group; other areas place each batch in a separate group, reusing an idle empty group or creating one. You do not need to merge the previous batch first. The 15-part limit per group still applies.
 
 | Action | Mouse or keyboard |
 | --- | --- |

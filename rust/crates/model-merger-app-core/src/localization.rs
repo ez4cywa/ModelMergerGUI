@@ -29,6 +29,8 @@ declare_text_keys!(
     ModelPartsHint,
     DropHere,
     DropPreview,
+    DropBatch,
+    PreviewDropZone,
     AddNext,
     Clear,
     RootModel,
@@ -177,6 +179,10 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
         TextKey::DropHere => "松开鼠标，将文件添加到本组",
         TextKey::DropPreview => "松开以预览 CAST 模型",
+        TextKey::DropBatch => "松开以导入新一组部件",
+        TextKey::PreviewDropZone => {
+            "模型预览区\n拖入一个或多个 CAST 模型，或点击选择文件 · 其他区域用于导入部件"
+        }
         TextKey::AddNext => "添加下一个",
         TextKey::Clear => "清空",
         TextKey::RootModel => "根模型",
@@ -297,6 +303,10 @@ fn english(key: TextKey) -> &'static str {
         }
         TextKey::DropHere => "Release to add files to this group",
         TextKey::DropPreview => "Release to preview CAST models",
+        TextKey::DropBatch => "Release to import a new batch of parts",
+        TextKey::PreviewDropZone => {
+            "Model preview area\nDrop one or more CAST models or click to browse · Other areas import parts"
+        }
         TextKey::AddNext => "Add next",
         TextKey::Clear => "Clear",
         TextKey::RootModel => "Root model",
@@ -431,6 +441,10 @@ fn french(key: TextKey) -> &'static str {
         }
         TextKey::DropHere => "Relâchez pour ajouter les fichiers à ce groupe",
         TextKey::DropPreview => "Relâchez pour prévisualiser les modèles CAST",
+        TextKey::DropBatch => "Relâchez pour importer un nouveau groupe de pièces",
+        TextKey::PreviewDropZone => {
+            "Zone de prévisualisation\nDéposez des modèles CAST ou cliquez pour choisir · Les autres zones importent des pièces"
+        }
         TextKey::AddNext => "Ajouter le suivant",
         TextKey::Clear => "Effacer",
         TextKey::RootModel => "Modèle racine",
@@ -571,6 +585,10 @@ fn russian(key: TextKey) -> &'static str {
         }
         TextKey::DropHere => "Отпустите, чтобы добавить файлы в эту группу",
         TextKey::DropPreview => "Отпустите для просмотра моделей CAST",
+        TextKey::DropBatch => "Отпустите для импорта новой группы деталей",
+        TextKey::PreviewDropZone => {
+            "Область просмотра моделей\nПеретащите модели CAST или нажмите для выбора · Другие области импортируют детали"
+        }
         TextKey::AddNext => "Добавить следующую",
         TextKey::Clear => "Очистить",
         TextKey::RootModel => "Корневая модель",
@@ -703,6 +721,10 @@ fn spanish(key: TextKey) -> &'static str {
         }
         TextKey::DropHere => "Suelta para añadir los archivos a este grupo",
         TextKey::DropPreview => "Suelta para previsualizar modelos CAST",
+        TextKey::DropBatch => "Suelta para importar un nuevo grupo de piezas",
+        TextKey::PreviewDropZone => {
+            "Área de vista previa\nArrastra modelos CAST o haz clic para elegir · Las demás áreas importan piezas"
+        }
         TextKey::AddNext => "Añadir siguiente",
         TextKey::Clear => "Vaciar",
         TextKey::RootModel => "Modelo raíz",
