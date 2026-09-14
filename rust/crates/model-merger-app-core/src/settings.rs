@@ -44,6 +44,8 @@ pub struct AppSettings {
     pub preferred_output_directory: Option<PathBuf>,
     pub remember_output_directory: bool,
     pub check_updates_on_startup: bool,
+    /// None follows the operating system; manual choices persist across launches.
+    pub dark_mode: Option<bool>,
     #[serde(rename = "rootSelectionMode")]
     pub root_mode: RootMode,
     pub window_bounds: Option<WindowBounds>,
@@ -57,6 +59,7 @@ impl Default for AppSettings {
             preferred_output_directory: None,
             remember_output_directory: false,
             check_updates_on_startup: false,
+            dark_mode: None,
             root_mode: RootMode::Automatic,
             window_bounds: None,
         }
@@ -221,6 +224,31 @@ impl Drop for TemporarySettings {
     fn drop(&mut self) {
         if self.armed.get() {
             let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::*;
+    #[test]
+    fn old_settings_follow_system_and_manual_themes_round_trip() {
+        assert_eq!(
+            serde_json::from_str::<AppSettings>("{}").unwrap().dark_mode,
+            None
+        );
+        for dark in [false, true] {
+            let settings = AppSettings {
+                dark_mode: Some(dark),
+                ..Default::default()
+            };
+            let bytes = serde_json::to_vec(&settings).unwrap();
+            assert_eq!(
+                serde_json::from_slice::<AppSettings>(&bytes)
+                    .unwrap()
+                    .dark_mode,
+                Some(dark)
+            );
         }
     }
 }

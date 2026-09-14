@@ -103,6 +103,10 @@ impl WorkspaceState {
         self.settings.check_updates_on_startup = enabled;
     }
 
+    pub fn set_dark_mode(&mut self, dark: bool) {
+        self.settings.dark_mode = Some(dark);
+    }
+
     pub fn groups(&self) -> &[GroupSession] {
         &self.groups
     }

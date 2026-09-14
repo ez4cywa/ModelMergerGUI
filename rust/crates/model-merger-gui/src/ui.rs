@@ -60,6 +60,7 @@ impl NativeApp {
         let state = NativeAppState::new(store.load());
         let configured_language = state.language();
         theme::configure(context, configured_language);
+        theme::apply_preference(context, state.settings().dark_mode);
         context.send_viewport_cmd(egui::ViewportCommand::Title(
             Catalog::new(configured_language)
                 .text(TextKey::AppTitle)
@@ -316,9 +317,18 @@ impl NativeApp {
             }
             Some(crate::menu_bar::Action::SaveSettings) => self.save_settings(),
             Some(crate::menu_bar::Action::OpenPreview) => self.open_preview_dialog(),
-            Some(crate::menu_bar::Action::RestoreDefaults) => self.restore_defaults(),
+            Some(crate::menu_bar::Action::RestoreDefaults) => {
+                self.restore_defaults();
+                theme::apply_preference(root.ctx(), self.state.settings().dark_mode);
+            }
             Some(crate::menu_bar::Action::Language(language)) => self.state.set_language(language),
             Some(crate::menu_bar::Action::About) => self.about.open(),
+            Some(crate::menu_bar::Action::ToggleTheme) => {
+                let dark = !root.visuals().dark_mode;
+                self.state.set_dark_mode(dark);
+                theme::apply_preference(root.ctx(), Some(dark));
+                self.save_settings();
+            }
             None => {}
         }
     }
@@ -1723,6 +1733,78 @@ mod tests {
     }
 
     #[test]
+    fn theme_button_switches_and_persists_without_language_reset() {
+        let context = egui::Context::default();
+        theme::configure(&context, AppLanguage::English);
+        theme::apply_preference(&context, Some(false));
+        let mut app = drop_test_app();
+        let test_dir = std::env::temp_dir().join(format!(
+            "cast-theme-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        app.store = SettingsStore::new(test_dir.join("settings.json"));
+        for dark in [true, false] {
+            let key = if dark {
+                TextKey::SwitchToDark
+            } else {
+                TextKey::SwitchToLight
+            };
+            let mut position = egui::Pos2::ZERO;
+            for _ in 0..3 {
+                let output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(900.0, 680.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| app.top_bar(ui),
+                );
+                position = theme::review_text(&output.shapes)
+                    .iter()
+                    .find(|(_, text, _)| text == app.catalog().text(key))
+                    .unwrap()
+                    .0
+                    .center();
+                output.drop_without_applying_deltas();
+            }
+            for pressed in [true, false] {
+                context
+                    .run_ui(
+                        egui::RawInput {
+                            events: vec![
+                                egui::Event::PointerMoved(position),
+                                egui::Event::PointerButton {
+                                    pos: position,
+                                    button: egui::PointerButton::Primary,
+                                    pressed,
+                                    modifiers: Default::default(),
+                                },
+                            ],
+                            ..Default::default()
+                        },
+                        |ui| app.top_bar(ui),
+                    )
+                    .drop_without_applying_deltas();
+            }
+            assert_eq!(app.state.settings().dark_mode, Some(dark));
+            assert_eq!(app.store.load().dark_mode, Some(dark));
+            theme::configure(&context, AppLanguage::French);
+            assert_eq!(context.theme() == egui::Theme::Dark, dark);
+            let restored = egui::Context::default();
+            theme::configure(&restored, AppLanguage::English);
+            theme::apply_preference(&restored, app.store.load().dark_mode);
+            assert_eq!(restored.theme() == egui::Theme::Dark, dark);
+        }
+        std::fs::remove_dir_all(test_dir).unwrap();
+    }
+
+    #[test]
     fn shortcut_labels_follow_the_host_platform() {
         let context = egui::Context::default();
         context.set_os(egui::os::OperatingSystem::Windows);
@@ -1808,7 +1890,7 @@ mod tests {
                             .iter()
                             .filter(|(rect, _, _)| rect.top() < 40.0)
                             .count()
-                            == 3
+                            == 4
                     );
                     output.drop_without_applying_deltas();
                 }

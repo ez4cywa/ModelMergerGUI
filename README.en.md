@@ -60,6 +60,7 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - Write output to a temporary file and read it back for validation before creating the final file.
 - A fully native Rust architecture handles CAST parsing, merging, scheduling, settings, five-language UI and previews in one process. See the [full migration record (Chinese)](docs/full-rust-migration.md).
 - Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
+- A prominent light/dark button at the right of the menu bar switches the entire app and previews, and saves your choice. New installations follow the system theme; restoring defaults returns to system mode.
 - Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
 - The compact **File / Settings / Help** menu bar replaces the repeated heading and introduction. Create groups under **File**; choose a language or save/restore settings under **Settings**. Existing shortcuts are unchanged.
 - Use **File → Open model preview…** (**Ctrl+O**) to open a CAST file in a standalone 3D preview without adding it to a merge group. Rotate, zoom and reset the view without changing the source file.
@@ -101,6 +102,8 @@ The Chinese interface embeds Xiaomi MiSans. MiSans is not covered by this projec
 The application uses a macOS-inspired layout, system light/dark themes and compact 36 px path/filename inputs. Main-window shortcuts: `Ctrl+N` creates a group, `Ctrl+S` saves settings, and `Ctrl+Enter` starts all ready groups.
 
 ## Fill ammunition at magazine bones (v2.2.1)
+
+Each magazine appears once: its checkbox selects a fill target, and **Copy source** selects the layout for spare magazines. Hover over the magazine name to inspect bone details; the detail text is only generated when shown.
 
 1. Click **Fill magazine** in any group's parts area. The tool prefers that group's merged output; you can also select a weapon or magazine CAST directly in the dialog.
 2. Click the **Ammunition model** field and choose a cartridge CAST containing a single `tag_ammo` bone.

@@ -111,10 +111,17 @@ pub(crate) fn review_text(
 }
 
 pub fn configure(context: &egui::Context, language: AppLanguage) {
-    context.set_theme(egui::ThemePreference::System);
     install_fonts(context, language);
     configure_style(context, egui::Theme::Light, LIGHT, egui::Visuals::light());
     configure_style(context, egui::Theme::Dark, DARK, egui::Visuals::dark());
+}
+
+pub fn apply_preference(context: &egui::Context, dark: Option<bool>) {
+    context.set_theme(match dark {
+        Some(true) => egui::ThemePreference::Dark,
+        Some(false) => egui::ThemePreference::Light,
+        None => egui::ThemePreference::System,
+    });
 }
 
 fn configure_style(

@@ -11,6 +11,7 @@ pub(crate) enum Action {
     RestoreDefaults,
     Language(AppLanguage),
     About,
+    ToggleTheme,
 }
 
 pub(crate) fn labels(language: AppLanguage) -> [&'static str; 3] {
@@ -110,6 +111,28 @@ pub(crate) fn show(
                     if ui.button(catalog.text(TextKey::About)).clicked() {
                         action = Some(Action::About);
                         ui.close();
+                    }
+                });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let label = catalog.text(if ui.visuals().dark_mode {
+                        TextKey::SwitchToLight
+                    } else {
+                        TextKey::SwitchToDark
+                    });
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(label)
+                                    .size(15.0)
+                                    .color(palette.on_primary),
+                            )
+                            .fill(palette.primary)
+                            .min_size(egui::vec2(132.0, 32.0))
+                            .corner_radius(8.0),
+                        )
+                        .clicked()
+                    {
+                        action = Some(Action::ToggleTheme);
                     }
                 });
             });
@@ -277,6 +300,12 @@ mod tests {
                 h.click(help);
                 h.click(catalog.text(TextKey::About));
                 assert_eq!(h.action, Some(Action::About));
+                h.click(catalog.text(if dark {
+                    TextKey::SwitchToLight
+                } else {
+                    TextKey::SwitchToDark
+                }));
+                assert_eq!(h.action, Some(Action::ToggleTheme));
             }
         }
     }

@@ -200,21 +200,20 @@ impl AmmoTool {
                     for group in &analysis.magazines {
                         let mut selected = self.selected.contains(&group.name);
                         let suffix = localized(language, ["骨骼 / 已占用", "bones / occupied", "os / occupés", "костей / занято", "huesos / ocupados"]);
-                        if ui.checkbox(&mut selected, format!("{} · {} / {} {suffix}", group.name, group.slots.len(), group.occupied.len())).changed() {
+                        ui.horizontal_wrapped(|ui| {
+                        if ui.checkbox(&mut selected, format!("{} · {} / {} {suffix}", group.name, group.slots.len(), group.occupied.len())).on_hover_ui(|ui| {
+                            ui.label(group.slots.join(", "));
+                        }).changed() {
                             if selected { self.selected.push(group.name.clone()); } else { self.selected.retain(|n| n != &group.name); }
                             self.result = None;
                         }
-                        ui.label(egui::RichText::new(group.slots.join(", ")).size(13.0).color(p.secondary));
+                        if !analysis.spare_magazines.is_empty() && ui.radio_value(&mut self.replica_source, group.name.clone(), localized(language, ["复制来源", "Copy source", "Source de copie", "Источник копии", "Origen de copia"])).changed() { self.result = None; }
+                        });
                     }
                     if !analysis.spare_magazines.is_empty() && !analysis.magazines.is_empty() {
                         ui.separator();
                         ui.label(localized(language,["备用弹匣（复制子弹布局，默认不选）", "Spare magazines (copy layout, optional)", "Chargeurs de réserve (copie facultative)", "Запасные магазины (копия по выбору)", "Cargadores de repuesto (copia opcional)"]));
                         ui.label(egui::RichText::new(localized(language,["仅复制子弹的位置和朝向，不复制弹匣网格；新增定位骨骼随备用弹匣运动。", "Copy ammunition positions and rotations, not magazine meshes. New placement bones follow each spare magazine.", "Copier les positions et rotations des munitions, sans le maillage du chargeur. Les nouveaux os suivent le chargeur.", "Копируются положения и повороты патронов, а не сетка магазина. Новые кости следуют за запасным магазином.", "Copia posiciones y rotaciones de munición, no la malla del cargador. Los nuevos huesos siguen al cargador de repuesto."])).size(13.0).color(p.secondary));
-                        egui::ComboBox::from_id_salt("ammo-template").selected_text(&self.replica_source).show_ui(ui, |ui| {
-                            for magazine in &analysis.magazines {
-                                if ui.selectable_value(&mut self.replica_source, magazine.name.clone(), &magazine.name).changed() { self.result = None; }
-                            }
-                        });
                         for name in &analysis.spare_magazines {
                             let mut selected = self.selected_spares.contains(name);
                             if ui.checkbox(&mut selected, name).changed() {
@@ -297,6 +296,81 @@ fn path_row(ui: &mut egui::Ui, label: &str, path: &Option<PathBuf>) -> bool {
 mod tests {
     use super::*;
     #[test]
+    fn inline_copy_source_does_not_change_fill_targets() {
+        let context = egui::Context::default();
+        theme::configure(&context, AppLanguage::English);
+        let mut tool = AmmoTool::default();
+        tool.start(None);
+        tool.selected = vec!["j_mag1".into()];
+        tool.replica_source = "j_mag1".into();
+        tool.selected_spares = vec!["j_mag3".into()];
+        tool.analysis = Some(Analysis {
+            magazines: ["j_mag1", "j_mag2"]
+                .into_iter()
+                .map(|name| ammunition::Magazine {
+                    name: name.into(),
+                    slots: vec!["j_ammo_01".into()],
+                    occupied: vec![],
+                })
+                .collect(),
+            spare_magazines: vec!["j_mag3".into()],
+            excluded_slots: vec![],
+        });
+        let mut position = egui::Pos2::ZERO;
+        for frame in 0..3 {
+            let mut output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(900.0, 680.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| {
+                    tool.show(ui.ctx(), AppLanguage::English);
+                },
+            );
+            output.textures_delta.clear();
+            if frame < 2 {
+                output.drop_without_applying_deltas();
+                continue;
+            }
+            position = theme::review_text(&output.shapes)
+                .iter()
+                .filter(|(_, text, _)| text == "Copy source")
+                .nth(1)
+                .unwrap()
+                .0
+                .center();
+            output.drop_without_applying_deltas();
+        }
+        for pressed in [true, false] {
+            context
+                .run_ui(
+                    egui::RawInput {
+                        events: vec![
+                            egui::Event::PointerMoved(position),
+                            egui::Event::PointerButton {
+                                pos: position,
+                                button: egui::PointerButton::Primary,
+                                pressed,
+                                modifiers: Default::default(),
+                            },
+                        ],
+                        ..Default::default()
+                    },
+                    |ui| {
+                        tool.show(ui.ctx(), AppLanguage::English);
+                    },
+                )
+                .drop_without_applying_deltas();
+        }
+        assert_eq!(tool.replica_source, "j_mag2");
+        assert_eq!(tool.selected, vec!["j_mag1"]);
+        assert_eq!(tool.selected_spares, vec!["j_mag3"]);
+    }
+
+    #[test]
     fn fill_action_stays_visible_with_long_localized_content() {
         for language in AppLanguage::ALL {
             let context = egui::Context::default();
@@ -330,6 +404,20 @@ mod tests {
                 if frame < 2 {
                     continue;
                 }
+                assert_eq!(
+                    labels
+                        .iter()
+                        .filter(|(_, text, _)| text.contains("j_mag1"))
+                        .count(),
+                    1,
+                    "magazine name must not be repeated by a source dropdown"
+                );
+                assert!(
+                    !labels
+                        .iter()
+                        .any(|(_, text, _)| text.contains("j_ammo_000")),
+                    "bone details should only be laid out on demand"
+                );
                 let visible_titles = labels
                     .iter()
                     .filter(|(rect, text, clip)| {
