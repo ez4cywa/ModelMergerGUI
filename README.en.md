@@ -2,7 +2,14 @@
 
 [简体中文](README.md) | English
 
-A Windows desktop tool based on [echo000/ModelMerger](https://github.com/echo000/ModelMerger). Manage multiple model groups and merge 2–15 Cast model parts per group into a single `.cast` file.
+A native Windows desktop tool for `.cast` models, built with Rust, egui and wgpu. Merge model parts in independent groups, inspect them in standalone 3D previews, and fill magazines at ammunition bones. Based on the merging logic from [echo000/ModelMerger](https://github.com/echo000/ModelMerger).
+
+[Download Windows x64 portable](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [Release notes](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) · [Usage guide](#usage) · [Build from source](#build-and-test) · [Report an issue](https://github.com/ez4cywa/ModelMergerGUI/issues)
+
+- **Multi-group merging**: 2–15 parts per group, batch drag-and-drop, independent jobs, queuing and cancellation.
+- **Model previews**: a dedicated drop zone opens multiple models, with rotation, zoom and model information.
+- **Magazine filling**: place cartridge models at ammunition bones and optionally copy the layout to spare magazines.
+- **Ready to run**: portable Windows x64 app, no .NET required; Chinese, English, French, Russian and Spanish, with one-click light/dark switching.
 
 ## Screenshots
 
@@ -30,7 +37,7 @@ Following the full Rust migration, [Releases](https://github.com/ez4cywa/ModelMe
 
 | Edition | Download | Runtime requirements |
 | --- | --- | --- |
-| Rust-native portable | `CastModelMerger-win-x64.zip` | 64-bit Windows; **no .NET, Rust or additional runtime installation required** |
+| Rust-native portable | [CastModelMerger-win-x64.zip](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) | 64-bit Windows; **no .NET, Rust or additional runtime installation required** |
 
 ### System requirements
 
@@ -95,13 +102,13 @@ For troubleshooting, share the log files in this directory, including `CastModel
 5. Choose the group's output folder. Leave the output filename blank to use the root model's name.
 6. Start the group or merge all ready groups using the bottom action bar. After a successful merge, preview the result from the group's status pane.
 
-Use the language selector at the top right to switch languages. Click **Save settings** to keep that choice for the next launch. On first launch, the application follows Windows when its language is one of the five supported languages; otherwise it defaults to Chinese.
+Choose a language in the **Settings** menu. Click **Save settings** to keep that choice for the next launch. On first launch, the application follows Windows when its language is one of the five supported languages; otherwise it defaults to Chinese.
 
 The Chinese interface embeds Xiaomi MiSans. MiSans is not covered by this project's MIT license; its use and distribution follow Xiaomi's font license. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and the official license linked there.
 
 The application uses a macOS-inspired layout, system light/dark themes and compact 36 px path/filename inputs. Main-window shortcuts: `Ctrl+N` creates a group, `Ctrl+S` saves settings, and `Ctrl+Enter` starts all ready groups.
 
-## Fill ammunition at magazine bones (v2.2.1)
+## Fill ammunition at magazine bones
 
 Each magazine appears once: its checkbox selects a fill target, and **Copy source** selects the layout for spare magazines. Hover over the magazine name to inspect bone details; the detail text is only generated when shown.
 

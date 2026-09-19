@@ -2,7 +2,14 @@
 
 简体中文 | [English](README.en.md)
 
-一个基于 [echo000/ModelMerger](https://github.com/echo000/ModelMerger) 的 Windows 图形界面工具。可同时管理多个模型组，每组把 2 至 15 个 Cast 模型部件合并为一个 `.cast` 文件。
+面向 `.cast` 模型的 Windows 原生桌面工具，使用 Rust、egui 和 wgpu 构建。支持多组合并、独立 3D 预览和按骨骼装填弹匣，基于 [echo000/ModelMerger](https://github.com/echo000/ModelMerger) 的合并逻辑。
+
+[下载 Windows x64 免安装版](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [更新说明](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) · [使用指南](#使用) · [源码构建](#构建和测试) · [反馈问题](https://github.com/ez4cywa/ModelMergerGUI/issues)
+
+- **多组合并**：每组 2–15 个部件，批量拖入、独立任务、排队与取消。
+- **模型预览**：专用拖放预览区，一次打开多个模型，支持旋转、缩放和模型信息查看。
+- **弹匣装填**：按子弹骨骼放置模型，可选择备用弹匣并复制布局。
+- **开箱即用**：Windows x64 免安装，无需 .NET；支持中、英、法、俄、西五语和一键亮暗切换。
 
 ## 界面截图
 
@@ -28,7 +35,7 @@
 
 | 版本 | 下载文件 | 运行环境 |
 | --- | --- | --- |
-| Rust 原生免安装版 | `CastModelMerger-win-x64.zip` | 64 位 Windows；**不需要 .NET、Rust 或其他额外运行环境** |
+| Rust 原生免安装版 | [CastModelMerger-win-x64.zip](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) | 64 位 Windows；**不需要 .NET、Rust 或其他额外运行环境** |
 
 ### 免安装版需要的环境
 
@@ -92,13 +99,11 @@
 5. 选择该组的输出文件夹；文件名可留空，此时使用根模型名称。
 6. 点击组内“开始合并”，或点击底部“合并所有已就绪组”。成功后可在本组状态区预览合并模型。
 
-界面右上角可随时选择中文、English、Français、Русский 或 Español；点击“保存设置”后，下次启动会沿用该语言。首次启动会跟随 Windows 的上述五种界面语言，其他系统语言默认显示中文。
+在“设置”菜单中可随时选择中文、English、Français、Русский 或 Español；点击“保存设置”后，下次启动会沿用该语言。首次启动会跟随 Windows 的上述五种界面语言，其他系统语言默认显示中文。
 
 中文界面嵌入并使用小米 MiSans 字体。MiSans 不属于本项目的 MIT 授权范围，使用和分发遵循小米的 MiSans 字体许可；详情见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 和官方许可页面。
 
-## 如何预览模型
-
-### 按弹匣骨骼装填子弹模型（v2.2.1）
+## 按弹匣骨骼装填子弹模型
 
 每个弹匣只显示一行：勾选框控制装填目标，“复制来源”单选按钮指定备用弹匣使用的布局，不再重复列出来源下拉框。悬停在弹匣名称上可查看骨骼明细，仅在查看时生成明细文本。
 
@@ -111,6 +116,8 @@
 目前识别 `j_mag`、`j_mag数字` 或 `tag_clip` 子树中的 `j_ammo_数字` / `tag_ammo_数字`，不按现实武器容量猜测数量。非弹匣子树的编号子弹骨骼默认不选，但可以按需勾选装填。支持单位缩放刚体骨骼；多骨骼子弹、模型级变换、非单位骨骼缩放会明确报错。一次最多 512 个槽位、500 万个新增顶点。详细样本关系见[骨骼研究](docs/ammo-bone-research.md)。
 
 软件采用 macOS 风格布局，支持跟随系统明暗主题、紧凑的 36 px 路径与文件名输入框，以及 `Ctrl+N` / `Ctrl+S` / `Ctrl+Enter` 快捷键。
+
+## 如何预览模型
 
 ### 预览单个部件
 
