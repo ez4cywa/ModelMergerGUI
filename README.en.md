@@ -1,203 +1,140 @@
+<div align="center">
+
 # Cast Model Merger GUI
 
-[简体中文](README.md) | English
+**Drop CAST parts, merge them in groups, and inspect the result in independent 3D windows.**
 
-A native Windows desktop tool for `.cast` models, built with Rust, egui and wgpu. Merge model parts in independent groups, inspect them in standalone 3D previews, and fill magazines at ammunition bones. Based on the merging logic from [echo000/ModelMerger](https://github.com/echo000/ModelMerger).
+A Rust-native Windows tool for model merging, previews and magazine filling.
 
-[Download Windows x64 portable](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [Release notes](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) · [Usage guide](#usage) · [Build from source](#build-and-test) · [Report an issue](https://github.com/ez4cywa/ModelMergerGUI/issues)
+[![Release](https://img.shields.io/github/v/release/ez4cywa/ModelMergerGUI)](https://github.com/ez4cywa/ModelMergerGUI/releases/latest)
+[![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)](https://github.com/ez4cywa/ModelMergerGUI/releases/latest)
+[![Rust](https://img.shields.io/badge/Rust-native-dea584)](rust/Cargo.toml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Rust CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml)
 
-- **Multi-group merging**: 2–15 parts per group, batch drag-and-drop, independent jobs, queuing and cancellation.
-- **Model previews**: a dedicated drop zone opens multiple models, with rotation, zoom and model information.
-- **Magazine filling**: place cartridge models at ammunition bones and optionally copy the layout to spare magazines.
-- **Ready to run**: portable Windows x64 app, no .NET required; Chinese, English, French, Russian and Spanish, with one-click light/dark switching.
+[简体中文](README.md) · English
 
-## Screenshots
+[**Download portable edition**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [User guide](docs/user-guide.en.md) · [Release notes](https://github.com/ez4cywa/ModelMergerGUI/releases) · [Report an issue](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose)
 
-### Main interface
+</div>
 
-![Cast Model Merger English interface](docs/images/rust-native/main-window-en.png)
+![English main interface](docs/images/rust-native/main-window-en.png)
 
-### Magazine filling (v2.2.1)
+*Screenshots show the Rust-native interface. Some predate the latest release; current controls may differ.*
 
-The following feature screenshots show the Chinese interface. The application also supports English, French, Russian and Spanish.
+## What you can do
 
-![Magazine bone detection and optional ammunition slots](docs/images/rust-native/ammo-fill-zh.png)
-
-### Model preview
-
-All preview entry points share a full-window layout: a compact name row, model and perspective grid, lower-left camera tools, and bottom Viewport / Model info tabs. The existing macOS-inspired styling, light/dark themes and neutral model shading are preserved.
-
-| Light theme | Dark theme |
+| Scenario | Capability |
 | --- | --- |
-| ![Light-theme model preview](docs/images/rust-native/model-preview-zh.png) | ![Dark-theme model preview](docs/images/rust-native/model-preview-dark-zh.png) |
+| Combine separate parts | Merge 2–15 CAST parts per group with automatic or manual root selection |
+| Process several models | Independent groups, two concurrent merges, queuing and cancellation |
+| Inspect without merging | Drop multiple CAST files into the preview area to open independent windows |
+| Check geometry and assembly | GPU depth rendering, rotation, zoom, ground grid and model information |
+| Populate magazines | Place cartridges at ammunition bones; optionally copy layouts to spare magazines |
+| Personalize the interface | Chinese, English, French, Russian and Spanish; persistent light/dark switching |
 
-## Download
+Model processing is local. Previews do not modify source files; merge output is written to a temporary file and read back for validation. Update checks are off by default and can be enabled or run manually in **Help → About**.
 
-Following the full Rust migration, [Releases](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) provide only the native Windows x64 portable edition.
+## Download and run
 
-| Edition | Download | Runtime requirements |
-| --- | --- | --- |
-| Rust-native portable | [CastModelMerger-win-x64.zip](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) | 64-bit Windows; **no .NET, Rust or additional runtime installation required** |
+1. Download [**CastModelMerger-win-x64.zip**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip).
+2. Extract the entire ZIP and run `CastModelMerger.exe`, not from inside the archive.
+3. Use your own `.cast` files to preview or merge models.
 
-### System requirements
+Requires Windows 10/11 x64 and a Direct3D 12-capable graphics driver for previews. **No .NET or Rust installation is required.** Releases provide a portable ZIP, not an installer.
 
-- 64-bit Windows 10 or 11. Windows 11 x64 with actively supported graphics drivers is recommended.
-- A graphics driver supporting Direct3D 12. Rendering uses `wgpu`; if the application cannot create a window, update your Intel, AMD or NVIDIA graphics driver.
-- No .NET Desktop Runtime or Rust installation is needed. Rust 1.96 is a source-build requirement only.
+The same [Release](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) includes a SHA-256 checksum. Run `Get-FileHash .\CastModelMerger-win-x64.zip -Algorithm SHA256` in the download directory and compare its digest with the checksum file.
 
-Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, application state, settings, localized interface and model preview are compiled into one native Rust application.
+## Quick start
 
-## Features
+- **Preview**: drop one or more CAST files into the top preview area → rotate, zoom or inspect model information.
+- **Merge**: add 2–15 parts to a group → check the root and output path → start merging → preview the result.
+- **Fill magazines**: open **Fill magazine** → select a weapon and a cartridge with one `tag_ammo` bone → select targets → save to a new file.
 
-- Create independent merge groups and expand or collapse each one.
-- Use a visual 5 × 3 slot grid with a selected-part count for each group.
-- Click **Add next** or an empty slot to select multiple `.cast` files in one file-picker operation, or drag files into a group.
-- Fixed-width part cards truncate long filenames. Hover to see the full path without squeezing the settings pane.
-- Each group remembers its most recently used input folder for subsequent selections.
-- Remove or replace parts and manually select a root model for each group.
-- Open an interactive 3D preview of any imported part or the final merged model. Rust parses all previews, including models using 32-bit face indices.
-- GPU depth-buffered rendering supports drag-to-rotate, wheel zoom, keyboard controls and view reset. Large previews are sampled without modifying source files.
-- Fill magazine ammunition bones with copies of a cartridge model, and optionally select other numbered ammunition bones such as `j_ammo_17`.
-- Start or cancel individual groups, or merge all ready groups at once.
-- Run up to two merges concurrently; additional groups are queued. Queued and running jobs can both be cancelled.
-- Prevent two model groups from writing to the same output path. Conflicts stop processing before mesh merging.
-- Preserve the upstream root-detection, skeleton-connection and model-repositioning behavior by default.
-- Choose an output folder and filename. Standard merging asks before overwriting an existing file; magazine filling always requires a new filename.
-- Background processing, horizontal percentage progress bars, stage updates, logs and cancellation keep the interface responsive.
-- Write output to a temporary file and read it back for validation before creating the final file.
-- A fully native Rust architecture handles CAST parsing, merging, scheduling, settings, five-language UI and previews in one process. See the [full migration record (Chinese)](docs/full-rust-migration.md).
-- Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
-- A prominent light/dark button at the right of the menu bar switches the entire app and previews, and saves your choice. New installations follow the system theme; restoring defaults returns to system mode.
-- Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
-- The compact **File / Settings / Help** menu bar replaces the repeated heading and introduction. Create groups under **File**; choose a language or save/restore settings under **Settings**. Existing shortcuts are unchanged.
-- Use **File → Open model preview…** (**Ctrl+O**) to open a CAST file in a standalone 3D preview without adding it to a merge group. Rotate, zoom and reset the view without changing the source file.
-- Open **Help → About** to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
-- Check GitHub updates manually in **About**, or opt into startup checks (off by default). Same-version package refreshes are detected; downloads require a click and the app is never replaced automatically.
-- Copy a source magazine's local ammunition positions and rotations to spare magazines without placement bones. Spares are individually selected and unchecked by default; new ammunition follows its own magazine bones.
-- Magazine output also supports Windows filesystems without hard links, while preserving the requirement to save to a new filename.
-- Save the interface language, output folder, root-model mode and window position. Selected model paths are not persisted.
+### Where to drop files
 
-The original WPF and command-line projects remain in the source tree for compatibility reference but are no longer included in release packages. The Rust GUI accepts 2–15 `.cast` parts per merge group and produces read-back-validated `.cast` output.
+| Drop target | Result |
+| --- | --- |
+| Top model preview area | Open independent previews without adding parts to groups |
+| Existing group or part slot | Append parts to that group, up to 15 |
+| Other areas | Put each batch in a separate group, reusing an idle empty group or creating one |
 
-Settings are stored at:
+Drop targets highlight during dragging. You do not need to merge the previous batch before importing another. See the [full guide](docs/user-guide.en.md) for controls and filling rules.
 
-```text
-%LocalAppData%\CastModelMerger\settings.json
-```
+<details>
+<summary>Preview and magazine screenshots</summary>
 
-For catchable startup or runtime failures, a Chinese/English message offers access to the diagnostics folder. Logs include version, source commit, process and GPU information, preview file paths and loading/closing events. Rust panics force a backtrace; Windows native exceptions record their code and address on a best-effort basis. Normal exits record `shutdown`. Logs are stored at:
+| Light preview | Dark preview |
+| --- | --- |
+| ![Light preview](docs/images/rust-native/model-preview-zh.png) | ![Dark preview](docs/images/rust-native/model-preview-dark-zh.png) |
+
+![Magazine filling, v2.2.1 Chinese interface](docs/images/rust-native/ammo-fill-zh.png)
+
+*The magazine screenshot is from v2.2.1. Current versions consolidate duplicate controls into an inline Copy source selection.*
+
+</details>
+
+## Scope and limits
+
+- Input and output use `.cast`. This is not a general format converter or a game asset extractor.
+- Root detection, skeleton connection and repositioning follow upstream behavior; arbitrary parts are not guaranteed to assemble correctly.
+- Previews use neutral geometry shading and display up to 250,000 triangles, with a notice when sampled. Merging uses the full data.
+- Magazine filling requires supported bone names and unit-scale rigid skeletons, with limits of 512 slots and five million added vertices. Output must use a new filename.
+- Legacy WPF, CLI and migration-worker sources are historical references, not release components. No macOS or Linux packages are published.
+
+## Troubleshooting and local data
+
+**No preview after dropping a file?** Only the top preview area opens previews; other areas import parts. Alternatively use **File → Open model preview…** (`Ctrl+O`).
+
+**A window fails to open or a preview crashes?** Confirm full extraction and update the graphics driver. Include reproduction steps and diagnostic logs when reporting the issue:
 
 ```text
 %LocalAppData%\CastModelMerger\logs\CastModelMerger.log
 ```
 
-For troubleshooting, share the log files in this directory, including `CastModelMerger-concurrent.log` if present. If the directory is unavailable, logs fall back to `%TEMP%\CastModelMerger\logs`. Logs stay local, include model file paths, and are never uploaded automatically. Forced termination or power loss may prevent the final error from being written.
+Logs contain version, GPU, model paths and preview lifecycle events. Rust panics include backtraces; native Windows exception codes and addresses are recorded on a best-effort basis. See the [guide](docs/user-guide.en.md) for concurrent logs and temporary-directory fallback. Logs remain local; redact private paths before sharing.
 
-## Usage
+**Where are settings stored?** In `%LocalAppData%\CastModelMerger\settings.json`. Theme choices save automatically; use **Settings → Save settings** for language and other preferences. Selected model paths are not persisted.
 
-1. Click **New model group** to add a task. Collapse groups you do not need to view.
-2. Click **Add next** or an empty slot in the target group and select one or more `.cast` files. Files fill the remaining slots in the order returned by the file picker.
-3. Add 2–15 parts, or drag multiple files into the group. Files beyond the 15-part limit are not added, and a capacity notice is shown.
-4. Click a part's **Preview** button to inspect it. Keep automatic root detection, or select manual root mode and use the part's set-as-root action.
-5. Choose the group's output folder. Leave the output filename blank to use the root model's name.
-6. Start the group or merge all ready groups using the bottom action bar. After a successful merge, preview the result from the group's status pane.
+## Run from source and verify
 
-Choose a language in the **Settings** menu. Click **Save settings** to keep that choice for the next launch. On first launch, the application follows Windows when its language is one of the five supported languages; otherwise it defaults to Chinese.
-
-The Chinese interface embeds Xiaomi MiSans. MiSans is not covered by this project's MIT license; its use and distribution follow Xiaomi's font license. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and the official license linked there.
-
-The application uses a macOS-inspired layout, system light/dark themes and compact 36 px path/filename inputs. Main-window shortcuts: `Ctrl+N` creates a group, `Ctrl+S` saves settings, and `Ctrl+Enter` starts all ready groups.
-
-## Fill ammunition at magazine bones
-
-Each magazine appears once: its checkbox selects a fill target, and **Copy source** selects the layout for spare magazines. Hover over the magazine name to inspect bone details; the detail text is only generated when shown.
-
-1. Click **Fill magazine** in any group's parts area. The tool prefers that group's merged output; you can also select a weapon or magazine CAST directly in the dialog.
-2. Click the **Ammunition model** field and choose a cartridge CAST containing a single `tag_ammo` bone.
-3. Wait for bone detection, then select the magazine groups to fill. Each group shows its bone count and occupied count. Only the first group is selected by default. Under **Other ammunition bones (optional)**, select individual locations such as `j_ammo_17`. You may deselect every magazine group and fill only these individual locations. Alternate animation magazines may overlap in the reference pose, so select them as needed.
-4. Click **Save as** to choose an output file. The default is a `_filled.cast` file beside the weapon. Use a new filename; the original model is never overwritten.
-5. Click **Fill magazine**. One cartridge instance is positioned, rotated and rigidly bound to each empty selected bone. Bones with existing mesh weights are skipped. After completion, click **Preview filled model**.
-
-Detection recognizes `j_ammo_<digits>` and `tag_ammo_<digits>` beneath `j_mag`, `j_mag<digits>` or `tag_clip`. Counts come from the model's bones, not an assumed real-world weapon capacity. Numbered ammunition bones outside those subtrees are unchecked by default but can be selected individually.
-
-Only unit-scale rigid skeletons are supported. Multi-bone cartridge sources, model-level transforms and non-unit bone scaling produce an error. One operation is limited to 512 slots and five million added vertices. See the [sample bone research (Chinese)](docs/ammo-bone-research.md).
-
-## Preview models
-
-### Preview a part
-
-1. Click **Add next** or an empty slot and choose one or more `.cast` files.
-2. Each imported part displays its filename and a **Preview** button.
-3. Click **Preview** to open an independent 3D window.
-4. Open additional previews to compare parts side by side.
-
-### Preview a merged model
-
-1. Add 2–15 valid parts and check the output folder, choosing a different folder if needed.
-2. Start the group and wait for a successful merge.
-3. Click the merged-model preview button in the group's status pane. It becomes available only after a successful merge while the output file still exists.
-4. If you move or delete the output file, merge again before previewing it.
-
-### Preview controls
-
-Drop one or more `.cast` files onto the dedicated **Model preview area** at the top of the workspace to open separate previews, or click it to select multiple files. This area ignores non-CAST files and leaves groups and settings unchanged. Dropping onto a group or part slot appends parts to that group; other areas place each batch in a separate group, reusing an idle empty group or creating one. You do not need to merge the previous batch first. The 15-part limit per group still applies.
-
-| Action | Mouse or keyboard |
-| --- | --- |
-| Free rotation | Hold the left mouse button and drag |
-| Step rotation | Use the rotate-left/right buttons or arrow keys |
-| Zoom | Mouse wheel, zoom buttons, or `+` / `-` |
-| Reset view | Reset-view button or `R` |
-| Show or hide ground grid | Grid button or `G` |
-| Inspect geometry and dimensions | Model info tab at the bottom |
-| Close preview | Close button or `Esc` |
-
-Previewing is read-only: it does not change parts, merge plans or output files. Geometry is prepared once in the background; the GPU handles rotation, zoom, shading and occlusion. A preview displays at most 250,000 triangles and shows a notice when sampled. Merging still uses the full model data.
-
-## Build and test
-
-Building the Rust GUI requires Rust 1.96 or a compatible newer stable toolchain. Release users do not need Rust or .NET.
-
-MiSans permits embedding in an application but not redistributing the font as a standalone resource, so `.ttf` files are not committed to this repository. Before your first source build, read the [official MiSans license](https://hyperos.mi.com/font/en/download/), then run the following if you accept it:
+Development requires Windows x64, Rust 1.96 or a compatible newer stable toolchain, and the matching Windows linker tools. Run from the repository root:
 
 ```powershell
+git clone https://github.com/ez4cywa/ModelMergerGUI.git
+cd ModelMergerGUI
+# Read the MiSans license, then download the font if you accept it
 .\scripts\Install-MiSans.ps1 -AcceptLicense
+cargo run --manifest-path rust/Cargo.toml -p model-merger-gui --bin CastModelMerger
 ```
 
-The script downloads and verifies Xiaomi's official font package and extracts only the Medium weight used by the application. Chinese heading hierarchy relies on size, color and spacing rather than synthetic bold. The local font file is ignored by Git and embedded in the release executable. Official releases already include the embedded font; end users do not need to run this script.
-
 ```powershell
-cd .\rust
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release -p model-merger-gui --bin CastModelMerger
-```
-
-The CAST decoder enforces budgets for nodes, properties, numeric values and text. Windows CI checks formatting, Clippy, tests, release builds and icon resources, with scheduled weekly decoder fuzzing. After installing `cargo-fuzz`, you can also run the following from the `rust` directory:
-
-```powershell
-cargo fuzz --fuzz-dir .\fuzz run decode
-```
-
-From the repository root, create the native Windows x64 portable package and SHA-256 checksum file:
-
-```powershell
+cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace
+# Produce the Windows x64 ZIP and SHA-256 checksum
 .\scripts\Publish-RustNative.ps1
 ```
 
-## Project structure
+[Windows CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml) checks formatting, Clippy, tests, release builds and icon resources. [Decoder fuzzing](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/fuzz.yml) runs on a schedule. See the [build guide](docs/user-guide.en.md#build-and-test) for font licensing and build details.
+
+## Structure and documentation
 
 ```text
-rust/crates/cast-codec              Strictly bounded CAST encoding/decoding
-rust/crates/model-merger-engine     Merging, ammunition placement, validation, safe output, preview sampling
-rust/crates/model-merger-app-core   Workspace, settings, five-language catalogs, two-worker scheduling
-rust/crates/model-merger-gui        Native eframe/egui/wgpu desktop interface
-rust/fuzz                          CAST decoder fuzzing entry point
-src/ and tests/                    Legacy WPF compatibility references and fixtures
+rust/crates/cast-codec              CAST encoding/decoding and resource budgets
+rust/crates/model-merger-engine     Merging, filling, output validation, preview sampling
+rust/crates/model-merger-app-core   Workspace, settings, localization and scheduling
+rust/crates/model-merger-gui        egui/wgpu desktop interface
+rust/fuzz                          Decoder fuzzing
+scripts/                           Font preparation, Windows builds and release checks
+docs/                              Guides, design records and release notes
+src/ and tests/                    Historical WPF references and fixtures
 ```
 
-The migration-era `model-merger-worker` source is retained as a historical protocol reference, but is excluded from the default Rust workspace and all production build, test and release paths.
+[English guide](docs/user-guide.en.md) · [中文指南](docs/user-guide.zh-CN.md) · [Rust migration (Chinese)](docs/full-rust-migration.md) · [Magazine bone research (Chinese)](docs/ammo-bone-research.md) · [Version notes](docs/release-notes)
 
-## Credits and license
+## Contributing and license
 
-The original ModelMerger was developed by Philip / Scobalula, with Cast support added by echo000. This project retains the original attribution and uses the [MIT License](LICENSE).
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Include the version, reproduction steps, expected and actual results, and relevant logs. Prefer a minimal model sample that can be shared publicly.
+
+The original ModelMerger was developed by Philip / Scobalula, with Cast support added by [echo000](https://github.com/echo000/ModelMerger). Attribution is retained and source code uses the [MIT License](LICENSE). Embedded MiSans follows its own license; see [third-party notices](THIRD-PARTY-NOTICES.md).

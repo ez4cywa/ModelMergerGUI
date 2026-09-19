@@ -1,198 +1,140 @@
+<div align="center">
+
 # Cast Model Merger GUI
 
-简体中文 | [English](README.en.md)
+**拖入 CAST 部件，分组合并，在独立 3D 窗口中检查结果。**
 
-面向 `.cast` 模型的 Windows 原生桌面工具，使用 Rust、egui 和 wgpu 构建。支持多组合并、独立 3D 预览和按骨骼装填弹匣，基于 [echo000/ModelMerger](https://github.com/echo000/ModelMerger) 的合并逻辑。
+面向 Windows 的 Rust 原生模型合并、预览与弹匣装填工具。
 
-[下载 Windows x64 免安装版](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [更新说明](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) · [使用指南](#使用) · [源码构建](#构建和测试) · [反馈问题](https://github.com/ez4cywa/ModelMergerGUI/issues)
+[![Release](https://img.shields.io/github/v/release/ez4cywa/ModelMergerGUI)](https://github.com/ez4cywa/ModelMergerGUI/releases/latest)
+[![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)](https://github.com/ez4cywa/ModelMergerGUI/releases/latest)
+[![Rust](https://img.shields.io/badge/Rust-native-dea584)](rust/Cargo.toml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Rust CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml)
 
-- **多组合并**：每组 2–15 个部件，批量拖入、独立任务、排队与取消。
-- **模型预览**：专用拖放预览区，一次打开多个模型，支持旋转、缩放和模型信息查看。
-- **弹匣装填**：按子弹骨骼放置模型，可选择备用弹匣并复制布局。
-- **开箱即用**：Windows x64 免安装，无需 .NET；支持中、英、法、俄、西五语和一键亮暗切换。
+简体中文 · [English](README.en.md)
 
-## 界面截图
+[**下载免安装版**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [使用说明](docs/user-guide.zh-CN.md) · [更新记录](https://github.com/ez4cywa/ModelMergerGUI/releases) · [反馈问题](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose)
 
-### 弹匣装填（v2.2.1）
+</div>
 
-![弹匣骨骼识别与装填](docs/images/rust-native/ammo-fill-zh.png)
+![Cast 模型合并器中文主界面](docs/images/rust-native/main-window-zh.png)
 
-所有预览入口采用统一的全窗口布局：顶部名称、中央模型与透视网格、左下视角工具、底部“视图 / 模型信息”。保留软件的 macOS 风格、明暗主题和中性灰模型配色。
+*截图来自 Rust 原生界面；部分截图早于最新版本，按钮与布局以当前发布包为准。*
 
-![深色主题模型预览](docs/images/rust-native/model-preview-dark-zh.png)
+## 可以做什么
 
-| 中文主界面 | English UI |
+| 场景 | 功能 |
 | --- | --- |
-| ![Cast 模型合并器中文主界面](docs/images/rust-native/main-window-zh.png) | ![Cast Model Merger English interface](docs/images/rust-native/main-window-en.png) |
+| 把分散的部件合成模型 | 每组 2–15 个 CAST 部件，自动识别或手动指定根模型 |
+| 分批处理多个模型 | 每批独立成组，最多同时执行 2 组合并，其余排队；支持取消 |
+| 只查看模型、不合并 | 专用预览区支持一次拖入多个 CAST，分别打开独立窗口 |
+| 检查形状、尺寸与拼接结果 | GPU 深度渲染、旋转、缩放、地面网格和模型信息 |
+| 给弹匣补齐子弹模型 | 按子弹骨骼装填，可为备用弹匣复制位置与朝向布局 |
+| 使用不同语言或主题 | 中、英、法、俄、西五语即时切换；醒目的亮暗按钮并记住选择 |
 
-### 模型预览
+模型处理在本机完成。预览不修改源文件；合并输出先写入临时文件并重新读取验证。更新检查默认关闭，可在“帮助 → 关于”中手动检查或启用启动时检查。
 
-![Cast 模型预览窗口](docs/images/rust-native/model-preview-zh.png)
+## 下载与运行
 
-## 下载
+1. 下载 [**CastModelMerger-win-x64.zip**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip)。
+2. 完整解压 ZIP，再运行 `CastModelMerger.exe`，不要直接在压缩包内启动。
+3. 准备自己的 `.cast` 文件，按下方流程预览或合并。
 
-全 Rust 迁移完成后，[Releases](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) 只提供 Windows x64 原生免安装版：
+支持 Windows 10/11 x64，预览需要支持 Direct3D 12 的显卡驱动。**无需安装 .NET 或 Rust**；发布包只有 Windows x64 原生免安装版，不是安装向导。
 
-| 版本 | 下载文件 | 运行环境 |
-| --- | --- | --- |
-| Rust 原生免安装版 | [CastModelMerger-win-x64.zip](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) | 64 位 Windows；**不需要 .NET、Rust 或其他额外运行环境** |
+同一 [Release](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) 提供 SHA-256 校验文件。在下载目录运行 `Get-FileHash .\CastModelMerger-win-x64.zip -Algorithm SHA256`，可与校验文件中的摘要比较。
 
-### 免安装版需要的环境
+## 快速上手
 
-- 64 位 Windows 10/11；建议使用仍能获得显卡驱动更新的 Windows 11 x64。
-- 支持 Direct3D 12 的显卡驱动。预览由 `wgpu` 渲染；如窗口无法创建，请先更新 Intel、AMD 或 NVIDIA 显卡驱动。
-- 不需要安装 .NET Desktop Runtime，也不需要安装 Rust。Rust 1.96 仅是从源码构建时的工具链要求。
+- **预览**：把一个或多个 CAST 拖到工作区顶部“模型预览区” → 在独立窗口中旋转、缩放或查看模型信息。
+- **合并**：把 2–15 个部件拖入组 → 确认根模型和输出路径 → 开始合并 → 预览结果。
+- **弹匣装填**：打开“弹匣装填” → 选择武器与单个 `tag_ammo` 骨骼的子弹模型 → 勾选目标 → 另存新文件。
 
-下载后请完整解压 ZIP，再运行 `CastModelMerger.exe`。合并引擎、应用状态、设置、多语言界面和模型预览均已编译进同一个 Rust 原生程序。
+### 拖到哪里，会发生什么
 
-## 功能
+| 拖放区域 | 结果 |
+| --- | --- |
+| 顶部模型预览区 | 批量打开独立预览，不加入合并组 |
+| 已有模型组或部件槽 | 向该组追加部件，最多 15 个 |
+| 其他区域 | 每批单独成组，优先使用空闲空组，否则新建；无需先合并上一批 |
 
-- 可创建多个互相独立的合并组，每组均可展开或折叠。
-- 每组提供 5 × 3 可视化槽位，清楚显示当前已选数量。
-- 点击“添加下一个”或任一空槽位，可在系统文件选择器中一次选中多个 `.cast` 文件；也支持将多个文件拖入对应组。
-- 部件卡片使用固定宽度，长文件名自动显示省略号；鼠标悬停可查看完整文件路径，不会挤压右侧设置区。
-- 各组会记住最近添加部件的文件夹，后续选择会从同一路径打开。
-- 支持删除、替换部件，并可为各组手动指定根模型。
-- 可从任一已选槽位打开交互式 3D 部件预览，也可在合并完成后预览最终拼接模型；所有 Cast 预览均由 Rust 解析，包含使用 32 位面索引的模型。
-- 预览窗口使用 GPU 深度缓冲渲染，支持鼠标拖动旋转、滚轮缩放、键盘操作和一键重置视角；大型模型会自动抽样显示，不修改源文件。
-- 可单独启动、取消某一组，也可一键合并所有已就绪的组。
-- 最多同时执行 2 组合并，其他组自动排队；排队或运行中的任务均可取消。
-- 同一输出路径不会被两个模型组同时写入，冲突会在网格合并前停止。
-- 默认沿用上游的根模型识别、骨骼连接和模型重定位逻辑。
-- 可选择输出文件夹和输出文件名，覆盖已有文件前会确认。
-- 后台合并、横向百分比进度条、阶段状态、运行日志及取消操作，界面不会因处理大模型而冻结。
-- 输出先写入临时文件并重新读取验证，成功后才生成最终文件。
-- 采用全 Rust 原生架构：CAST 解析、合并、任务调度、设置、五语界面和预览均在同一进程内完成；可查看[完整迁移记录](docs/full-rust-migration.md)。
-- 中文、English、Français、Русский、Español 可在同一程序内即时切换，已有状态、日志和对话框会同步更新。
-- 中文界面使用随程序嵌入的 MiSans，其他四种语言使用 Segoe UI。
-- 菜单栏右侧提供醒目的亮／暗主题切换按钮，选择后自动保存，主界面与预览同步切换；首次运行跟随系统，恢复默认后重新跟随系统。
-- 顶部采用紧凑的“文件 / 设置 / 帮助”菜单栏，不再重复显示标题和介绍。新建模型组位于“文件”，语言与保存/恢复设置位于“设置”；快捷键保持不变。
-- “文件 → 打开模型预览…”（Ctrl+O）可直接选择 CAST 文件，打开独立 3D 预览，无需加入合并组；支持旋转、缩放和重置视角，不修改源文件。
-- “帮助 → 关于”可查看版本、打开 GitHub 项目与下载页、反馈问题、复制项目链接，并查看上游致谢和许可信息；界面跟随当前语言和明暗主题。
-- “关于”内可手动检查 GitHub 更新，也可选择启动时检查（默认关闭）；能识别同版本发布包刷新，下载需手动点击，不自动替换程序。
-- 弹匣装填可按主弹匣的局部位置和朝向，为没有子弹定位骨骼的备用弹匣复制布局；备用弹匣单独勾选、默认不选，新增子弹随对应弹匣骨骼运动。
-- 装填输出支持不提供硬链接的 Windows 文件系统，仍要求另存新文件，不覆盖已有模型。
-- 可保存界面语言、输出目录、根模型模式及窗口位置；不会保存已选择的模型路径。
+拖放目标区域会高亮提示。更多操作、快捷键及装填规则见[完整使用说明](docs/user-guide.zh-CN.md)。
 
-原 WPF 和命令行项目保留在源码树中作为兼容性对照，不再进入正式发布包。Rust GUI 只接受每组 2–15 个 `.cast` 部件，并输出经过重新读取验证的 `.cast` 文件。
+<details>
+<summary>查看预览与弹匣装填截图</summary>
 
-设置文件保存在：
+| 浅色预览 | 深色预览 |
+| --- | --- |
+| ![浅色模型预览](docs/images/rust-native/model-preview-zh.png) | ![深色模型预览](docs/images/rust-native/model-preview-dark-zh.png) |
 
-```text
-%LocalAppData%\CastModelMerger\settings.json
-```
+![弹匣装填（v2.2.1 界面）](docs/images/rust-native/ammo-fill-zh.png)
 
-程序遇到可捕获的启动或运行错误时，会显示中英双语提示并可直接打开诊断目录。日志包含版本、源码提交、进程、显卡信息、预览文件路径及加载/关闭记录；Rust panic 强制记录堆栈，Windows 原生异常尽可能记录异常码与地址。正常退出会记录 `shutdown`。日志位于：
+*弹匣截图为 v2.2.1；当前版本已合并重复控件，使用行内“复制来源”选择。*
+
+</details>
+
+## 支持范围与限制
+
+- 当前输入与输出为 `.cast`，不是通用格式转换器；不提供游戏资源提取功能。
+- 根识别、骨骼连接与重定位沿用上游逻辑，不保证任意来源的部件都能自动正确拼接。
+- 预览使用中性灰几何显示；大型模型最多显示 250,000 个三角面，抽样时有提示，实际合并仍使用完整数据。
+- 弹匣装填依赖受支持的骨骼命名和单位缩放刚体骨骼，最多 512 个槽位、500 万个新增顶点；必须另存新文件。
+- 原 WPF、CLI 和迁移期 worker 源码仅作为历史对照，不进入正式发布包。当前不发布 macOS 或 Linux 版本。
+
+## 常见问题与日志
+
+**拖入文件却没有预览？** 只有顶部预览区用于拖入预览；其他区域用于导入部件。也可使用“文件 → 打开模型预览…”（`Ctrl+O`）。
+
+**窗口打不开或预览崩溃？** 先确认已完整解压并更新显卡驱动，再提供复现步骤和诊断日志。日志通常位于：
 
 ```text
 %LocalAppData%\CastModelMerger\logs\CastModelMerger.log
 ```
 
-排查时请提供该目录中的日志文件（并发写入时可能还包含 `CastModelMerger-concurrent.log`）。目录不可用时回退到 `%TEMP%\CastModelMerger\logs`。日志只保存在本机，包含模型文件路径，不会自动上传。强制结束进程或断电可能来不及写入最后的错误。
+日志包含版本、显卡、模型路径和预览生命周期；Rust panic 记录堆栈，Windows 原生异常尽可能记录异常码与地址。并发日志与临时目录回退说明见[使用指南](docs/user-guide.zh-CN.md)。日志仅保存在本机，分享前可删除不希望公开的路径信息。
 
-## 使用
+**设置保存在哪里？** `%LocalAppData%\CastModelMerger\settings.json`。亮暗选择自动保存，语言等设置可通过“设置 → 保存设置”保存；不会保存已选模型路径。
 
-1. 使用“新建模型组”添加任务；不需要查看的组可以折叠。
-2. 在目标组中点击“添加下一个”或任一空槽位，一次选择一个或多个 `.cast` 部件；文件会按选择器返回的顺序填入剩余槽位。
-3. 重复添加，直到该组选择 2 至 15 个部件；也可以直接拖入多个文件。超过 15 个的部分不会加入，并会显示容量提示。
-4. 点击已添加部件下方的“预览”，可在合并前检查单个部件；保持“自动识别”根模型，或切换到“手动指定”并在部件槽点击“设为根”。
-5. 选择该组的输出文件夹；文件名可留空，此时使用根模型名称。
-6. 点击组内“开始合并”，或点击底部“合并所有已就绪组”。成功后可在本组状态区预览合并模型。
+## 从源码运行与验证
 
-在“设置”菜单中可随时选择中文、English、Français、Русский 或 Español；点击“保存设置”后，下次启动会沿用该语言。首次启动会跟随 Windows 的上述五种界面语言，其他系统语言默认显示中文。
-
-中文界面嵌入并使用小米 MiSans 字体。MiSans 不属于本项目的 MIT 授权范围，使用和分发遵循小米的 MiSans 字体许可；详情见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 和官方许可页面。
-
-## 按弹匣骨骼装填子弹模型
-
-每个弹匣只显示一行：勾选框控制装填目标，“复制来源”单选按钮指定备用弹匣使用的布局，不再重复列出来源下拉框。悬停在弹匣名称上可查看骨骼明细，仅在查看时生成明细文本。
-
-1. 在任意模型组的部件区点击“弹匣装填”。优先使用本组已合并的文件，也可以在弹窗中直接选择一个武器或弹匣 CAST。
-2. 点击“子弹模型”路径框，选择具有单个 `tag_ammo` 骨骼的子弹 CAST。
-3. 等待骨骼识别，勾选需要装填的弹匣组。程序显示每组骨骼数及已占用数，默认仅选第一组。下方“其他子弹骨骼（按需勾选）”可单独选择 `j_ammo_17` 等位置，也可以取消全部弹匣组，仅装填这些位置。动画备用弹匣的静态位置可能重合，请按需要选择。
-4. 点击“另存文件”路径框选择输出位置；默认在武器旁生成 `_filled.cast`。必须使用新文件名，原模型不会被覆盖。
-5. 点击“弹匣装填”。每个空子弹骨骼生成一份模型并刚性绑定，已有网格绑定的目标自动跳过。完成后点击“预览装填模型”。
-
-目前识别 `j_mag`、`j_mag数字` 或 `tag_clip` 子树中的 `j_ammo_数字` / `tag_ammo_数字`，不按现实武器容量猜测数量。非弹匣子树的编号子弹骨骼默认不选，但可以按需勾选装填。支持单位缩放刚体骨骼；多骨骼子弹、模型级变换、非单位骨骼缩放会明确报错。一次最多 512 个槽位、500 万个新增顶点。详细样本关系见[骨骼研究](docs/ammo-bone-research.md)。
-
-软件采用 macOS 风格布局，支持跟随系统明暗主题、紧凑的 36 px 路径与文件名输入框，以及 `Ctrl+N` / `Ctrl+S` / `Ctrl+Enter` 快捷键。
-
-## 如何预览模型
-
-### 预览单个部件
-
-1. 在模型组中点击“添加下一个”或任一空槽位，选择一个或多个 `.cast` 文件。
-2. 文件添加成功后，原来的空槽位会显示文件名和“预览”按钮。
-3. 点击该槽位中的“预览”，即可打开独立的 3D 预览窗口。
-4. 可以继续预览其他部件；每个预览窗口相互独立，允许同时打开多个窗口进行对比。
-
-### 预览合并后的模型
-
-1. 为模型组添加 2 至 15 个有效部件，并确认自动生成的输出文件夹；如有需要，也可以另选目录。
-2. 点击“开始合并”，等待本组状态显示合并成功。
-3. 在右侧“本组状态”区域点击“预览合并模型”。该按钮只有在合并成功且输出文件仍然存在时才会启用。
-4. 如果移动或删除了输出文件，请重新合并后再预览。
-
-### 预览窗口操作
-
-将一个或多个 `.cast` 文件拖到工作区顶部的“模型预览区”，即可分别打开独立预览；也可点击预览区多选文件。预览区忽略非 CAST 文件，不改变模型组和设置。拖入模型组或部件槽会批量追加到该组；拖入其他区域时，每一批单独成组，优先使用未执行任务的空组，否则自动新建，不需要先合并上一批。每组仍最多支持 15 个部件。
-
-| 操作 | 鼠标或键盘 |
-| --- | --- |
-| 自由旋转 | 按住鼠标左键拖动 |
-| 分步旋转 | 点击“向左旋转”或“向右旋转”，也可使用方向键 |
-| 放大或缩小 | 滚动鼠标滚轮、点击“放大/缩小”，或按 `+` / `-` |
-| 恢复初始视角 | 点击“重置视角”或按 `R` |
-| 显示或隐藏地面网格 | 点击网格图标或按 `G` |
-| 查看几何数据与尺寸 | 点击底部“模型信息”标签 |
-| 关闭预览 | 点击“关闭”或按 `Esc` |
-
-预览只读取模型，不会修改部件、合并计划或输出文件。几何在后台准备一次，旋转、缩放、明暗和遮挡由 GPU 完成。预览画面最多显示 250,000 个三角面；发生抽样时窗口会显示简化提示，但实际合并仍使用完整模型数据。
-
-## 构建和测试
-
-正式 Rust GUI 需要 Rust 1.96 或兼容的更新稳定工具链。发布包用户不需要安装 Rust 或 .NET。
-
-MiSans 的许可允许把字体嵌入应用，但不允许把字体文件作为独立资源再次分发，因此 Git 仓库不直接提交 `.ttf`。首次从源码构建前，请阅读[官方 MiSans 许可](https://hyperos.mi.com/font/en/download/)，接受后运行：
+开发需要 Windows x64、Rust 1.96 或兼容的更新稳定工具链，以及对应的 Windows 链接工具。以下命令从仓库根目录执行：
 
 ```powershell
+git clone https://github.com/ez4cywa/ModelMergerGUI.git
+cd ModelMergerGUI
+# 阅读 MiSans 许可，接受后下载构建所需字体
 .\scripts\Install-MiSans.ps1 -AcceptLicense
+cargo run --manifest-path rust/Cargo.toml -p model-merger-gui --bin CastModelMerger
 ```
 
-脚本从小米官网下载经校验的字体包，只提取程序使用的 Medium 字重；中文标题层级通过字号、颜色和间距区分，避免合成粗体造成观感不一致。下载的本地字体文件会被 Git 忽略，Rust Release 编译时将其嵌入 EXE。官方 GitHub Release 已包含嵌入字体，普通用户无需运行该脚本。
-
 ```powershell
-cd .\rust
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release -p model-merger-gui --bin CastModelMerger
-```
-
-CAST 解码器还提供节点、属性、数值和文本资源预算。仓库通过 Windows CI 检查格式、Clippy、测试、Release 构建和图标资源，并每周运行解码模糊测试；也可本地安装 `cargo-fuzz` 后执行：
-
-```powershell
-cargo fuzz --fuzz-dir .\fuzz run decode
-```
-
-生成项目唯一发布类型——不依赖 .NET 的 Rust 原生 Windows x64 免安装包，并同时生成 SHA-256 校验文件：
-
-```powershell
+cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace
+# 生成 Windows x64 ZIP 和 SHA-256 校验文件
 .\scripts\Publish-RustNative.ps1
 ```
 
-## 工程结构
+[Windows CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml) 检查格式、Clippy、测试、Release 构建与图标资源；[解码器模糊测试](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/fuzz.yml) 定期运行。字体授权、构建细节见[使用指南](docs/user-guide.zh-CN.md#构建和测试)，不以固定测试数量代替当前 CI 结果。
+
+## 项目结构与文档
 
 ```text
-rust/crates/cast-codec              边界检查严格的 CAST 编解码
-rust/crates/model-merger-engine     合并、验证、安全输出与预览抽样
-rust/crates/model-merger-app-core   工作区、设置、五语目录与双并发调度
-rust/crates/model-merger-gui        eframe/egui/wgpu 原生桌面界面
-rust/fuzz                           CAST 解码器模糊测试入口
-src/ 和 tests/                      迁移期间保留的 WPF 兼容性对照与语料
+rust/crates/cast-codec              CAST 编解码与资源预算
+rust/crates/model-merger-engine     合并、装填、输出验证与预览抽样
+rust/crates/model-merger-app-core   工作区、设置、多语言与任务调度
+rust/crates/model-merger-gui        egui/wgpu 桌面界面
+rust/fuzz                          解码器模糊测试
+scripts/                           字体准备、Windows 构建与发布验证
+docs/                              使用指南、设计记录与更新说明
+src/ 和 tests/                     历史 WPF 兼容性对照与语料
 ```
 
-迁移期 `model-merger-worker` 源码仍保留用于历史协议对照，但已从默认 Rust workspace 和所有正式构建、测试、发布路径中排除。
+[中文指南](docs/user-guide.zh-CN.md) · [English guide](docs/user-guide.en.md) · [完整 Rust 迁移记录](docs/full-rust-migration.md) · [弹匣骨骼研究](docs/ammo-bone-research.md) · [版本说明](docs/release-notes)
 
-## 致谢与许可
+## 参与与许可
 
-原始 ModelMerger 由 Philip / Scobalula 开发，Cast 支持由 echo000 添加。本项目保留原作者署名并继续采用 [MIT License](LICENSE)。
+欢迎提交 [Issue](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose) 或 Pull Request，贡献说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。反馈时请提供版本、复现步骤、预期与实际结果，以及相关日志；模型样本优先使用可公开的最小复现文件。
+
+原始 ModelMerger 由 Philip / Scobalula 开发，Cast 支持由 [echo000](https://github.com/echo000/ModelMerger) 添加。本项目保留原作者署名，源码采用 [MIT License](LICENSE)。嵌入的 MiSans 字体遵循独立许可，详见[第三方声明](THIRD-PARTY-NOTICES.md)。
