@@ -43,6 +43,7 @@
 - Preview vertex transformation, lighting and occlusion use the WGPU pipeline and a depth buffer; interactive frames do not rebuild or depth-sort the full triangle list on the CPU.
 - Every preview uses the in-process Rust CAST loader, including small files with 32-bit face indices.
 - Preview interaction supports mouse drag rotation, wheel zoom, visible rotate/zoom/reset controls, keyboard alternatives, and Escape/Close dismissal.
+- Material preview is an optional preview-window toggle (off by default): cast texture paths are resolved read-only, decoded off the UI thread, sampled as sRGB albedo plus COD-style packed NOG normals, and missing textures fall back to the flat color with a status notice. Merged outputs keep material texture paths so they preview the same way.
 - Core exposes structured progress, warning, validation, read-error, and output-conflict semantics so each presentation adapter can localize them.
 - Run the Rust merge engine in-process behind the native two-task scheduler; no worker executable or NDJSON adapter is part of the release.
 

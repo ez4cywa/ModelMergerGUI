@@ -2,7 +2,7 @@ use crate::{preview_gpu, theme};
 use eframe::egui::{self, RichText, Sense};
 use model_merger_app_core::{Catalog, TextKey};
 use model_merger_engine::PreviewError;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -20,6 +20,9 @@ pub struct PreviewSession {
     zoom: f32,
     show_grid: bool,
     show_info: bool,
+    show_materials: bool,
+    texture_state: TextureState,
+    pending_uploads: Vec<preview_gpu::TextureUpload>,
     cancelled: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
 }
@@ -38,6 +41,7 @@ enum PreviewFailure {
 struct LoadedPreview {
     summary: PreviewSummary,
     gpu_model: Arc<preview_gpu::PreviewModel>,
+    cast_dir: PathBuf,
 }
 
 struct PreviewSummary {
@@ -48,6 +52,29 @@ struct PreviewSummary {
     dimensions: [f32; 3],
     displayed_triangle_count: usize,
     is_simplified: bool,
+}
+
+enum TextureState {
+    NotStarted,
+    Loading(TextureLoad),
+    Done {
+        total: usize,
+        loaded: usize,
+        missing: usize,
+    },
+}
+
+struct TextureLoad {
+    receiver: Receiver<TextureMessage>,
+    worker: Option<JoinHandle<()>>,
+    total: usize,
+    loaded: usize,
+    missing: usize,
+}
+
+enum TextureMessage {
+    Loaded(preview_gpu::TextureUpload),
+    Missing,
 }
 
 impl PreviewSession {
@@ -71,6 +98,11 @@ impl PreviewSession {
                     })
                     .map(|data| {
                         let gpu_model = Arc::new(preview_gpu::PreviewModel::from_preview(&data));
+                        let cast_dir = data
+                            .file_path
+                            .parent()
+                            .map(Path::to_path_buf)
+                            .unwrap_or_default();
                         let summary = PreviewSummary {
                             model_name: data.model_name,
                             source_mesh_count: data.source_mesh_count,
@@ -82,7 +114,11 @@ impl PreviewSession {
                             displayed_triangle_count: data.displayed_triangle_count,
                             is_simplified: data.is_simplified,
                         };
-                        LoadedPreview { summary, gpu_model }
+                        LoadedPreview {
+                            summary,
+                            gpu_model,
+                            cast_dir,
+                        }
                     });
                 let _ = sender.send(result);
             })
@@ -97,6 +133,9 @@ impl PreviewSession {
             zoom: 1.0,
             show_grid: true,
             show_info: false,
+            show_materials: false,
+            texture_state: TextureState::NotStarted,
+            pending_uploads: Vec::new(),
             cancelled,
             worker: Some(worker),
         }
@@ -114,6 +153,7 @@ impl PreviewSession {
             return;
         }
         self.receive_preview();
+        self.receive_textures();
         crate::chrome::show_with_title(ui, catalog.language(), catalog.text(TextKey::Preview));
         let palette = theme::palette(ui);
         egui::Panel::top(egui::Id::new(("preview-name", self.id)))
@@ -182,13 +222,17 @@ impl PreviewSession {
                             self.open = false;
                         }
                         if let PreviewLoadState::Ready(loaded) = &self.state {
-                            let status = format!(
+                            let mut status = format!(
                                 "{} {} · {} {}",
                                 loaded.summary.source_mesh_count,
                                 catalog.text(TextKey::Meshes),
                                 loaded.summary.displayed_triangle_count,
                                 catalog.text(TextKey::Triangles)
                             );
+                            if let Some(texture_status) = self.materials_status(catalog) {
+                                status.push_str(" · ");
+                                status.push_str(&texture_status);
+                            }
                             ui.add(
                                 egui::Label::new(
                                     RichText::new(&status).size(12.0).color(palette.secondary),
@@ -212,6 +256,8 @@ impl PreviewSession {
                     Sense::click_and_drag(),
                 );
                 painter.rect_filled(response.rect, 0.0, palette.preview_canvas);
+                let uploads: Arc<[preview_gpu::TextureUpload]> =
+                    std::mem::take(&mut self.pending_uploads).into();
                 match &self.state {
                     PreviewLoadState::Ready(loaded) => {
                         let model = Arc::clone(&loaded.gpu_model);
@@ -230,6 +276,8 @@ impl PreviewSession {
                                 grid_color: palette.secondary,
                                 axis_color: palette.primary,
                             },
+                            self.show_materials,
+                            uploads,
                         ));
                         if simplified {
                             let text = catalog.text(TextKey::PreviewSimplified);
@@ -360,6 +408,19 @@ impl PreviewSession {
                                     .clicked()
                                     {
                                         self.show_grid = !self.show_grid;
+                                    }
+                                    if button(
+                                        ui,
+                                        Icon::Material,
+                                        catalog.text(TextKey::PreviewMaterials),
+                                        self.show_materials,
+                                    )
+                                    .clicked()
+                                    {
+                                        self.show_materials = !self.show_materials;
+                                        if self.show_materials {
+                                            self.ensure_materials_started();
+                                        }
                                     }
                                     ui.separator();
                                     if button(
@@ -497,6 +558,111 @@ impl PreviewSession {
             });
     }
 
+    /// Starts loading the cast-referenced textures once, on first enable.
+    fn ensure_materials_started(&mut self) {
+        if !matches!(self.texture_state, TextureState::NotStarted) {
+            return;
+        }
+        let PreviewLoadState::Ready(loaded) = &self.state else {
+            return;
+        };
+        let mut jobs = Vec::new();
+        for (index, spec) in loaded.gpu_model.material_specs().iter().enumerate() {
+            for role in [
+                preview_gpu::TextureRole::Albedo,
+                preview_gpu::TextureRole::Nog,
+                preview_gpu::TextureRole::Opacity,
+            ] {
+                if let Some(path) = spec.texture(role) {
+                    jobs.push((index, role, resolve_texture_path(&loaded.cast_dir, path)));
+                }
+            }
+        }
+        let total = jobs.len();
+        let (sender, receiver) = mpsc::channel();
+        let worker = std::thread::Builder::new()
+            .name(format!("preview-textures-{}", self.id))
+            .spawn(move || {
+                for (material, role, path) in jobs {
+                    let message = match load_texture(&path) {
+                        Some((width, height, rgba)) => {
+                            TextureMessage::Loaded(preview_gpu::TextureUpload {
+                                material,
+                                role,
+                                width,
+                                height,
+                                rgba: Arc::from(rgba),
+                            })
+                        }
+                        None => TextureMessage::Missing,
+                    };
+                    let _ = sender.send(message);
+                }
+            })
+            .ok();
+        self.texture_state = TextureState::Loading(TextureLoad {
+            receiver,
+            worker,
+            total,
+            loaded: 0,
+            missing: 0,
+        });
+    }
+
+    fn receive_textures(&mut self) {
+        if !matches!(self.texture_state, TextureState::Loading(_)) {
+            return;
+        }
+        let mut load = match std::mem::replace(&mut self.texture_state, TextureState::NotStarted) {
+            TextureState::Loading(load) => load,
+            _ => unreachable!("texture state was Loading"),
+        };
+        loop {
+            match load.receiver.try_recv() {
+                Ok(TextureMessage::Loaded(upload)) => {
+                    load.loaded += 1;
+                    self.pending_uploads.push(upload);
+                }
+                Ok(TextureMessage::Missing) => load.missing += 1,
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    load.worker.take();
+                    self.texture_state = TextureState::Done {
+                        total: load.total,
+                        loaded: load.loaded,
+                        missing: load.missing,
+                    };
+                    return;
+                }
+            }
+        }
+        self.texture_state = TextureState::Loading(load);
+    }
+
+    fn materials_status(&self, catalog: Catalog) -> Option<String> {
+        if !self.show_materials {
+            return None;
+        }
+        let (processed, total, missing) = match &self.texture_state {
+            TextureState::NotStarted => return None,
+            TextureState::Loading(load) => (load.loaded + load.missing, load.total, load.missing),
+            TextureState::Done {
+                total,
+                loaded,
+                missing,
+            } => (loaded + missing, *total, *missing),
+        };
+        if total == 0 {
+            return Some(catalog.text(TextKey::PreviewMaterialsNone).to_owned());
+        }
+        let mut text = format!("{processed}/{total}");
+        if missing > 0 {
+            text.push(' ');
+            text.push_str(catalog.text(TextKey::PreviewMaterialsMissing));
+        }
+        Some(text)
+    }
+
     fn receive_preview(&mut self) {
         let PreviewLoadState::Loading(receiver) = &self.state else {
             return;
@@ -561,6 +727,22 @@ fn short_name(path: &Path) -> String {
         .into_owned()
 }
 
+/// Cast texture paths may be relative to the exported asset folder.
+fn resolve_texture_path(cast_dir: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cast_dir.join(path)
+    }
+}
+
+fn load_texture(path: &Path) -> Option<(u32, u32, Vec<u8>)> {
+    let bytes = std::fs::read(path).ok()?;
+    let decoded = image::load_from_memory(&bytes).ok()?;
+    let rgba = decoded.to_rgba8();
+    Some((rgba.width(), rgba.height(), rgba.into_raw()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -576,6 +758,11 @@ mod tests {
             title: "long_sample_model_name_".repeat(12) + ".cast",
             state: PreviewLoadState::Ready(LoadedPreview {
                 gpu_model: Arc::new(preview_gpu::PreviewModel::from_preview(&data)),
+                cast_dir: data
+                    .file_path
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_default(),
                 summary: PreviewSummary {
                     model_name: data.model_name,
                     source_mesh_count: data.source_mesh_count,
@@ -593,6 +780,9 @@ mod tests {
             zoom: 1.0,
             show_grid: true,
             show_info: false,
+            show_materials: false,
+            texture_state: TextureState::NotStarted,
+            pending_uploads: Vec::new(),
             cancelled: Arc::new(AtomicBool::new(false)),
             worker: None,
         }
@@ -752,6 +942,10 @@ mod tests {
         };
         click(&mut preview, TextKey::PreviewGrid);
         assert!(!preview.show_grid);
+        click(&mut preview, TextKey::PreviewMaterials);
+        assert!(preview.show_materials);
+        click(&mut preview, TextKey::PreviewMaterials);
+        assert!(!preview.show_materials);
         click(&mut preview, TextKey::RotateLeft);
         assert!(preview.yaw < -0.55);
         click(&mut preview, TextKey::ZoomIn);
@@ -794,6 +988,9 @@ mod tests {
             zoom: 1.0,
             show_grid: true,
             show_info: false,
+            show_materials: false,
+            texture_state: TextureState::NotStarted,
+            pending_uploads: Vec::new(),
             cancelled: Arc::new(AtomicBool::new(false)),
             worker: Some(worker),
         };

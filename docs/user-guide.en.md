@@ -149,10 +149,21 @@ Drop one or more `.cast` files onto the dedicated **Model preview area** at the 
 | Zoom | Mouse wheel, zoom buttons, or `+` / `-` |
 | Reset view | Reset-view button or `R` |
 | Show or hide ground grid | Grid button or `G` |
+| Toggle material preview | Checkerboard "Materials" button (off by default) |
 | Inspect geometry and dimensions | Model info tab at the bottom |
 | Close preview | Close button or `Esc` |
 
 Previewing is read-only: it does not change parts, merge plans or output files. Geometry is prepared once in the background; the GPU handles rotation, zoom, shading and occlusion. A preview displays at most 250,000 triangles and shows a notice when sampled. Merging still uses the full model data.
+
+### Material preview (optional)
+
+By default the preview renders models in a neutral flat color. Click the checkerboard "Materials" button in the lower-left toolbar to switch to textured rendering:
+
+- Textures come from the paths referenced by the material slots inside the `.cast` file (for example `_images/.../*.png` produced by exporters). Relative paths resolve against the cast file's folder; absolute paths are used as-is.
+- Color textures are sampled as sRGB, normal/mask data as linear. Normal slots are decoded with the COD packed NOG convention (G/A jointly encode the tangent-space normal, R is a gloss candidate), based on the material reverse-engineering research in [ez4cywa-cod-blender-shaders](https://github.com/ez4cywa/ez4cywa-cod-blender-shaders).
+- Textures decode on a background thread without blocking the UI; the status bar shows "Materials loaded/total". Missing or unreadable files fall back to a flat color per material and the status bar reports "Missing textures".
+- Merged `.cast` outputs keep the texture paths of the input parts, so merged models support material previews too. Keep the output next to the exported asset folder so relative paths keep resolving.
+- Material preview is equally read-only and never modifies source files or merge results.
 
 ## Build and test
 

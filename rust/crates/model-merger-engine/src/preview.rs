@@ -1,4 +1,5 @@
 use crate::cast_model;
+use crate::domain::{MaterialInfo, MaterialSlotValue};
 use crate::math::Vec3;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -17,6 +18,16 @@ pub struct PreviewData {
     pub is_simplified: bool,
     pub bounds: PreviewBounds,
     pub meshes: Vec<PreviewMesh>,
+    pub materials: Vec<PreviewMaterial>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreviewMaterial {
+    pub name: String,
+    pub albedo: Option<PathBuf>,
+    pub nog: Option<PathBuf>,
+    pub opacity: Option<PathBuf>,
+    pub base_color: Option<[f32; 4]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -29,6 +40,8 @@ pub struct PreviewBounds {
 pub struct PreviewMesh {
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
+    pub uvs: Vec<[f32; 2]>,
+    pub material_index: Option<usize>,
     pub triangle_indices: Vec<u32>,
 }
 
@@ -142,10 +155,12 @@ pub fn load_preview(
             continue;
         }
 
+        let material_index = mesh.material_indices.first().copied();
         let selected_ordinals = select_triangle_ordinals(valid_triangle_count, quota);
         let mut vertex_map = HashMap::new();
         let mut positions = Vec::new();
         let mut normals = Vec::new();
+        let mut uvs = Vec::new();
         let mut triangle_indices = Vec::new();
         let mut valid_ordinal = 0;
         for face in mesh.faces.chunks_exact(3) {
@@ -168,6 +183,7 @@ pub fn load_preview(
                         } else {
                             [0.0; 3]
                         });
+                        uvs.push(mesh.uvs.get(source_index).copied().unwrap_or([0.0, 0.0]));
                         vertex_map.insert(source_index, preview_index);
                         preview_index
                     };
@@ -180,6 +196,8 @@ pub fn load_preview(
             meshes.push(PreviewMesh {
                 positions,
                 normals,
+                uvs,
+                material_index,
                 triangle_indices,
             });
         }
@@ -193,6 +211,7 @@ pub fn load_preview(
         .map(|mesh| mesh.triangle_indices.len() / 3)
         .sum();
     let bounds = calculate_bounds(&meshes);
+    let materials = model.materials.iter().map(preview_material).collect();
     Ok(PreviewData {
         file_path: path.to_path_buf(),
         model_name: model.name,
@@ -203,7 +222,52 @@ pub fn load_preview(
         is_simplified: displayed_triangle_count < source_triangle_count,
         bounds,
         meshes,
+        materials,
     })
+}
+
+/// Resolves well-known cast slots into preview texture roles, mirroring the
+/// role table used by the ez4cywa COD shader research (`cast_spec.py`):
+/// `albedo/diffuse/basecolor` -> color, `normal/nog` -> packed NOG, `opacity` -> coverage.
+fn preview_material(material: &MaterialInfo) -> PreviewMaterial {
+    let file_slot = |names: &[&str]| {
+        material
+            .slots
+            .iter()
+            .find(|(slot, value)| {
+                value.file_path().is_some()
+                    && names.iter().any(|name| slot.eq_ignore_ascii_case(name))
+            })
+            .and_then(|(_, value)| value.file_path())
+            .map(PathBuf::from)
+    };
+    let color_slot = |names: &[&str]| {
+        material
+            .slots
+            .iter()
+            .find(|(slot, value)| {
+                matches!(value, MaterialSlotValue::Color(_))
+                    && names.iter().any(|name| slot.eq_ignore_ascii_case(name))
+            })
+            .and_then(|(_, value)| match value {
+                MaterialSlotValue::Color(rgba) => Some(*rgba),
+                MaterialSlotValue::File(_) => None,
+            })
+    };
+    let albedo_names = ["albedo", "diffuse", "basecolor"];
+    let albedo = file_slot(&albedo_names);
+    let base_color = if albedo.is_none() {
+        color_slot(&albedo_names)
+    } else {
+        None
+    };
+    PreviewMaterial {
+        name: material.name.clone(),
+        albedo,
+        nog: file_slot(&["normal", "nog"]),
+        opacity: file_slot(&["opacity"]),
+        base_color,
+    }
 }
 
 fn read_file(path: &Path, is_cancelled: &impl Fn() -> bool) -> Result<Vec<u8>, PreviewError> {

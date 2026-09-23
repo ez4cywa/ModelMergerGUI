@@ -6,6 +6,7 @@ use eframe::egui;
 pub(crate) enum Icon {
     Reset,
     Grid,
+    Material,
     Left,
     Right,
     ZoomOut,
@@ -47,6 +48,26 @@ pub(crate) fn button(ui: &mut egui::Ui, icon: Icon, label: &str, selected: bool)
                 line(point(offset, -7.0), point(offset, 7.0));
                 line(point(-7.0, offset), point(7.0, offset));
             }
+        }
+        Icon::Material => {
+            // Checkerboard tile: the classic texture/material symbol.
+            ui.painter().rect_stroke(
+                egui::Rect::from_center_size(center, egui::vec2(16.0, 16.0)),
+                2.0,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            let fill = stroke.color;
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(point(-7.0, -7.0), egui::vec2(7.0, 7.0)),
+                0.0,
+                fill,
+            );
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(point(0.0, 0.0), egui::vec2(7.0, 7.0)),
+                0.0,
+                fill,
+            );
         }
         Icon::ZoomIn | Icon::ZoomOut => {
             ui.painter().circle_stroke(point(-2.0, -2.0), 5.5, stroke);

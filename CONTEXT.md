@@ -24,6 +24,8 @@ The native application core owns editable merge groups, schema-compatible settin
 
 A model preview is a bounded, read-only projection of Cast mesh geometry for interactive display. Core owns loading, statistics, validation and triangle sampling; the native WGPU module owns camera transforms, lighting and depth-tested rendering. Preview sampling never changes the selected part or merged output.
 
+Material preview is an optional, off-by-default rendering mode in the preview window. Cast material slots and their texture paths are preserved through decode/encode (merged outputs keep them), and the preview shader samples them read-only: albedo as sRGB, packed NOG normals via the COD research decode, with per-material fallback to the flat color when a texture is missing or unloadable. Textures decode on background threads; neither source files nor merge results are ever modified.
+
 ## Ammunition placement
 
 The ammunition engine owns skeleton analysis, rigid placement, optional spare-magazine layout replication, and no-overwrite output publication. Spare layouts are transformed relative to the chosen source magazine and receive new bones under the target magazine. Magazine ancestors such as `tag_clip` are not themselves spare targets. On Windows filesystems without hard-link support, a same-directory move without replacement publishes the verified temporary file.

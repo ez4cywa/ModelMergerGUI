@@ -156,6 +156,216 @@ fn sub_two_mib_model_with_32_bit_face_indices_is_previewable() {
     assert_eq!(65_536.0, preview.bounds.maximum[0]);
 }
 
+#[test]
+fn preview_carries_uvs_and_material_texture_roles() {
+    const MATERIAL_HASH: u64 = 0x1234_5678_9abc_def0;
+    const ALBEDO_HASH: u64 = 0x0a1b_2c3d_4e5f_6071;
+    const NOG_HASH: u64 = 0x1728_394a_5b6c_7d8e;
+    const OPACITY_HASH: u64 = 0x9a8b_7c6d_5e4f_3021;
+    let file = TestFile::write(
+        &CastFile {
+            version: 1,
+            flags: 0,
+            roots: vec![CastNode {
+                identifier: u32::from_le_bytes(*b"root"),
+                hash: 0,
+                properties: Vec::new(),
+                children: vec![CastNode {
+                    identifier: u32::from_le_bytes(*b"modl"),
+                    hash: 0,
+                    properties: Vec::new(),
+                    children: vec![
+                        CastNode {
+                            identifier: u32::from_le_bytes(*b"matl"),
+                            hash: MATERIAL_HASH,
+                            properties: vec![
+                                CastProperty {
+                                    name: "n".to_owned(),
+                                    values: PropertyValues::String("m/wpn_x".to_owned()),
+                                },
+                                CastProperty {
+                                    name: "t".to_owned(),
+                                    values: PropertyValues::String("pbr".to_owned()),
+                                },
+                                CastProperty {
+                                    name: "albedo".to_owned(),
+                                    values: PropertyValues::Integer64(vec![ALBEDO_HASH]),
+                                },
+                                CastProperty {
+                                    name: "normal".to_owned(),
+                                    values: PropertyValues::Integer64(vec![NOG_HASH]),
+                                },
+                                CastProperty {
+                                    name: "opacity".to_owned(),
+                                    values: PropertyValues::Integer64(vec![OPACITY_HASH]),
+                                },
+                            ],
+                            children: vec![
+                                CastNode {
+                                    identifier: u32::from_le_bytes(*b"file"),
+                                    hash: ALBEDO_HASH,
+                                    properties: vec![CastProperty {
+                                        name: "p".to_owned(),
+                                        values: PropertyValues::String("tex/albedo.png".to_owned()),
+                                    }],
+                                    children: Vec::new(),
+                                },
+                                CastNode {
+                                    identifier: u32::from_le_bytes(*b"file"),
+                                    hash: NOG_HASH,
+                                    properties: vec![CastProperty {
+                                        name: "p".to_owned(),
+                                        values: PropertyValues::String("tex/nog.png".to_owned()),
+                                    }],
+                                    children: Vec::new(),
+                                },
+                                CastNode {
+                                    identifier: u32::from_le_bytes(*b"file"),
+                                    hash: OPACITY_HASH,
+                                    properties: vec![CastProperty {
+                                        name: "p".to_owned(),
+                                        values: PropertyValues::String(
+                                            "tex/opacity.png".to_owned(),
+                                        ),
+                                    }],
+                                    children: Vec::new(),
+                                },
+                            ],
+                        },
+                        CastNode {
+                            identifier: u32::from_le_bytes(*b"mesh"),
+                            hash: 0,
+                            properties: vec![
+                                CastProperty {
+                                    name: "vp".to_owned(),
+                                    values: PropertyValues::Vector3(vec![
+                                        [0.0, 0.0, 0.0],
+                                        [1.0, 0.0, 0.0],
+                                        [0.0, 1.0, 0.0],
+                                    ]),
+                                },
+                                CastProperty {
+                                    name: "vn".to_owned(),
+                                    values: PropertyValues::Vector3(vec![[0.0, 0.0, 1.0]; 3]),
+                                },
+                                CastProperty {
+                                    name: "u0".to_owned(),
+                                    values: PropertyValues::Vector2(vec![
+                                        [0.0, 0.0],
+                                        [1.0, 0.0],
+                                        [0.0, 1.0],
+                                    ]),
+                                },
+                                CastProperty {
+                                    name: "f".to_owned(),
+                                    values: PropertyValues::Integer32(vec![0, 1, 2]),
+                                },
+                                CastProperty {
+                                    name: "m".to_owned(),
+                                    values: PropertyValues::Integer64(vec![MATERIAL_HASH]),
+                                },
+                            ],
+                            children: Vec::new(),
+                        },
+                    ],
+                }],
+            }],
+        }
+        .encode()
+        .unwrap(),
+        "cast",
+    );
+
+    let preview = load_preview(&file.path, 75_000, || false).unwrap();
+
+    assert_eq!(1, preview.meshes.len());
+    let mesh = &preview.meshes[0];
+    assert_eq!(Some(0), mesh.material_index);
+    assert_eq!(vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]], mesh.uvs);
+    assert_eq!(1, preview.materials.len());
+    let material = &preview.materials[0];
+    assert_eq!("m/wpn_x", material.name);
+    assert_eq!(Some(PathBuf::from("tex/albedo.png")), material.albedo);
+    assert_eq!(Some(PathBuf::from("tex/nog.png")), material.nog);
+    assert_eq!(Some(PathBuf::from("tex/opacity.png")), material.opacity);
+    assert_eq!(None, material.base_color);
+}
+
+#[test]
+fn constant_color_slot_becomes_the_material_base_color() {
+    const MATERIAL_HASH: u64 = 0x42;
+    let file = TestFile::write(
+        &CastFile {
+            version: 1,
+            flags: 0,
+            roots: vec![CastNode {
+                identifier: u32::from_le_bytes(*b"root"),
+                hash: 0,
+                properties: Vec::new(),
+                children: vec![CastNode {
+                    identifier: u32::from_le_bytes(*b"modl"),
+                    hash: 0,
+                    properties: Vec::new(),
+                    children: vec![
+                        CastNode {
+                            identifier: u32::from_le_bytes(*b"matl"),
+                            hash: MATERIAL_HASH,
+                            properties: vec![
+                                CastProperty {
+                                    name: "n".to_owned(),
+                                    values: PropertyValues::String("flat".to_owned()),
+                                },
+                                CastProperty {
+                                    name: "albedo".to_owned(),
+                                    values: PropertyValues::Vector4(vec![[0.2, 0.4, 0.6, 1.0]]),
+                                },
+                            ],
+                            children: Vec::new(),
+                        },
+                        CastNode {
+                            identifier: u32::from_le_bytes(*b"mesh"),
+                            hash: 0,
+                            properties: vec![
+                                CastProperty {
+                                    name: "vp".to_owned(),
+                                    values: PropertyValues::Vector3(vec![
+                                        [0.0, 0.0, 0.0],
+                                        [1.0, 0.0, 0.0],
+                                        [0.0, 1.0, 0.0],
+                                    ]),
+                                },
+                                CastProperty {
+                                    name: "vn".to_owned(),
+                                    values: PropertyValues::Vector3(vec![[0.0, 0.0, 1.0]; 3]),
+                                },
+                                CastProperty {
+                                    name: "f".to_owned(),
+                                    values: PropertyValues::Integer32(vec![0, 1, 2]),
+                                },
+                                CastProperty {
+                                    name: "m".to_owned(),
+                                    values: PropertyValues::Integer64(vec![MATERIAL_HASH]),
+                                },
+                            ],
+                            children: Vec::new(),
+                        },
+                    ],
+                }],
+            }],
+        }
+        .encode()
+        .unwrap(),
+        "cast",
+    );
+
+    let preview = load_preview(&file.path, 75_000, || false).unwrap();
+
+    let material = &preview.materials[0];
+    assert_eq!(Some([0.2, 0.4, 0.6, 1.0]), material.base_color);
+    assert_eq!(None, material.albedo);
+    assert_eq!(None, material.nog);
+}
+
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../tests/fixtures/rust-migration/golden-small")
