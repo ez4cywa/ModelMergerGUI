@@ -83,18 +83,11 @@ $publishedExecutable = Join-Path $resolvedPublishDirectory 'CastModelMerger.exe'
 if ($LASTEXITCODE -ne 0) {
     throw "Windows icon verification failed with exit code $LASTEXITCODE."
 }
-Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') -Destination $resolvedPublishDirectory
-Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.en.md') -Destination $resolvedPublishDirectory
-Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $resolvedPublishDirectory
-Copy-Item -LiteralPath (Join-Path $repositoryRoot 'THIRD-PARTY-NOTICES.md') -Destination $resolvedPublishDirectory
-$screenshotSource = Join-Path $repositoryRoot 'docs\images\rust-native'
-$screenshotDestination = Join-Path $resolvedPublishDirectory 'docs\images\rust-native'
-New-Item -ItemType Directory -Force -Path $screenshotDestination | Out-Null
-Copy-Item -LiteralPath (Join-Path $screenshotSource 'main-window-zh.png') -Destination $screenshotDestination
-Copy-Item -LiteralPath (Join-Path $screenshotSource 'main-window-en.png') -Destination $screenshotDestination
-Copy-Item -LiteralPath (Join-Path $screenshotSource 'model-preview-zh.png') -Destination $screenshotDestination
-Copy-Item -LiteralPath (Join-Path $screenshotSource 'model-preview-dark-zh.png') -Destination $screenshotDestination
-Copy-Item -LiteralPath (Join-Path $screenshotSource 'ammo-fill-zh.png') -Destination $screenshotDestination
+# The release package ships only the executable and the bilingual user guides.
+$tutorialDestination = Join-Path $resolvedPublishDirectory 'docs'
+New-Item -ItemType Directory -Force -Path $tutorialDestination | Out-Null
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'docs\user-guide.zh-CN.md') -Destination $tutorialDestination
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'docs\user-guide.en.md') -Destination $tutorialDestination
 
 Compress-Archive -Path (Join-Path $resolvedPublishDirectory '*') -DestinationPath $archivePath -Force
 $hash = Get-FileHash -LiteralPath $archivePath -Algorithm SHA256
