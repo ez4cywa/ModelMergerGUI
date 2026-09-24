@@ -1038,7 +1038,18 @@ impl PreviewResources {
                         1.0,
                         if cornea { 0.0 } else { material.has[0] },
                         material.has[1],
-                        material.has[2],
+                        // Only profiles that declare `requires: ["opacity"]`
+                        // in profiles.json mask with the 4a texture; the eye
+                        // atlas carries a smooth gradient there that would
+                        // otherwise dither the eyeball away.
+                        if matches!(
+                            material.profile,
+                            PreviewMaterialProfile::HairCard | PreviewMaterialProfile::Tearline
+                        ) {
+                            material.has[2]
+                        } else {
+                            0.0
+                        },
                     ],
                     profile: [
                         shading.id,
