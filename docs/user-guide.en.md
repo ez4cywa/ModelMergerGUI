@@ -165,6 +165,23 @@ By default the preview renders models in a neutral flat color. Click the checker
 - Merged `.cast` outputs keep the texture paths of the input parts, so merged models support material previews too. Keep the output next to the exported asset folder so relative paths keep resolving.
 - Material preview is equally read-only and never modifies source files or merge results.
 
+#### Profile-based shading (aligned with the shader project)
+
+The preview shader classifies each material by name and file stem and applies the control values from the shader project's `profiles.json`, so different material kinds render distinctly:
+
+| Profile | Look | Matched by |
+| --- | --- | --- |
+| weapon | Metalness 1.0, albedo alpha as metal candidate | name contains `wpn_`/`_vm_`/`attachment`, or file stem contains `wpn_`/`vm_` |
+| glass | Thin-wall transmission (IOR 1.46), fresnel highlights, blended transparency | name contains `glass`/`lens` |
+| skin | SSS 0.22 wrap diffuse + light coat, IOR 1.4 | name contains `skin` |
+| hair | Opacity cutout + sheen rim, normal strength 0.4 | name contains `hair` |
+| eye / cornea / tearline | Strong clear-coat; cornea transmits and unplugs base color (white) | name contains `eye`/`iris`/`cornea`/`tear` |
+| oral | Light SSS + coat | name contains `oral`/`teeth`/`gum` |
+| cloth | Sheen 0.15 + roughness offset | name contains `cloth`, or file stem contains `_body_mp_`/`_head_mp_` |
+| generic | Dielectric default | everything else |
+
+Rules are first-match-wins. The research project's `_mat_info` techset rules do not apply to generic casts, so character sub-profiles use generic name hints instead. Materials classified as transmissive (glass/cornea) render in a separate alpha-blended pass after all opaque geometry.
+
 ## Build and test
 
 Building the Rust GUI requires Rust 1.96 or a compatible newer stable toolchain. Release users do not need Rust or .NET.

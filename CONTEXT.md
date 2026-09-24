@@ -24,7 +24,7 @@ The native application core owns editable merge groups, schema-compatible settin
 
 A model preview is a bounded, read-only projection of Cast mesh geometry for interactive display. Core owns loading, statistics, validation and triangle sampling; the native WGPU module owns camera transforms, lighting and depth-tested rendering. Preview sampling never changes the selected part or merged output.
 
-Material preview is an optional, off-by-default rendering mode in the preview window. Cast material slots and their texture paths are preserved through decode/encode (merged outputs keep them), and the preview shader samples them read-only: albedo as sRGB, packed NOG normals via the COD research decode, with per-material fallback to the flat color when a texture is missing or unloadable. Textures decode on background threads; neither source files nor merge results are ever modified.
+Material preview is an optional, off-by-default rendering mode in the preview window. Cast material slots and their texture paths are preserved through decode/encode (merged outputs keep them), and the preview shader samples them read-only: albedo as sRGB, packed NOG normals via the COD research decode, with per-material fallback to the flat color when a texture is missing or unloadable. Materials are classified into render profiles (weapon/glass/character sub-profiles) following the shader project's profiles.json rules; transmissive profiles render in a dedicated alpha-blended pass. Textures decode on background threads; neither source files nor merge results are ever modified.
 
 ## Ammunition placement
 

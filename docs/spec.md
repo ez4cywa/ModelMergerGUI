@@ -44,6 +44,7 @@
 - Every preview uses the in-process Rust CAST loader, including small files with 32-bit face indices.
 - Preview interaction supports mouse drag rotation, wheel zoom, visible rotate/zoom/reset controls, keyboard alternatives, and Escape/Close dismissal.
 - Material preview is an optional preview-window toggle (off by default): cast texture paths are resolved read-only, decoded off the UI thread, sampled as sRGB albedo plus COD-style packed NOG normals, and missing textures fall back to the flat color with a status notice. Merged outputs keep material texture paths so they preview the same way.
+- Material preview classifies each material into a render profile (weapon, glass, character sub-profiles, generic) using the shader project's profiles.json rules applied to material and asset names; profile controls (metalness, SSS wrap, coat, sheen, normal strength, IOR) drive the shader, and transmissive profiles (glass/cornea) render in a dedicated depth-tested, alpha-blended pass.
 - Core exposes structured progress, warning, validation, read-error, and output-conflict semantics so each presentation adapter can localize them.
 - Run the Rust merge engine in-process behind the native two-task scheduler; no worker executable or NDJSON adapter is part of the release.
 

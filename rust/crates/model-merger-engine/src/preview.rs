@@ -24,10 +24,81 @@ pub struct PreviewData {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreviewMaterial {
     pub name: String,
+    pub profile: PreviewMaterialProfile,
     pub albedo: Option<PathBuf>,
     pub nog: Option<PathBuf>,
     pub opacity: Option<PathBuf>,
     pub base_color: Option<[f32; 4]>,
+}
+
+/// Render profiles mirroring the ez4cywa COD shader research
+/// (`scripts/profiles.json` plus the optic glass master group).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreviewMaterialProfile {
+    Generic,
+    Weapon,
+    Glass,
+    Skin,
+    HairCard,
+    Eye,
+    Cornea,
+    Tearline,
+    Oral,
+    Cloth,
+    Overlay,
+}
+
+impl PreviewMaterialProfile {
+    /// Classifies a material by name and asset (file stem), following the
+    /// research project's first-match-wins rule order. Techset rules from
+    /// profiles.json need `_mat_info` tables and are not available here, so
+    /// generic name hints cover the character sub-profiles instead.
+    pub fn classify(name: &str, asset: &str) -> Self {
+        let lowered = name.to_ascii_lowercase();
+        let asset_lowered = asset.to_ascii_lowercase();
+        // Glass must win over the weapon rule: optic lenses inside weapon
+        // assets render as thin-wall glass, not metal.
+        if ["glass", "lens"].iter().any(|hint| lowered.contains(hint)) {
+            return Self::Glass;
+        }
+        let weapon_name = ["wpn_", "_vm_", "_attachment", "attachment_"]
+            .iter()
+            .any(|hint| lowered.contains(hint));
+        let weapon_asset = ["wpn_", "vm_", "attachment"]
+            .iter()
+            .any(|hint| asset_lowered.contains(hint));
+        if weapon_name || weapon_asset {
+            return Self::Weapon;
+        }
+        // Character sub-profile name hints (generalized from the research
+        // asset classifications in profiles.json).
+        if lowered.contains("skin") {
+            return Self::Skin;
+        }
+        if lowered.contains("hair") {
+            return Self::HairCard;
+        }
+        if lowered.contains("cornea") {
+            return Self::Cornea;
+        }
+        if lowered.contains("tear") {
+            return Self::Tearline;
+        }
+        if lowered.contains("eye") || lowered.contains("iris") {
+            return Self::Eye;
+        }
+        if lowered.contains("oral") || lowered.contains("teeth") || lowered.contains("gum") {
+            return Self::Oral;
+        }
+        if lowered.contains("cloth")
+            || ["_body_mp_", "_head_mp_"]
+                .iter()
+                .any(|hint| asset_lowered.contains(hint))
+        {
+            return Self::Cloth;
+        }
+        Self::Generic
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -211,7 +282,11 @@ pub fn load_preview(
         .map(|mesh| mesh.triangle_indices.len() / 3)
         .sum();
     let bounds = calculate_bounds(&meshes);
-    let materials = model.materials.iter().map(preview_material).collect();
+    let materials = model
+        .materials
+        .iter()
+        .map(|material| preview_material(material, &model.name))
+        .collect();
     Ok(PreviewData {
         file_path: path.to_path_buf(),
         model_name: model.name,
@@ -229,7 +304,7 @@ pub fn load_preview(
 /// Resolves well-known cast slots into preview texture roles, mirroring the
 /// role table used by the ez4cywa COD shader research (`cast_spec.py`):
 /// `albedo/diffuse/basecolor` -> color, `normal/nog` -> packed NOG, `opacity` -> coverage.
-fn preview_material(material: &MaterialInfo) -> PreviewMaterial {
+fn preview_material(material: &MaterialInfo, asset: &str) -> PreviewMaterial {
     let file_slot = |names: &[&str]| {
         material
             .slots
@@ -263,6 +338,7 @@ fn preview_material(material: &MaterialInfo) -> PreviewMaterial {
     };
     PreviewMaterial {
         name: material.name.clone(),
+        profile: PreviewMaterialProfile::classify(&material.name, asset),
         albedo,
         nog: file_slot(&["normal", "nog"]),
         opacity: file_slot(&["opacity"]),

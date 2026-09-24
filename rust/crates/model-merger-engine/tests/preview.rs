@@ -1,6 +1,75 @@
 use cast_codec::{CastFile, CastNode, CastProperty, PropertyValues};
-use model_merger_engine::{PreviewError, load_preview};
+use model_merger_engine::{PreviewError, PreviewMaterialProfile, load_preview};
 use std::path::{Path, PathBuf};
+
+#[test]
+fn material_profiles_follow_the_shader_project_rule_order() {
+    use PreviewMaterialProfile::*;
+    // Weapon name paths from profiles.json rule 1.
+    assert_eq!(
+        Weapon,
+        PreviewMaterialProfile::classify("wpn_uppr_rec", "part")
+    );
+    assert_eq!(
+        Weapon,
+        PreviewMaterialProfile::classify("m/wpn_x/v0", "part")
+    );
+    assert_eq!(
+        Weapon,
+        PreviewMaterialProfile::classify("some_vm_mat", "part")
+    );
+    // Weapon assets by file stem keep hashed material names metallic.
+    assert_eq!(
+        Weapon,
+        PreviewMaterialProfile::classify("material_11e2", "vm_jup_jp36_ar_anov94")
+    );
+    assert_eq!(
+        Weapon,
+        PreviewMaterialProfile::classify("material_11e2", "wpn_ar_uppr_rec")
+    );
+    // Glass wins over the weapon rule: optic lenses are thin-wall glass.
+    assert_eq!(
+        Glass,
+        PreviewMaterialProfile::classify("wpn_optic_glass", "vm_jup")
+    );
+    assert_eq!(
+        Glass,
+        PreviewMaterialProfile::classify("lens_flare", "part")
+    );
+    // Character sub-profile name hints.
+    assert_eq!(
+        Skin,
+        PreviewMaterialProfile::classify("head_skin_atlas", "part")
+    );
+    assert_eq!(
+        HairCard,
+        PreviewMaterialProfile::classify("hair_strands", "part")
+    );
+    assert_eq!(
+        Cornea,
+        PreviewMaterialProfile::classify("cornea_shell", "part")
+    );
+    assert_eq!(
+        Tearline,
+        PreviewMaterialProfile::classify("tearline_c", "part")
+    );
+    assert_eq!(Eye, PreviewMaterialProfile::classify("iris_sclera", "part"));
+    assert_eq!(Oral, PreviewMaterialProfile::classify("teeth_gums", "part"));
+    // Cloth via the asset regex example and a direct name hint.
+    assert_eq!(
+        Cloth,
+        PreviewMaterialProfile::classify("material_9f", "us_body_mp_soldier")
+    );
+    assert_eq!(
+        Cloth,
+        PreviewMaterialProfile::classify("cloth_vest", "part")
+    );
+    // Default dielectric.
+    assert_eq!(
+        Generic,
+        PreviewMaterialProfile::classify("material_11e2b5cbaf00416", "part")
+    );
+}
 
 #[test]
 fn csharp_golden_cast_loads_as_renderable_preview_geometry() {
@@ -285,6 +354,10 @@ fn preview_carries_uvs_and_material_texture_roles() {
     assert_eq!(1, preview.materials.len());
     let material = &preview.materials[0];
     assert_eq!("m/wpn_x", material.name);
+    assert_eq!(
+        model_merger_engine::PreviewMaterialProfile::Weapon,
+        material.profile
+    );
     assert_eq!(Some(PathBuf::from("tex/albedo.png")), material.albedo);
     assert_eq!(Some(PathBuf::from("tex/nog.png")), material.nog);
     assert_eq!(Some(PathBuf::from("tex/opacity.png")), material.opacity);

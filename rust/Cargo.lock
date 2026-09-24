@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "cast-codec"
-version = "2.3.0"
+version = "2.4.0"
 
 [[package]]
 name = "cc"
@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "model-merger-app-core"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "model-merger-engine",
  "serde",
@@ -1781,7 +1781,7 @@ dependencies = [
 
 [[package]]
 name = "model-merger-engine"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "cast-codec",
  "windows-sys 0.61.2",
@@ -1789,7 +1789,7 @@ dependencies = [
 
 [[package]]
 name = "model-merger-gui"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "bytemuck",
  "eframe",

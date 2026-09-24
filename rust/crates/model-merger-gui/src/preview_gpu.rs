@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use eframe::egui;
 use eframe::egui_wgpu::{self, CallbackResources, CallbackTrait, ScreenDescriptor};
 use eframe::wgpu::{self, util::DeviceExt as _};
-use model_merger_engine::PreviewData;
+use model_merger_engine::{PreviewData, PreviewMaterialProfile};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -26,6 +26,12 @@ struct MaterialUniform {
     base_color: vec4<f32>,
     // x: materials enabled, y: has albedo, z: has NOG, w: has opacity.
     flags: vec4<f32>,
+    // x: profile id, y: metalness, z: SSS weight, w: transmission.
+    profile: vec4<f32>,
+    // x: roughness offset, y: coat, z: normal strength, w: gloss map weight.
+    params: vec4<f32>,
+    // x: sheen, y: dielectric F0 (from IOR), z: transparent alpha base.
+    extras: vec4<f32>,
 };
 
 @group(1) @binding(0)
@@ -127,35 +133,96 @@ fn decode_nog(sampled: vec4<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let normal = input.normal / max(length(input.normal), 0.0001);
+    let geometric_normal = input.normal / max(length(input.normal), 0.0001);
     let albedo_sample = textureSampleLevel(albedo_texture, albedo_sampler, input.uv, 0.0);
     let nog_sample = textureSampleLevel(nog_texture, nog_sampler, input.uv, 0.0);
     let opacity_sample = textureSampleLevel(opacity_texture, opacity_sampler, input.uv, 0.0);
     if (material_uniform.flags.x < 0.5) {
-        let light = clamp(abs(normal.z), 0.15, 1.0);
+        let light = clamp(abs(geometric_normal.z), 0.15, 1.0);
         let color = view_uniform.model_color.rgb * (0.45 + 0.55 * light);
         return vec4<f32>(color, 1.0);
     }
+
+    let profile_id = material_uniform.profile.x;
+    let metalness = material_uniform.profile.y;
+    let sss = material_uniform.profile.z;
+    let transmission = material_uniform.profile.w;
+    let roughness_offset = material_uniform.params.x;
+    let coat = material_uniform.params.y;
+    let normal_strength = material_uniform.params.z;
+    let gloss_weight = material_uniform.params.w;
+    let sheen = material_uniform.extras.x;
+    let dielectric_f0 = material_uniform.extras.y;
+    let alpha_base = material_uniform.extras.z;
+
+    // Unresolved overlays contribute nothing in the research project; keep a
+    // faint silhouette so the geometry stays visible in the preview.
+    if (profile_id > 9.5) {
+        return vec4<f32>(view_uniform.model_color.rgb, 0.15);
+    }
+
     var albedo = material_uniform.base_color.rgb;
+    var alpha_metal = 0.0;
     if (material_uniform.flags.y > 0.5) {
         albedo = albedo * albedo_sample.rgb;
+        alpha_metal = albedo_sample.a;
     }
-    var shaded_normal = normal;
-    var roughness = 0.85;
+
+    var shaded_normal = geometric_normal;
+    var gloss = 0.5;
     if (material_uniform.flags.z > 0.5) {
-        let frame = cotangent_frame(normal, input.view_position, input.uv);
-        shaded_normal = normalize(frame * decode_nog(nog_sample));
-        roughness = clamp(1.0 - nog_sample.r, 0.04, 1.0);
+        let frame = cotangent_frame(geometric_normal, input.view_position, input.uv);
+        let perturbed = normalize(frame * decode_nog(nog_sample));
+        shaded_normal = normalize(mix(geometric_normal, perturbed, normal_strength));
+        gloss = nog_sample.r;
     }
+    // Roughness from the NOG gloss candidate; profiles with a zero Roughness
+    // Map Weight ignore it and keep the offset-driven base value.
+    var roughness = clamp(mix(0.5, 1.0 - gloss, gloss_weight) + roughness_offset, 0.04, 1.0);
+
+    let view_dir = vec3<f32>(0.0, 0.0, 1.0);
+    let NdotV = max(dot(shaded_normal, view_dir), 0.0001);
     let key_light = normalize(vec3<f32>(0.35, 0.55, 0.75));
     let fill_light = normalize(vec3<f32>(-0.6, -0.25, 0.45));
-    var lit = albedo * (0.30
-        + 0.62 * max(dot(shaded_normal, key_light), 0.0)
-        + 0.22 * max(dot(shaded_normal, fill_light), 0.0));
-    let half_vector = normalize(key_light + vec3<f32>(0.0, 0.0, 1.0));
+
+    // Weapon master: the albedo alpha is a metal candidate.
+    let metal = clamp(
+        metalness * select(1.0, step(0.1, alpha_metal), material_uniform.flags.y > 0.5),
+        0.0,
+        1.0,
+    );
+
+    // Wrap diffuse softened by the SSS weight (skin 0.22, oral 0.04).
+    let wrap = sss * 0.45;
+    let key_diffuse = clamp((dot(shaded_normal, key_light) + wrap) / (1.0 + wrap), 0.0, 1.0);
+    let fill_diffuse = clamp((dot(shaded_normal, fill_light) + wrap) / (1.0 + wrap), 0.0, 1.0);
+    var diffuse = albedo * (0.30 + 0.62 * key_diffuse + 0.22 * fill_diffuse);
+    diffuse = diffuse * (1.0 - metal);
+
     let spec_power = mix(12.0, 140.0, 1.0 - roughness);
-    let specular = pow(max(dot(shaded_normal, half_vector), 0.0), spec_power) * (1.0 - roughness);
-    lit = lit + vec3<f32>(specular * 0.6);
+    let half_key = normalize(key_light + view_dir);
+    let half_fill = normalize(fill_light + view_dir);
+    let f0 = mix(vec3<f32>(dielectric_f0), albedo, metal);
+    let key_spec = pow(max(dot(shaded_normal, half_key), 0.0), spec_power);
+    let fill_spec = pow(max(dot(shaded_normal, half_fill), 0.0), spec_power);
+    var specular = (key_spec * 0.62 + fill_spec * 0.22) * f0 * 8.0;
+    // Clear-coat lobe (eye 0.8, tearline 0.6, oral 0.2, skin 0.04).
+    let coat_spec = pow(max(dot(shaded_normal, half_key), 0.0), 180.0);
+    specular = specular + vec3<f32>(coat_spec * coat * 0.5);
+    // Sheen rim (cloth 0.15, hair 0.12).
+    let rim = pow(1.0 - NdotV, 4.0);
+    let lit = diffuse + specular + albedo * rim * sheen * 0.8;
+
+    if (transmission > 0.5) {
+        // Thin-wall transmission (optic glass IOR 1.46, cornea IOR 1.376):
+        // fresnel-weighted tinted transmission over the scene behind.
+        let fresnel = dielectric_f0 + (1.0 - dielectric_f0) * pow(1.0 - NdotV, 5.0);
+        let transmitted = albedo * (0.35 + 0.45 * key_diffuse);
+        let highlight = key_spec * 0.9 + coat_spec * 0.6;
+        let glassy = mix(transmitted, vec3<f32>(1.0), fresnel * 0.6) + vec3<f32>(highlight * 0.35);
+        let alpha = clamp(alpha_base + fresnel * 0.75, 0.0, 1.0);
+        return vec4<f32>(linear_to_srgb(glassy), alpha);
+    }
     if (material_uniform.flags.w > 0.5 && opacity_sample.r < 0.5) {
         discard;
     }
@@ -210,6 +277,9 @@ struct ViewUniform {
 struct MaterialUniform {
     base_color: [f32; 4],
     flags: [f32; 4],
+    profile: [f32; 4],
+    params: [f32; 4],
+    extras: [f32; 4],
 }
 
 /// Texture roles a cast material slot can provide to the preview shader.
@@ -223,6 +293,7 @@ pub enum TextureRole {
 /// CPU-side description of one material's preview textures.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterialSpec {
+    pub profile: PreviewMaterialProfile,
     pub albedo: Option<PathBuf>,
     pub nog: Option<PathBuf>,
     pub opacity: Option<PathBuf>,
@@ -236,6 +307,119 @@ impl MaterialSpec {
             TextureRole::Nog => self.nog.as_ref(),
             TextureRole::Opacity => self.opacity.as_ref(),
         }
+    }
+}
+
+/// Per-profile shading parameters, transcribed from the shader project's
+/// `scripts/profiles.json` controls plus the optic glass master group.
+struct ProfileShading {
+    id: f32,
+    metalness: f32,
+    sss: f32,
+    transmission: f32,
+    roughness_offset: f32,
+    coat: f32,
+    normal_strength: f32,
+    gloss_weight: f32,
+    sheen: f32,
+    f0: f32,
+    transparent: bool,
+    alpha_base: f32,
+}
+
+fn profile_shading(profile: PreviewMaterialProfile) -> ProfileShading {
+    let base = ProfileShading {
+        id: 0.0,
+        metalness: 0.0,
+        sss: 0.0,
+        transmission: 0.0,
+        roughness_offset: 0.0,
+        coat: 0.0,
+        normal_strength: 1.0,
+        gloss_weight: 1.0,
+        sheen: 0.0,
+        f0: 0.04,
+        transparent: false,
+        alpha_base: 1.0,
+    };
+    match profile {
+        PreviewMaterialProfile::Generic => base,
+        PreviewMaterialProfile::Weapon => ProfileShading {
+            id: 1.0,
+            metalness: 1.0,
+            ..base
+        },
+        PreviewMaterialProfile::Glass => ProfileShading {
+            id: 2.0,
+            transmission: 1.0,
+            f0: 0.036,
+            transparent: true,
+            alpha_base: 0.15,
+            ..base
+        },
+        PreviewMaterialProfile::Skin => ProfileShading {
+            id: 3.0,
+            sss: 0.22,
+            coat: 0.04,
+            roughness_offset: 0.05,
+            f0: 0.028,
+            ..base
+        },
+        PreviewMaterialProfile::HairCard => ProfileShading {
+            id: 4.0,
+            roughness_offset: -0.05,
+            normal_strength: 0.4,
+            gloss_weight: 0.0,
+            sheen: 0.12,
+            ..base
+        },
+        PreviewMaterialProfile::Eye => ProfileShading {
+            id: 5.0,
+            coat: 0.8,
+            roughness_offset: -0.36,
+            normal_strength: 0.15,
+            gloss_weight: 0.0,
+            ..base
+        },
+        PreviewMaterialProfile::Cornea => ProfileShading {
+            id: 6.0,
+            transmission: 1.0,
+            roughness_offset: -0.47,
+            normal_strength: 0.0,
+            gloss_weight: 0.0,
+            f0: 0.027,
+            transparent: true,
+            alpha_base: 0.12,
+            ..base
+        },
+        PreviewMaterialProfile::Tearline => ProfileShading {
+            id: 7.0,
+            coat: 0.6,
+            roughness_offset: -0.4,
+            normal_strength: 0.15,
+            gloss_weight: 0.0,
+            ..base
+        },
+        PreviewMaterialProfile::Oral => ProfileShading {
+            id: 8.0,
+            sss: 0.04,
+            coat: 0.2,
+            roughness_offset: 0.1,
+            ..base
+        },
+        PreviewMaterialProfile::Cloth => ProfileShading {
+            id: 9.0,
+            roughness_offset: 0.1,
+            sheen: 0.15,
+            ..base
+        },
+        PreviewMaterialProfile::Overlay => ProfileShading {
+            id: 10.0,
+            transmission: 1.0,
+            transparent: true,
+            alpha_base: 0.15,
+            ..base
+        },
     }
 }
 
@@ -264,6 +448,7 @@ struct ModelSegment {
     index_start: usize,
     index_count: usize,
     material: usize,
+    transparent: bool,
 }
 
 impl PreviewModel {
@@ -291,16 +476,24 @@ impl PreviewModel {
                     .iter()
                     .filter_map(|index| base.checked_add(*index)),
             );
+            let material = mesh.material_index.unwrap_or(usize::MAX);
+            let transparent = data
+                .materials
+                .get(material)
+                .map(|spec| profile_shading(spec.profile).transparent)
+                .unwrap_or(false);
             segments.push(ModelSegment {
                 index_start,
                 index_count: indices.len() - index_start,
-                material: mesh.material_index.unwrap_or(usize::MAX),
+                material,
+                transparent,
             });
         }
         let material_specs = data
             .materials
             .iter()
             .map(|material| MaterialSpec {
+                profile: material.profile,
                 albedo: material.albedo.clone(),
                 nog: material.nog.clone(),
                 opacity: material.opacity.clone(),
@@ -351,10 +544,12 @@ struct MaterialGpu {
     views: [Option<wgpu::TextureView>; 3],
     has: [f32; 3],
     constant_base: Option<[f32; 4]>,
+    profile: PreviewMaterialProfile,
 }
 
 struct PreviewResources {
     pipeline: wgpu::RenderPipeline,
+    transparent_pipeline: wgpu::RenderPipeline,
     grid_pipeline: wgpu::RenderPipeline,
     grid_vertex: wgpu::Buffer,
     grid_vertex_count: u32,
@@ -513,6 +708,21 @@ impl PreviewResources {
             cache: None,
         };
         let pipeline = device.create_render_pipeline(&pipeline_descriptor);
+        // Transparent variant for glass/cornea profiles: alpha blended and
+        // depth-write disabled so they layer over opaque geometry.
+        pipeline_descriptor.label = Some("preview transparent pipeline");
+        let transparent_targets = [Some(wgpu::ColorTargetState {
+            format: render_state.target_format,
+            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+            write_mask: wgpu::ColorWrites::ALL,
+        })];
+        if let Some(fragment) = &mut pipeline_descriptor.fragment {
+            fragment.targets = &transparent_targets;
+        }
+        if let Some(depth) = &mut pipeline_descriptor.depth_stencil {
+            depth.depth_write_enabled = Some(false);
+        }
+        let transparent_pipeline = device.create_render_pipeline(&pipeline_descriptor);
         pipeline_descriptor.label = Some("preview ground grid pipeline");
         pipeline_descriptor.vertex.entry_point = Some("vs_grid");
         let grid_targets = [Some(wgpu::ColorTargetState {
@@ -537,6 +747,7 @@ impl PreviewResources {
         });
         Self {
             pipeline,
+            transparent_pipeline,
             grid_pipeline,
             grid_vertex,
             grid_vertex_count: grid.len() as u32,
@@ -624,11 +835,25 @@ impl PreviewResources {
         });
         let mut materials = Vec::with_capacity(model.material_specs.len());
         for spec in &model.material_specs {
+            let shading = profile_shading(spec.profile);
             let material_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("preview material uniform"),
                 contents: bytemuck::bytes_of(&MaterialUniform {
                     base_color: spec.base_color.unwrap_or(uniform.model_color),
                     flags: [1.0, 0.0, 0.0, 0.0],
+                    profile: [
+                        shading.id,
+                        shading.metalness,
+                        shading.sss,
+                        shading.transmission,
+                    ],
+                    params: [
+                        shading.roughness_offset,
+                        shading.coat,
+                        shading.normal_strength,
+                        shading.gloss_weight,
+                    ],
+                    extras: [shading.sheen, shading.f0, shading.alpha_base, 0.0],
                 }),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
@@ -640,6 +865,7 @@ impl PreviewResources {
                 views: [None, None, None],
                 has: [0.0; 3],
                 constant_base: spec.base_color,
+                profile: spec.profile,
             });
         }
         let fallback_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -647,6 +873,9 @@ impl PreviewResources {
             contents: bytemuck::bytes_of(&MaterialUniform {
                 base_color: uniform.model_color,
                 flags: [0.0, 0.0, 0.0, 0.0],
+                profile: [0.0; 4],
+                params: [0.0; 4],
+                extras: [0.0; 4],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -658,6 +887,7 @@ impl PreviewResources {
             views: [None, None, None],
             has: [0.0; 3],
             constant_base: None,
+            profile: PreviewMaterialProfile::Generic,
         };
         ModelBuffers {
             vertex,
@@ -685,6 +915,13 @@ impl PreviewResources {
             let Some(material) = buffers.materials.get_mut(upload.material) else {
                 return;
             };
+            // Cornea shells unplug their base color; decoding an albedo
+            // texture for them would be wasted work.
+            if upload.role == TextureRole::Albedo
+                && material.profile == PreviewMaterialProfile::Cornea
+            {
+                return;
+            }
             let format = match upload.role {
                 TextureRole::Albedo => wgpu::TextureFormat::Rgba8UnormSrgb,
                 TextureRole::Nog | TextureRole::Opacity => wgpu::TextureFormat::Rgba8Unorm,
@@ -760,12 +997,43 @@ impl PreviewResources {
                 bytemuck::bytes_of(&MaterialUniform {
                     base_color: uniform.model_color,
                     flags: [0.0, 0.0, 0.0, 0.0],
+                    profile: [0.0; 4],
+                    params: [0.0; 4],
+                    extras: [0.0; 4],
                 }),
             );
             for material in &buffers.materials {
+                let shading = profile_shading(material.profile);
+                let tint = material.constant_base.unwrap_or(uniform.model_color);
+                // Cornea candidates unplug base color to white and ignore
+                // albedo textures (profiles.json unplug_base_color).
+                let cornea = material.profile == PreviewMaterialProfile::Cornea;
+                let base_color = if cornea {
+                    [1.0, 1.0, 1.0, 1.0]
+                } else {
+                    [tint[0], tint[1], tint[2], 1.0]
+                };
                 let material_uniform = MaterialUniform {
-                    base_color: material.constant_base.unwrap_or(uniform.model_color),
-                    flags: [1.0, material.has[0], material.has[1], material.has[2]],
+                    base_color,
+                    flags: [
+                        1.0,
+                        if cornea { 0.0 } else { material.has[0] },
+                        material.has[1],
+                        material.has[2],
+                    ],
+                    profile: [
+                        shading.id,
+                        shading.metalness,
+                        shading.sss,
+                        shading.transmission,
+                    ],
+                    params: [
+                        shading.roughness_offset,
+                        shading.coat,
+                        shading.normal_strength,
+                        shading.gloss_weight,
+                    ],
+                    extras: [shading.sheen, shading.f0, shading.alpha_base, 0.0],
                 };
                 queue.write_buffer(&material.uniform, 0, bytemuck::bytes_of(&material_uniform));
             }
@@ -859,6 +1127,9 @@ impl CallbackTrait for PreviewCallback {
         render_pass.set_index_buffer(model.index.slice(..), wgpu::IndexFormat::Uint32);
         if self.materials_enabled && !model.segments.is_empty() {
             for segment in &model.segments {
+                if segment.transparent {
+                    continue;
+                }
                 let material = model
                     .materials
                     .get(segment.material)
@@ -869,6 +1140,25 @@ impl CallbackTrait for PreviewCallback {
                     0,
                     0..1,
                 );
+            }
+            if model.segments.iter().any(|segment| segment.transparent) {
+                render_pass.set_pipeline(&resources.transparent_pipeline);
+                for segment in &model.segments {
+                    if !segment.transparent {
+                        continue;
+                    }
+                    let material = model
+                        .materials
+                        .get(segment.material)
+                        .unwrap_or(&model.fallback_material);
+                    render_pass.set_bind_group(1, &material.bind_group, &[]);
+                    render_pass.draw_indexed(
+                        segment.index_start as u32
+                            ..(segment.index_start + segment.index_count) as u32,
+                        0,
+                        0..1,
+                    );
+                }
             }
         } else {
             render_pass.set_bind_group(1, &model.fallback_material.bind_group, &[]);
@@ -1033,6 +1323,7 @@ mod tests {
             meshes: vec![mesh.clone(), mesh],
             materials: vec![model_merger_engine::PreviewMaterial {
                 name: "mat".to_owned(),
+                profile: model_merger_engine::PreviewMaterialProfile::Generic,
                 albedo: Some(PathBuf::from("albedo.png")),
                 nog: None,
                 opacity: None,
@@ -1049,6 +1340,7 @@ mod tests {
         assert!((model.floor - 0.525).abs() < 0.0001);
         assert_eq!(2, model.segments.len());
         assert!(model.segments.iter().all(|segment| segment.material == 0));
+        assert!(model.segments.iter().all(|segment| !segment.transparent));
         assert_eq!(1, model.material_specs.len());
         assert_eq!(
             Some(PathBuf::from("albedo.png")),
@@ -1080,5 +1372,62 @@ mod tests {
 
         assert_eq!(1, model.segments.len());
         assert_eq!(usize::MAX, model.segments[0].material);
+        assert!(!model.segments[0].transparent);
+    }
+
+    #[test]
+    fn glass_and_cornea_materials_render_in_the_transparent_pass() {
+        let mut glass_mesh = sample_mesh();
+        glass_mesh.material_index = Some(0);
+        let mut cornea_mesh = sample_mesh();
+        cornea_mesh.material_index = Some(1);
+        let mut weapon_mesh = sample_mesh();
+        weapon_mesh.material_index = Some(2);
+        let data = PreviewData {
+            file_path: PathBuf::from("sample.cast"),
+            model_name: "sample".to_owned(),
+            source_mesh_count: 3,
+            source_vertex_count: 9,
+            source_triangle_count: 3,
+            displayed_triangle_count: 3,
+            is_simplified: false,
+            bounds: PreviewBounds {
+                minimum: [0.0, 0.0, 0.0],
+                maximum: [2.0, 2.0, 0.0],
+            },
+            meshes: vec![glass_mesh, cornea_mesh, weapon_mesh],
+            materials: vec![
+                model_merger_engine::PreviewMaterial {
+                    name: "wpn_optic_glass".to_owned(),
+                    profile: model_merger_engine::PreviewMaterialProfile::Glass,
+                    albedo: None,
+                    nog: None,
+                    opacity: None,
+                    base_color: None,
+                },
+                model_merger_engine::PreviewMaterial {
+                    name: "cornea_shell".to_owned(),
+                    profile: model_merger_engine::PreviewMaterialProfile::Cornea,
+                    albedo: None,
+                    nog: None,
+                    opacity: None,
+                    base_color: None,
+                },
+                model_merger_engine::PreviewMaterial {
+                    name: "wpn_rec".to_owned(),
+                    profile: model_merger_engine::PreviewMaterialProfile::Weapon,
+                    albedo: None,
+                    nog: None,
+                    opacity: None,
+                    base_color: None,
+                },
+            ],
+        };
+
+        let model = PreviewModel::from_preview(&data);
+
+        assert!(model.segments[0].transparent);
+        assert!(model.segments[1].transparent);
+        assert!(!model.segments[2].transparent);
     }
 }

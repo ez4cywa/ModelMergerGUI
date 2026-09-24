@@ -6,7 +6,8 @@ mod output;
 mod preview;
 
 pub use preview::{
-    PreviewBounds, PreviewData, PreviewError, PreviewMaterial, PreviewMesh, load_preview,
+    PreviewBounds, PreviewData, PreviewError, PreviewMaterial, PreviewMaterialProfile, PreviewMesh,
+    load_preview,
 };
 
 use cast_codec::{CastFile, CodecError};
