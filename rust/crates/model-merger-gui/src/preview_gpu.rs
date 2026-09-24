@@ -226,10 +226,16 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         let alpha = clamp(alpha_base + sheen * 0.25 + fresnel * 0.5, 0.0, 1.0);
         return vec4<f32>(linear_to_srgb(glassy), alpha);
     }
-    if (material_uniform.flags.w > 0.5 && opacity_sample.r < 0.5) {
-        discard;
+    // Opacity masks (hair cards, tearline, eye atlas) feed alpha-to-coverage
+    // for soft dithered edges instead of a binary cutout.
+    var coverage: f32 = 1.0;
+    if (material_uniform.flags.w > 0.5) {
+        coverage = opacity_sample.r;
+        if (coverage < 0.02) {
+            discard;
+        }
     }
-    return vec4<f32>(linear_to_srgb(lit), 1.0);
+    return vec4<f32>(linear_to_srgb(lit), coverage);
 }
 
 struct GridOutput {
@@ -392,7 +398,7 @@ fn profile_shading(profile: PreviewMaterialProfile) -> ProfileShading {
             gloss_weight: 0.0,
             f0: 0.027,
             transparent: true,
-            alpha_base: 0.3,
+            alpha_base: 0.1,
             ..base
         },
         PreviewMaterialProfile::Tearline => ProfileShading {
@@ -705,7 +711,10 @@ impl PreviewResources {
             multisample: wgpu::MultisampleState {
                 count: u32::from(GPU_SAMPLE_COUNT),
                 mask: !0,
-                alpha_to_coverage_enabled: false,
+                // Opacity-masked materials (hair cards, tearline, eye) output
+                // their coverage as alpha; MSAA dithers it into soft edges
+                // while keeping depth writes.
+                alpha_to_coverage_enabled: true,
             },
             multiview_mask: None,
             cache: None,
@@ -714,6 +723,7 @@ impl PreviewResources {
         // Transparent variant for glass/cornea profiles: alpha blended and
         // depth-write disabled so they layer over opaque geometry.
         pipeline_descriptor.label = Some("preview transparent pipeline");
+        pipeline_descriptor.multisample.alpha_to_coverage_enabled = false;
         let transparent_targets = [Some(wgpu::ColorTargetState {
             format: render_state.target_format,
             blend: Some(wgpu::BlendState::ALPHA_BLENDING),
