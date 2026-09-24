@@ -215,12 +215,15 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     if (transmission > 0.5) {
         // Thin-wall transmission (optic glass IOR 1.46, cornea IOR 1.376):
-        // fresnel-weighted tinted transmission over the scene behind.
+        // tinted transmission with a broad viewing-angle sheen and fresnel
+        // edge brightening, so dark lenses still read as glass.
         let fresnel = dielectric_f0 + (1.0 - dielectric_f0) * pow(1.0 - NdotV, 5.0);
-        let transmitted = albedo * (0.35 + 0.45 * key_diffuse);
-        let highlight = key_spec * 0.9 + coat_spec * 0.6;
-        let glassy = mix(transmitted, vec3<f32>(1.0), fresnel * 0.6) + vec3<f32>(highlight * 0.35);
-        let alpha = clamp(alpha_base + fresnel * 0.75, 0.0, 1.0);
+        let sheen = pow(1.0 - NdotV, 2.0);
+        let transmitted = albedo * (0.40 + 0.45 * key_diffuse);
+        let highlight = key_spec * 1.4 + coat_spec * 0.8;
+        let glassy = mix(transmitted, vec3<f32>(0.9), sheen * 0.4 + fresnel * 0.5)
+            + vec3<f32>(highlight * 0.5);
+        let alpha = clamp(alpha_base + sheen * 0.25 + fresnel * 0.5, 0.0, 1.0);
         return vec4<f32>(linear_to_srgb(glassy), alpha);
     }
     if (material_uniform.flags.w > 0.5 && opacity_sample.r < 0.5) {
@@ -354,7 +357,7 @@ fn profile_shading(profile: PreviewMaterialProfile) -> ProfileShading {
             transmission: 1.0,
             f0: 0.036,
             transparent: true,
-            alpha_base: 0.15,
+            alpha_base: 0.55,
             ..base
         },
         PreviewMaterialProfile::Skin => ProfileShading {
@@ -389,7 +392,7 @@ fn profile_shading(profile: PreviewMaterialProfile) -> ProfileShading {
             gloss_weight: 0.0,
             f0: 0.027,
             transparent: true,
-            alpha_base: 0.12,
+            alpha_base: 0.3,
             ..base
         },
         PreviewMaterialProfile::Tearline => ProfileShading {
@@ -1004,13 +1007,19 @@ impl PreviewResources {
             );
             for material in &buffers.materials {
                 let shading = profile_shading(material.profile);
-                let tint = material.constant_base.unwrap_or(uniform.model_color);
                 // Cornea candidates unplug base color to white and ignore
-                // albedo textures (profiles.json unplug_base_color).
+                // albedo textures (profiles.json unplug_base_color). Glass
+                // falls back to a dark blue-grey tint instead of the flat
+                // palette color, which read as a black hole over dark
+                // scope interiors.
                 let cornea = material.profile == PreviewMaterialProfile::Cornea;
+                let glass = material.profile == PreviewMaterialProfile::Glass;
                 let base_color = if cornea {
                     [1.0, 1.0, 1.0, 1.0]
+                } else if glass && material.constant_base.is_none() && material.has[0] == 0.0 {
+                    [0.30, 0.34, 0.40, 1.0]
                 } else {
+                    let tint = material.constant_base.unwrap_or(uniform.model_color);
                     [tint[0], tint[1], tint[2], 1.0]
                 };
                 let material_uniform = MaterialUniform {

@@ -439,6 +439,138 @@ fn constant_color_slot_becomes_the_material_base_color() {
     assert_eq!(None, material.nog);
 }
 
+#[test]
+fn mat_info_semantics_resolve_textures_and_techset_profiles() {
+    let material_name = "material_5b519c79a23de53d";
+    let material_hash = 0x64u64;
+    let albedo_hash = 0x65u64;
+    let nog_hash = 0x66u64;
+    // The cast stores NOG in an extra slot; its file stem must match the
+    // `_mat_info` semantic table for cross-validation.
+    let cast = CastFile {
+        version: 1,
+        flags: 0,
+        roots: vec![CastNode {
+            identifier: u32::from_le_bytes(*b"root"),
+            hash: 0,
+            properties: Vec::new(),
+            children: vec![CastNode {
+                identifier: u32::from_le_bytes(*b"modl"),
+                hash: 0,
+                properties: Vec::new(),
+                children: vec![
+                    CastNode {
+                        identifier: u32::from_le_bytes(*b"matl"),
+                        hash: material_hash,
+                        properties: vec![
+                            CastProperty {
+                                name: "n".to_owned(),
+                                values: PropertyValues::String(material_name.to_owned()),
+                            },
+                            CastProperty {
+                                name: "albedo".to_owned(),
+                                values: PropertyValues::Integer64(vec![albedo_hash]),
+                            },
+                            CastProperty {
+                                name: "extra9".to_owned(),
+                                values: PropertyValues::Integer64(vec![nog_hash]),
+                            },
+                        ],
+                        children: vec![
+                            CastNode {
+                                identifier: u32::from_le_bytes(*b"file"),
+                                hash: albedo_hash,
+                                properties: vec![CastProperty {
+                                    name: "p".to_owned(),
+                                    values: PropertyValues::String(
+                                        "_images/image_453113fa361a80b3.png".to_owned(),
+                                    ),
+                                }],
+                                children: Vec::new(),
+                            },
+                            CastNode {
+                                identifier: u32::from_le_bytes(*b"file"),
+                                hash: nog_hash,
+                                properties: vec![CastProperty {
+                                    name: "p".to_owned(),
+                                    values: PropertyValues::String(
+                                        "_images/image_23968cb2ef47fe93.png".to_owned(),
+                                    ),
+                                }],
+                                children: Vec::new(),
+                            },
+                        ],
+                    },
+                    CastNode {
+                        identifier: u32::from_le_bytes(*b"mesh"),
+                        hash: 0,
+                        properties: vec![
+                            CastProperty {
+                                name: "vp".to_owned(),
+                                values: PropertyValues::Vector3(vec![
+                                    [0.0, 0.0, 0.0],
+                                    [1.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0],
+                                ]),
+                            },
+                            CastProperty {
+                                name: "vn".to_owned(),
+                                values: PropertyValues::Vector3(vec![[0.0, 0.0, 1.0]; 3]),
+                            },
+                            CastProperty {
+                                name: "f".to_owned(),
+                                values: PropertyValues::Integer32(vec![0, 1, 2]),
+                            },
+                            CastProperty {
+                                name: "m".to_owned(),
+                                values: PropertyValues::Integer64(vec![material_hash]),
+                            },
+                        ],
+                        children: Vec::new(),
+                    },
+                ],
+            }],
+        }],
+    }
+    .encode()
+    .unwrap();
+    let file = TestFile::write(&cast, "cast");
+    let cast_dir = file.path.parent().unwrap();
+    let mat_info_dir = cast_dir.join("_mat_info");
+    let _ = std::fs::remove_dir_all(&mat_info_dir);
+    std::fs::create_dir_all(&mat_info_dir).unwrap();
+    std::fs::write(
+        cast_dir
+            .join("_mat_info")
+            .join(format!("{material_name}.txt")),
+        "Name: material\n\nTechset: techset_6c3db87fab030d9f\n\nsemantic,image_name\n\
+         unk_semantic_47,image_453113fa361a80b3\n\
+         unk_semantic_48,image_23968cb2ef47fe93\n\
+         unk_semantic_4a,$white\n",
+    )
+    .unwrap();
+
+    let preview = load_preview(&file.path, 75_000, || false).unwrap();
+
+    let material = &preview.materials[0];
+    assert_eq!(
+        model_merger_engine::PreviewMaterialProfile::Eye,
+        material.profile
+    );
+    assert_eq!(
+        Some(PathBuf::from("_images/image_453113fa361a80b3.png")),
+        material.albedo
+    );
+    assert_eq!(
+        Some(PathBuf::from("_images/image_23968cb2ef47fe93.png")),
+        material.nog
+    );
+    // `$white` opacity is a sentinel: fully opaque, no cutout texture.
+    assert_eq!(None, material.opacity);
+
+    let _ = std::fs::remove_dir_all(&mat_info_dir);
+}
+
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../tests/fixtures/rust-migration/golden-small")

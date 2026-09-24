@@ -167,15 +167,17 @@
 | 分类 | 视觉特征 | 匹配方式 |
 | --- | --- | --- |
 | 武器 weapon | 金属度 1.0，albedo Alpha 作为金属候选 | 名称含 `wpn_`/`_vm_`/`attachment`，或文件名含 `wpn_`/`vm_` |
-| 玻璃 glass | 薄壁透射（IOR 1.46），菲涅尔高光，半透明叠加 | 名称含 `glass`/`lens` |
-| 皮肤 skin | SSS 0.22 包裹漫反射 + 轻清漆，IOR 1.4 | 名称含 `skin` |
-| 发片 hair | 不透明度剔除 + Sheen 边缘光，法线强度 0.4 | 名称含 `hair` |
-| 眼睛/角膜/泪线 | 高清漆涂层；角膜透射并断开底色（白） | 名称含 `eye`/`iris`/`cornea`/`tear` |
-| 口腔 oral | 轻微 SSS + 清漆 | 名称含 `oral`/`teeth`/`gum` |
+| 玻璃 glass | 薄壁透射（IOR 1.46），菲涅尔高光，半透明叠加 | 名称含 `glass`/`lens`，或贴图名含 `lens`/`glass` |
+| 皮肤 skin | SSS 0.22 包裹漫反射 + 轻清漆，IOR 1.4 | `_mat_info` techset 规则，或名称含 `skin` |
+| 发片 hair | 不透明度剔除 + Sheen 边缘光，法线强度 0.4 | `_mat_info` techset 规则，或名称含 `hair` |
+| 眼睛/角膜/泪线 | 高清漆涂层；角膜透射并断开底色（白） | 源项目材质哈希规则，或名称提示 |
+| 口腔 oral | 轻微 SSS + 清漆 | 源项目材质哈希规则，或名称提示 |
 | 布料 cloth | Sheen 0.15 + 粗糙度偏移 | 名称含 `cloth`，或文件名含 `_body_mp_`/`_head_mp_` |
 | 通用 generic | 电介质默认 | 其余全部 |
 
-分类规则为首个命中生效；研究项目中基于 `_mat_info` techset 的规则在通用 cast 上不可用，因此人物子档使用通用名称提示替代。命中为叠加透明（玻璃/角膜）的材质会单独在不透明几何之后混合绘制。
+**`_mat_info` 语义表支持**：导出目录带有 `_mat_info/<材质>.txt` 时（如 Greyhound/saluki 导出），预览按源项目 `cast_spec.py` 同款规则交叉解析——语义 47 → 底色、48 → 打包 NOG 法线、4a → 遮罩，优先从 cast 槽位按贴图名匹配，其次读取 `_images/<贴图名>.png`。这使 MW/BO 人物资产的 NOG 法线与发片透明遮罩能被正确解析（仅靠具名槽位会全部丢失）。`$black`/`$white`/`$identitypackednog` 哨兵按源项目语义处理。techset 命中源项目规则时直接套用对应人物子档。
+
+分类规则为首个命中生效；命中为叠加透明（玻璃/角膜）的材质会单独在不透明几何之后混合绘制。
 
 ## 构建和测试
 

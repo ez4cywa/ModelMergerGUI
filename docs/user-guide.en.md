@@ -172,15 +172,17 @@ The preview shader classifies each material by name and file stem and applies th
 | Profile | Look | Matched by |
 | --- | --- | --- |
 | weapon | Metalness 1.0, albedo alpha as metal candidate | name contains `wpn_`/`_vm_`/`attachment`, or file stem contains `wpn_`/`vm_` |
-| glass | Thin-wall transmission (IOR 1.46), fresnel highlights, blended transparency | name contains `glass`/`lens` |
-| skin | SSS 0.22 wrap diffuse + light coat, IOR 1.4 | name contains `skin` |
-| hair | Opacity cutout + sheen rim, normal strength 0.4 | name contains `hair` |
-| eye / cornea / tearline | Strong clear-coat; cornea transmits and unplugs base color (white) | name contains `eye`/`iris`/`cornea`/`tear` |
-| oral | Light SSS + coat | name contains `oral`/`teeth`/`gum` |
+| glass | Thin-wall transmission (IOR 1.46), fresnel highlights, blended transparency | name contains `glass`/`lens`, or a texture name contains `lens`/`glass` |
+| skin | SSS 0.22 wrap diffuse + light coat, IOR 1.4 | `_mat_info` techset rule, or name contains `skin` |
+| hair | Opacity cutout + sheen rim, normal strength 0.4 | `_mat_info` techset rule, or name contains `hair` |
+| eye / cornea / tearline | Strong clear-coat; cornea transmits and unplugs base color (white) | shader-project material hash rules, or name hints |
+| oral | Light SSS + coat | shader-project material hash rule, or name hints |
 | cloth | Sheen 0.15 + roughness offset | name contains `cloth`, or file stem contains `_body_mp_`/`_head_mp_` |
 | generic | Dielectric default | everything else |
 
-Rules are first-match-wins. The research project's `_mat_info` techset rules do not apply to generic casts, so character sub-profiles use generic name hints instead. Materials classified as transmissive (glass/cornea) render in a separate alpha-blended pass after all opaque geometry.
+**`_mat_info` semantic tables**: when the export folder contains `_mat_info/<material>.txt` sidecars (Greyhound/saluki exports), the preview cross-validates them exactly like the shader project's `cast_spec.py` — semantic 47 → color, 48 → packed NOG normal, 4a → opacity mask. Stems are matched against cast slot texture paths first, then `_images/<stem>.png` on disk. This is what makes MW/BO character NOG normals and hair opacity masks resolve at all (named slots alone lose them). `$black`/`$white`/`$identitypackednog` sentinels follow the source semantics, and techsets matching the project rules apply the corresponding character sub-profile directly.
+
+Rules are first-match-wins. Materials classified as transmissive (glass/cornea) render in a separate alpha-blended pass after all opaque geometry.
 
 ## Build and test
 
