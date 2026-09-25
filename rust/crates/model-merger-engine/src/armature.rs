@@ -73,6 +73,64 @@ pub fn weapon_code(stem: &str) -> String {
     segments.join("_")
 }
 
+/// Default output file name for a derived artifact: the weapon code plus the
+/// given suffix. When `directory` already contains that `.cast` file, the
+/// distinguishing segments of the original stem (between the code segment and
+/// the LOD suffix, pure-numeric segments dropped) are prepended —
+/// `vm_jup_jp36_ar_anov94_rec_4028` merging over an existing `anov94.cast`
+/// yields `rec_anov94.cast` — and a numeric counter is appended when the
+/// prefixed name collides as well.
+pub fn derived_output_name(original_stem: &str, suffix: &str, directory: &Path) -> String {
+    let code = weapon_code(original_stem);
+    let base = if suffix.is_empty() {
+        code.clone()
+    } else {
+        format!("{code}_{suffix}")
+    };
+    if !directory.join(format!("{base}.cast")).exists() {
+        return base;
+    }
+    let mut segments: Vec<&str> = original_stem.split('_').collect();
+    if let Some(last) = segments.last() {
+        let lowered = last.to_ascii_lowercase();
+        if let Some(digits) = lowered.strip_prefix("lod")
+            && !digits.is_empty()
+            && digits.bytes().all(|b| b.is_ascii_digit())
+        {
+            segments.pop();
+        }
+    }
+    while let Some(last) = segments.last() {
+        if !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()) {
+            segments.pop();
+        } else {
+            break;
+        }
+    }
+    let prefix: Vec<&str> = segments
+        .iter()
+        .rposition(|segment| *segment == code)
+        .map(|position| &segments[position + 1..])
+        .map(|tail| {
+            tail.iter()
+                .copied()
+                .filter(|segment| !segment.bytes().all(|b| b.is_ascii_digit()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut candidate = if prefix.is_empty() {
+        base.clone()
+    } else {
+        format!("{}_{}", prefix.join("_"), base)
+    };
+    let mut counter = 1;
+    while directory.join(format!("{candidate}.cast")).exists() {
+        candidate = format!("{base}_{counter}");
+        counter += 1;
+    }
+    candidate
+}
+
 fn read(path: &Path, observer: &impl MergeObserver) -> Result<(CastFile, Model), MergeError> {
     crate::domain::check_cancelled(observer)?;
     if !path

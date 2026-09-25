@@ -43,6 +43,37 @@ fn duplicate_and_sixteenth_parts_are_rejected_without_changing_accepted_slots() 
 }
 
 #[test]
+fn default_output_name_uses_the_weapon_code_and_avoids_collisions() {
+    let directory = TestDirectory::new();
+    let mut plan = GroupPlan::default();
+
+    assert_eq!(
+        AddPartStatus::Added,
+        plan.add_part(directory.cast("att_sat_vm_ar_eagle_rec_LOD0.cast"))
+            .status
+    );
+    // The engine appends .cast when the stored name has no extension.
+    assert_eq!("eagle", plan.state().output_file_name);
+}
+
+#[test]
+fn default_output_name_prepends_distinguishing_segments_on_collision() {
+    let directory = TestDirectory::new();
+    let mut plan = GroupPlan::default();
+    // The automatic output folder already holds a same-code merge output.
+    let merged_models = directory.path.join("Merged Models");
+    std::fs::create_dir_all(&merged_models).unwrap();
+    std::fs::write(merged_models.join("eagle.cast"), b"cast").unwrap();
+
+    assert_eq!(
+        AddPartStatus::Added,
+        plan.add_part(directory.cast("att_sat_vm_ar_eagle_rec_LOD0.cast"))
+            .status
+    );
+    assert_eq!("rec_eagle", plan.state().output_file_name);
+}
+
+#[test]
 fn replacing_a_manual_root_keeps_the_replacement_as_root() {
     let directory = TestDirectory::new();
     let mut plan = GroupPlan::default();

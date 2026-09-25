@@ -66,6 +66,55 @@ fn weapon_code_extracts_the_segment_before_the_part_type() {
 }
 
 #[test]
+fn derived_output_names_disambiguate_collisions() {
+    let directory = std::env::temp_dir().join(format!("armature-names-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+
+    // No collision: the plain code-based name.
+    assert_eq!(
+        "eagle_filled",
+        derived_output_name("att_sat_vm_ar_eagle_rec_LOD0", "filled", &directory)
+    );
+    // Collision: the original stem's distinguishing segments are prepended.
+    std::fs::write(directory.join("eagle_filled.cast"), b"cast").unwrap();
+    assert_eq!(
+        "rec_eagle_filled",
+        derived_output_name("att_sat_vm_ar_eagle_rec_LOD0", "filled", &directory)
+    );
+    // Prefixed collision: numeric counter.
+    std::fs::write(directory.join("rec_eagle_filled.cast"), b"cast").unwrap();
+    assert_eq!(
+        "eagle_filled_1",
+        derived_output_name("att_sat_vm_ar_eagle_rec_LOD0", "filled", &directory)
+    );
+    // Pure-numeric tail segments are dropped from the prefix.
+    std::fs::write(directory.join("anov94_filled.cast"), b"cast").unwrap();
+    assert_eq!(
+        "mag_anov94_filled",
+        derived_output_name(
+            "vm_jup_jp36_ar_anov94_mag_30_545_4028",
+            "filled",
+            &directory
+        )
+    );
+    // No part-type segment anywhere: numeric counter fallback.
+    std::fs::write(directory.join("att_rex_vm_holo_viewhands.cast"), b"cast").unwrap();
+    assert_eq!(
+        "att_rex_vm_holo_viewhands_1",
+        derived_output_name("att_rex_vm_holo_01_v0", "viewhands", &directory)
+    );
+    // Suffix-less (merge) naming works the same way.
+    std::fs::write(directory.join("anov94.cast"), b"cast").unwrap();
+    assert_eq!(
+        "rec_anov94",
+        derived_output_name("vm_jup_jp36_ar_anov94_rec_4028_LOD0", "", &directory)
+    );
+
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[test]
 fn assemble_splices_the_weapon_root_onto_tag_weapon() {
     // Arms: tag_origin + tag_weapon carrying a rotated child; the arms' own
     // j_gun collides with the weapon root and forces a rename.

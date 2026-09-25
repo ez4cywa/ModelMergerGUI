@@ -85,8 +85,9 @@ impl AmmoTool {
     }
     fn set_weapon(&mut self, path: PathBuf) {
         let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-        let code = model_merger_engine::armature::weapon_code(&stem);
-        self.output = Some(path.with_file_name(format!("{code}_filled.cast")));
+        let directory = path.parent().unwrap_or(std::path::Path::new("."));
+        let name = model_merger_engine::armature::derived_output_name(&stem, "filled", directory);
+        self.output = Some(directory.join(name));
         self.weapon = Some(path.clone());
         self.analysis = None;
         self.selected.clear();
@@ -108,6 +109,19 @@ impl AmmoTool {
         });
     }
     fn fill(&mut self) {
+        // A file may have appeared since the default name was derived:
+        // re-derive once so execution never fails on the collision alone.
+        if let (Some(weapon), Some(output)) = (&self.weapon, &self.output)
+            && output.exists()
+            && let Some(stem) = weapon.file_stem().and_then(|stem| stem.to_str())
+            && let Some(directory) = output.parent()
+        {
+            self.output = Some(
+                directory.join(model_merger_engine::armature::derived_output_name(
+                    stem, "filled", directory,
+                )),
+            );
+        }
         let (Some(weapon), Some(ammunition), Some(output)) =
             (&self.weapon, &self.ammo, &self.output)
         else {

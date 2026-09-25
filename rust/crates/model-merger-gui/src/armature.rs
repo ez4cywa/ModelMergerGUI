@@ -84,8 +84,10 @@ impl ArmatureTool {
     }
     fn set_weapon(&mut self, path: PathBuf) {
         let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-        let code = model_merger_engine::armature::weapon_code(&stem);
-        self.output = Some(path.with_file_name(format!("{code}_viewhands.cast")));
+        let directory = path.parent().unwrap_or(std::path::Path::new("."));
+        let name =
+            model_merger_engine::armature::derived_output_name(&stem, "viewhands", directory);
+        self.output = Some(directory.join(name));
         self.weapon = Some(path);
         self.result = None;
         self.error = None;
@@ -110,6 +112,21 @@ impl ArmatureTool {
         });
     }
     fn assemble(&mut self) {
+        // A file may have appeared since the default name was derived:
+        // re-derive once so execution never fails on the collision alone.
+        if let (Some(weapon), Some(output)) = (&self.weapon, &self.output)
+            && output.exists()
+            && let Some(stem) = weapon.file_stem().and_then(|stem| stem.to_str())
+            && let Some(directory) = output.parent()
+        {
+            self.output = Some(
+                directory.join(model_merger_engine::armature::derived_output_name(
+                    stem,
+                    "viewhands",
+                    directory,
+                )),
+            );
+        }
         let (Some(arms), Some(weapon), Some(output)) = (&self.arms, &self.weapon, &self.output)
         else {
             return;
