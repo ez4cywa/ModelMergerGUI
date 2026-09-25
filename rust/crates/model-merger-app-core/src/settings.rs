@@ -49,6 +49,8 @@ pub struct AppSettings {
     #[serde(rename = "rootSelectionMode")]
     pub root_mode: RootMode,
     pub window_bounds: Option<WindowBounds>,
+    /// Opt-in arm + weapon assembly tool; hidden until enabled.
+    pub armature_tool_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -62,6 +64,7 @@ impl Default for AppSettings {
             dark_mode: None,
             root_mode: RootMode::Automatic,
             window_bounds: None,
+            armature_tool_enabled: false,
         }
     }
 }

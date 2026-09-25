@@ -1,4 +1,5 @@
 pub mod ammunition;
+pub mod armature;
 mod cast_model;
 mod domain;
 mod math;

@@ -184,6 +184,16 @@ The preview shader classifies each material by name and file stem and applies th
 
 Rules are first-match-wins. Materials classified as transmissive (glass/cornea) render in a separate alpha-blended pass after all opaque geometry.
 
+## Arm + weapon assembly (optional)
+
+Assemble a weapon onto the arms skeleton to build a complete first-person viewmodel. The feature is off by default: enable **Settings → Arm + weapon assembly** and an "Arm + weapon assembly" button appears in each group's parts panel.
+
+1. Pick the **arms model** (e.g. `viewhands_mp_base_iw8_LOD0.cast`) and the **weapon model** (a merged output works).
+2. The save-as name derives from the weapon code: the segment before the last known part-type token (rec/barl/mag/bolt/grip/muz/stock …) — `att_sat_vm_ar_eagle_rec_LOD0` → `eagle_viewhands.cast`; the full file name is used when no part token matches, and the name stays editable.
+3. The target bone defaults to the arms' `tag_weapon` (the COD convention); pick any bone from the dropdown to override.
+4. Click the assembly button: the weapon's root bone (`j_gun`) attaches to the target bone with a **zeroed offset** (collisions with arms bone names get a `_wpn` suffix), the weapon's bone hierarchy and skin weights are preserved, and its texture paths are rewritten to absolute.
+5. Preview the assembled model afterwards. The output is a brand-new CAST; input files are never modified.
+
 ## Build and test
 
 Building the Rust GUI requires Rust 1.96 or a compatible newer stable toolchain. Release users do not need Rust or .NET.

@@ -37,6 +37,7 @@ pub struct NativeApp {
     pending_overwrites: VecDeque<GroupId>,
     render_state: Option<eframe::egui_wgpu::RenderState>,
     ammunition: crate::ammunition::AmmoTool,
+    armature: crate::armature::ArmatureTool,
     about: crate::about::AboutDialog,
 }
 
@@ -79,6 +80,7 @@ impl NativeApp {
             pending_overwrites: VecDeque::new(),
             render_state: creation.wgpu_render_state.clone(),
             ammunition: Default::default(),
+            armature: Default::default(),
             about: Default::default(),
         };
         app.about
@@ -311,7 +313,12 @@ impl NativeApp {
             .groups()
             .iter()
             .all(|group| group.task_id().is_none());
-        match crate::menu_bar::show(root, self.state.language(), can_restore) {
+        match crate::menu_bar::show(
+            root,
+            self.state.language(),
+            can_restore,
+            self.state.armature_tool_enabled(),
+        ) {
             Some(crate::menu_bar::Action::NewGroup) => {
                 self.state.add_group();
             }
@@ -322,6 +329,11 @@ impl NativeApp {
                 theme::apply_preference(root.ctx(), self.state.settings().dark_mode);
             }
             Some(crate::menu_bar::Action::Language(language)) => self.state.set_language(language),
+            Some(crate::menu_bar::Action::ToggleArmature) => {
+                let enabled = !self.state.armature_tool_enabled();
+                self.state.set_armature_tool_enabled(enabled);
+                self.save_settings();
+            }
             Some(crate::menu_bar::Action::About) => self.about.open(),
             Some(crate::menu_bar::Action::ToggleTheme) => {
                 let dark = !root.visuals().dark_mode;
@@ -490,7 +502,11 @@ impl NativeApp {
                     self.state.delete_group(index);
                 }
             });
-        if self.about.is_open() || self.ammunition.open || !self.pending_overwrites.is_empty() {
+        if self.about.is_open()
+            || self.ammunition.open
+            || self.armature.open
+            || !self.pending_overwrites.is_empty()
+        {
             self.drop_target = None;
         }
         let drop_feedback = match self.drop_target {
@@ -667,6 +683,7 @@ impl NativeApp {
             if task_id.is_none()
                 && !self.about.is_open()
                 && !self.ammunition.open
+                && !self.armature.open
                 && self.pending_overwrites.is_empty()
                 && ui.ctx().input(|input| {
                     input
@@ -723,6 +740,15 @@ impl NativeApp {
                         .map(Path::to_path_buf)
                         .or_else(|| snapshot.part_files.first().cloned());
                     self.ammunition.start(source);
+                }
+                if self.state.armature_tool_enabled()
+                    && sized_button(ui, crate::armature::title(self.state.language())).clicked()
+                {
+                    let weapon = self.state.groups()[group_index]
+                        .last_output()
+                        .map(Path::to_path_buf)
+                        .or_else(|| snapshot.part_files.first().cloned());
+                    self.armature.start(weapon);
                 }
                 if ui
                     .add_enabled(
@@ -1219,6 +1245,9 @@ impl eframe::App for NativeApp {
         if let Some(path) = self.ammunition.show(&context, self.state.language()) {
             self.open_preview(&path);
         }
+        if let Some(path) = self.armature.show(&context, self.state.language()) {
+            self.open_preview(&path);
+        }
         self.about.show(&context, self.state.language());
         if let Some(enabled) = self.about.take_update_preference() {
             self.state.set_check_updates_on_startup(enabled);
@@ -1529,6 +1558,7 @@ mod tests {
             pending_overwrites: VecDeque::new(),
             render_state: None,
             ammunition: Default::default(),
+            armature: Default::default(),
             about: Default::default(),
         }
     }
@@ -1848,6 +1878,7 @@ mod tests {
                     pending_overwrites: VecDeque::new(),
                     render_state: None,
                     ammunition: Default::default(),
+                    armature: Default::default(),
                     about: Default::default(),
                 };
                 for frame in 0..3 {
@@ -1921,6 +1952,7 @@ mod tests {
                 pending_overwrites: VecDeque::new(),
                 render_state: None,
                 ammunition: Default::default(),
+                armature: Default::default(),
                 about: Default::default(),
             };
             let input = egui::RawInput {
@@ -2014,6 +2046,7 @@ mod tests {
             pending_overwrites: VecDeque::new(),
             render_state: None,
             ammunition: Default::default(),
+            armature: Default::default(),
             about: Default::default(),
         };
 
@@ -2051,6 +2084,7 @@ mod tests {
             pending_overwrites: VecDeque::new(),
             render_state: None,
             ammunition: Default::default(),
+            armature: Default::default(),
             about: Default::default(),
         };
         app.open_preview_selection(None);
@@ -2116,6 +2150,7 @@ mod tests {
             pending_overwrites: VecDeque::new(),
             render_state: None,
             ammunition: Default::default(),
+            armature: Default::default(),
             about: Default::default(),
         };
         let input = egui::RawInput {

@@ -103,6 +103,14 @@ impl WorkspaceState {
         self.settings.check_updates_on_startup = enabled;
     }
 
+    pub fn set_armature_tool_enabled(&mut self, enabled: bool) {
+        self.settings.armature_tool_enabled = enabled;
+    }
+
+    pub fn armature_tool_enabled(&self) -> bool {
+        self.settings.armature_tool_enabled
+    }
+
     pub fn set_dark_mode(&mut self, dark: bool) {
         self.settings.dark_mode = Some(dark);
     }

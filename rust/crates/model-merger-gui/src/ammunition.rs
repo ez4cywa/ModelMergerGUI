@@ -85,7 +85,8 @@ impl AmmoTool {
     }
     fn set_weapon(&mut self, path: PathBuf) {
         let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-        self.output = Some(path.with_file_name(format!("{stem}_filled.cast")));
+        let code = model_merger_engine::armature::weapon_code(&stem);
+        self.output = Some(path.with_file_name(format!("{code}_filled.cast")));
         self.weapon = Some(path.clone());
         self.analysis = None;
         self.selected.clear();

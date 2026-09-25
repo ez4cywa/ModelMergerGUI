@@ -1,5 +1,6 @@
 mod about;
 mod ammunition;
+mod armature;
 mod chrome;
 pub mod diagnostics;
 mod menu_bar;

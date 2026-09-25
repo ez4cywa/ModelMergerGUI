@@ -97,6 +97,13 @@ impl GroupPlan {
             return result(AddPartStatus::Duplicate, Some(validated));
         }
         self.part_files.push(validated.clone());
+        if self.output_file_name.trim().is_empty()
+            && let Some(stem) = validated.file_stem().and_then(|stem| stem.to_str())
+            && !stem.is_empty()
+        {
+            self.output_file_name =
+                format!("{}.cast", model_merger_engine::armature::weapon_code(stem));
+        }
         self.remember_input_directory(&validated);
         self.normalize_after_parts_changed();
         result(AddPartStatus::Added, Some(validated))

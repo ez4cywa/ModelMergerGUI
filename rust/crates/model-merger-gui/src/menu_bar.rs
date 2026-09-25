@@ -12,6 +12,7 @@ pub(crate) enum Action {
     Language(AppLanguage),
     About,
     ToggleTheme,
+    ToggleArmature,
 }
 
 pub(crate) fn labels(language: AppLanguage) -> [&'static str; 3] {
@@ -24,10 +25,21 @@ pub(crate) fn labels(language: AppLanguage) -> [&'static str; 3] {
     ][language as usize]
 }
 
+fn armature_label(language: AppLanguage) -> &'static str {
+    [
+        "手臂武器拼接",
+        "Arm + weapon assembly",
+        "Assemblage bras + arme",
+        "Сборка рук и оружия",
+        "Ensamble brazos + arma",
+    ][language as usize]
+}
+
 pub(crate) fn show(
     root: &mut egui::Ui,
     language: AppLanguage,
     can_restore: bool,
+    armature_enabled: bool,
 ) -> Option<Action> {
     let palette = theme::palette(root);
     let catalog = Catalog::new(language);
@@ -84,6 +96,15 @@ pub(crate) fn show(
                             }
                         }
                     });
+                    ui.separator();
+                    let mut armature = armature_enabled;
+                    if ui
+                        .checkbox(&mut armature, armature_label(language))
+                        .changed()
+                    {
+                        action = Some(Action::ToggleArmature);
+                        ui.close();
+                    }
                     ui.separator();
                     if ui
                         .add(
@@ -163,6 +184,7 @@ mod tests {
         ctx: egui::Context,
         language: AppLanguage,
         restore: bool,
+        armature: bool,
         action: Option<Action>,
     }
     impl Harness {
@@ -177,7 +199,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    self.action = show(ui, self.language, self.restore);
+                    self.action = show(ui, self.language, self.restore, self.armature);
                 },
             )
         }
@@ -214,6 +236,7 @@ mod tests {
             ctx,
             language: AppLanguage::English,
             restore: true,
+            armature: false,
             action: None,
         };
         for _ in 0..3 {
@@ -268,6 +291,7 @@ mod tests {
                     ctx,
                     language,
                     restore: false,
+                    armature: false,
                     action: None,
                 };
                 let catalog = Catalog::new(language);
@@ -278,6 +302,9 @@ mod tests {
                 h.click(file);
                 h.click(catalog.text(TextKey::OpenPreview));
                 assert_eq!(h.action, Some(Action::OpenPreview));
+                h.click(settings);
+                h.click(armature_label(language));
+                assert_eq!(h.action, Some(Action::ToggleArmature));
                 h.click(settings);
                 h.click(catalog.text(TextKey::RestoreDefaults));
                 assert_eq!(h.action, None);
