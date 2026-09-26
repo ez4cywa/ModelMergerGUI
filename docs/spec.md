@@ -6,7 +6,6 @@
 - The GUI accepts Cast (`.cast`) model parts only.
 - A merge contains at least 2 and at most 15 unique, existing files.
 - Keep one multilingual executable with live Simplified Chinese, English, French, Russian, and Spanish switching.
-- Keep the former WPF/console implementation only as migration-test material; do not include it in the native release.
 - Preserve the upstream MIT licence and author attribution.
 
 ## Part selection

@@ -74,7 +74,7 @@
 - 装填输出支持不提供硬链接的 Windows 文件系统，仍要求另存新文件，不覆盖已有模型。
 - 可保存界面语言、输出目录、根模型模式及窗口位置；不会保存已选择的模型路径。
 
-原 WPF 和命令行项目保留在源码树中作为兼容性对照，不再进入正式发布包。Rust GUI 只接受每组 2–15 个 `.cast` 部件，并输出经过重新读取验证的 `.cast` 文件。
+全部功能由 Rust 原生实现。Rust GUI 只接受每组 2–15 个 `.cast` 部件，并输出经过重新读取验证的 `.cast` 文件。
 
 设置文件保存在：
 
@@ -224,14 +224,12 @@ cargo fuzz --fuzz-dir .\fuzz run decode
 
 ```text
 rust/crates/cast-codec              边界检查严格的 CAST 编解码
-rust/crates/model-merger-engine     合并、验证、安全输出与预览抽样
+rust/crates/model-merger-engine     合并、装填、拼接、验证、安全输出与预览抽样
 rust/crates/model-merger-app-core   工作区、设置、五语目录与双并发调度
 rust/crates/model-merger-gui        eframe/egui/wgpu 原生桌面界面
 rust/fuzz                           CAST 解码器模糊测试入口
-src/ 和 tests/                      迁移期间保留的 WPF 兼容性对照与语料
+tests/fixtures/rust-migration       Rust 合并测试的黄金语料
 ```
-
-迁移期 `model-merger-worker` 源码仍保留用于历史协议对照，但已从默认 Rust workspace 和所有正式构建、测试、发布路径中排除。
 
 ## 致谢与许可
 

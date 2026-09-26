@@ -80,7 +80,7 @@ Drop targets highlight during dragging. You do not need to merge the previous ba
 - Root detection, skeleton connection and repositioning follow upstream behavior; arbitrary parts are not guaranteed to assemble correctly.
 - Previews use neutral geometry shading and display up to 250,000 triangles, with a notice when sampled. Merging uses the full data.
 - Magazine filling requires supported bone names and unit-scale rigid skeletons, with limits of 512 slots and five million added vertices. Output must use a new filename.
-- Legacy WPF, CLI and migration-worker sources are historical references, not release components. No macOS or Linux packages are published.
+- Everything is implemented natively in Rust; only Windows x64 packages are published. No macOS or Linux packages are published.
 
 ## Troubleshooting and local data
 
@@ -122,13 +122,13 @@ cargo test --manifest-path rust/Cargo.toml --workspace
 
 ```text
 rust/crates/cast-codec              CAST encoding/decoding and resource budgets
-rust/crates/model-merger-engine     Merging, filling, output validation, preview sampling
+rust/crates/model-merger-engine     Merging, filling, assembly, output validation, preview sampling
 rust/crates/model-merger-app-core   Workspace, settings, localization and scheduling
 rust/crates/model-merger-gui        egui/wgpu desktop interface
 rust/fuzz                          Decoder fuzzing
 scripts/                           Font preparation, Windows builds and release checks
 docs/                              Guides, design records and release notes
-src/ and tests/                    Historical WPF references and fixtures
+tests/fixtures/rust-migration      Golden corpora for the Rust merge tests
 ```
 
 [English guide](docs/user-guide.en.md) · [中文指南](docs/user-guide.zh-CN.md) · [Rust migration (Chinese)](docs/full-rust-migration.md) · [Magazine bone research (Chinese)](docs/ammo-bone-research.md) · [Version notes](docs/release-notes)

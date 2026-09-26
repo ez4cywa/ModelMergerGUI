@@ -77,7 +77,7 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - Magazine output also supports Windows filesystems without hard links, while preserving the requirement to save to a new filename.
 - Save the interface language, output folder, root-model mode and window position. Selected model paths are not persisted.
 
-The original WPF and command-line projects remain in the source tree for compatibility reference but are no longer included in release packages. The Rust GUI accepts 2–15 `.cast` parts per merge group and produces read-back-validated `.cast` output.
+Everything is implemented natively in Rust. The Rust GUI accepts 2–15 `.cast` parts per merge group and produces read-back-validated `.cast` output.
 
 Settings are stored at:
 
@@ -229,14 +229,12 @@ From the repository root, create the native Windows x64 portable package and SHA
 
 ```text
 rust/crates/cast-codec              Strictly bounded CAST encoding/decoding
-rust/crates/model-merger-engine     Merging, ammunition placement, validation, safe output, preview sampling
+rust/crates/model-merger-engine     Merging, ammunition placement, assembly, validation, safe output, preview sampling
 rust/crates/model-merger-app-core   Workspace, settings, five-language catalogs, two-worker scheduling
 rust/crates/model-merger-gui        Native eframe/egui/wgpu desktop interface
 rust/fuzz                          CAST decoder fuzzing entry point
-src/ and tests/                    Legacy WPF compatibility references and fixtures
+tests/fixtures/rust-migration      Golden corpora for the Rust merge tests
 ```
-
-The migration-era `model-merger-worker` source is retained as a historical protocol reference, but is excluded from the default Rust workspace and all production build, test and release paths.
 
 ## Credits and license
 

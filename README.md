@@ -80,7 +80,7 @@
 - 根识别、骨骼连接与重定位沿用上游逻辑，不保证任意来源的部件都能自动正确拼接。
 - 预览使用中性灰几何显示；大型模型最多显示 250,000 个三角面，抽样时有提示，实际合并仍使用完整数据。
 - 弹匣装填依赖受支持的骨骼命名和单位缩放刚体骨骼，最多 512 个槽位、500 万个新增顶点；必须另存新文件。
-- 原 WPF、CLI 和迁移期 worker 源码仅作为历史对照，不进入正式发布包。当前不发布 macOS 或 Linux 版本。
+- 当前仅发布 Windows x64 版本，全部功能由 Rust 原生实现。不发布 macOS 或 Linux 版本。
 
 ## 常见问题与日志
 
@@ -122,13 +122,13 @@ cargo test --manifest-path rust/Cargo.toml --workspace
 
 ```text
 rust/crates/cast-codec              CAST 编解码与资源预算
-rust/crates/model-merger-engine     合并、装填、输出验证与预览抽样
+rust/crates/model-merger-engine     合并、装填、拼接、输出验证与预览抽样
 rust/crates/model-merger-app-core   工作区、设置、多语言与任务调度
 rust/crates/model-merger-gui        egui/wgpu 桌面界面
 rust/fuzz                          解码器模糊测试
 scripts/                           字体准备、Windows 构建与发布验证
 docs/                              使用指南、设计记录与更新说明
-src/ 和 tests/                     历史 WPF 兼容性对照与语料
+tests/fixtures/rust-migration      Rust 合并测试的黄金语料
 ```
 
 [中文指南](docs/user-guide.zh-CN.md) · [English guide](docs/user-guide.en.md) · [完整 Rust 迁移记录](docs/full-rust-migration.md) · [弹匣骨骼研究](docs/ammo-bone-research.md) · [版本说明](docs/release-notes)
