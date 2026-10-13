@@ -327,6 +327,25 @@ impl TaskScheduler {
         snapshots
     }
 
+    /// Releases a terminal task after its result has been consumed.
+    ///
+    /// Queued and running tasks are retained. Once forgotten, the task no longer appears in
+    /// snapshots, and queries or waits for its ID return `None`. A cancelled task's queued
+    /// request is also released without entering the backend.
+    pub fn forget_finished(&self, id: TaskId) -> bool {
+        let mut inner = self.shared.inner.lock().unwrap();
+        if inner
+            .tasks
+            .get(&id)
+            .is_none_or(|task| !task.state.is_terminal())
+        {
+            return false;
+        }
+        inner.tasks.remove(&id);
+        inner.queue.retain(|job| job.id != id);
+        true
+    }
+
     pub fn wait(&self, id: TaskId) -> Option<TaskSnapshot> {
         let mut inner = self.shared.inner.lock().unwrap();
         loop {

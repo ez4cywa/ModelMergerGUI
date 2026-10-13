@@ -105,18 +105,16 @@ git clone https://github.com/ez4cywa/ModelMergerGUI.git
 cd ModelMergerGUI
 # Read the MiSans license, then download the font if you accept it
 .\scripts\Install-MiSans.ps1 -AcceptLicense
-cargo run --manifest-path rust/Cargo.toml -p model-merger-gui --bin CastModelMerger
+cargo run --manifest-path rust/Cargo.toml --locked -p model-merger-gui --bin CastModelMerger
 ```
 
 ```powershell
-cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-cargo test --manifest-path rust/Cargo.toml --workspace
+.\scripts\Test-RustWorkspace.ps1
 # Produce the Windows x64 ZIP and SHA-256 checksum
 .\scripts\Publish-RustNative.ps1
 ```
 
-[Windows CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml) checks formatting, Clippy, tests, release builds and icon resources. [Decoder fuzzing](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/fuzz.yml) runs on a schedule. See the [build guide](docs/user-guide.en.md#build-and-test) for font licensing and build details.
+Local development, [Windows CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml) and default releases share the verification script for formatting, Clippy, tests and native browser/clipboard integrations. Builds use the committed `Cargo.lock`. CI also checks release builds and icon resources; [decoder fuzzing](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/fuzz.yml) runs on a schedule. See the [build guide](docs/user-guide.en.md#build-and-test) for font licensing and build details.
 
 ## Structure and documentation
 

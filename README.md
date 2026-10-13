@@ -105,18 +105,16 @@ git clone https://github.com/ez4cywa/ModelMergerGUI.git
 cd ModelMergerGUI
 # 阅读 MiSans 许可，接受后下载构建所需字体
 .\scripts\Install-MiSans.ps1 -AcceptLicense
-cargo run --manifest-path rust/Cargo.toml -p model-merger-gui --bin CastModelMerger
+cargo run --manifest-path rust/Cargo.toml --locked -p model-merger-gui --bin CastModelMerger
 ```
 
 ```powershell
-cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-cargo test --manifest-path rust/Cargo.toml --workspace
+.\scripts\Test-RustWorkspace.ps1
 # 生成 Windows x64 ZIP 和 SHA-256 校验文件
 .\scripts\Publish-RustNative.ps1
 ```
 
-[Windows CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml) 检查格式、Clippy、测试、Release 构建与图标资源；[解码器模糊测试](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/fuzz.yml) 定期运行。字体授权、构建细节见[使用指南](docs/user-guide.zh-CN.md#构建和测试)，不以固定测试数量代替当前 CI 结果。
+本地、[Windows CI](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/rust-ci.yml) 和默认发布流程共用验证脚本，检查格式、Clippy、测试及浏览器／剪贴板集成；构建依赖锁定到已提交的 `Cargo.lock`。CI 另检查 Release 构建与图标资源，[解码器模糊测试](https://github.com/ez4cywa/ModelMergerGUI/actions/workflows/fuzz.yml) 定期运行。字体授权、构建细节见[使用指南](docs/user-guide.zh-CN.md#构建和测试)。
 
 ## 项目结构与文档
 

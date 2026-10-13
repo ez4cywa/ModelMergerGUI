@@ -207,13 +207,11 @@ MiSans permits embedding in an application but not redistributing the font as a 
 The script downloads and verifies Xiaomi's official font package and extracts only the Medium weight used by the application. Chinese heading hierarchy relies on size, color and spacing rather than synthetic bold. The local font file is ignored by Git and embedded in the release executable. Official releases already include the embedded font; end users do not need to run this script.
 
 ```powershell
-cd .\rust
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release -p model-merger-gui --bin CastModelMerger
+.\scripts\Test-RustWorkspace.ps1
+cargo build --manifest-path rust/Cargo.toml --locked --release -p model-merger-gui --bin CastModelMerger
 ```
 
-The CAST decoder enforces budgets for nodes, properties, numeric values and text. Windows CI checks formatting, Clippy, tests, release builds and icon resources, with scheduled weekly decoder fuzzing. After installing `cargo-fuzz`, you can also run the following from the `rust` directory:
+Run the commands above from the repository root. The verification script is shared with CI and default releases, checking formatting, Clippy, tests and native browser/clipboard integrations with the committed `Cargo.lock`. The CAST decoder enforces budgets for nodes, properties, numeric values and text. CI also checks release builds and icon resources, with scheduled weekly decoder fuzzing. After installing `cargo-fuzz`, you can run the following from the `rust` directory:
 
 ```powershell
 cargo fuzz --fuzz-dir .\fuzz run decode

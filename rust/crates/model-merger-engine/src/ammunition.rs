@@ -620,11 +620,7 @@ pub fn fill(request: FillRequest, observer: &impl MergeObserver) -> Result<FillR
     observer.on_progress(MergeStage::Saving, 0, 1, None);
     let bytes = raw.encode().map_err(MergeError::Codec)?;
     let temporary_path = crate::temporary_path(&request.output);
-    let temporary = crate::TemporaryOutput::new(temporary_path.clone());
-    std::fs::write(&temporary_path, &bytes).map_err(|source| MergeError::Io {
-        path: temporary_path.clone(),
-        source,
-    })?;
+    let temporary = crate::TemporaryOutput::write(temporary_path.clone(), &bytes)?;
     observer.on_progress(MergeStage::Verifying, 0, 1, None);
     let (_, verified) = read(&temporary_path, observer)?;
     if verified.meshes.len() != model.meshes.len() + targets.len() * ammo.meshes.len() {

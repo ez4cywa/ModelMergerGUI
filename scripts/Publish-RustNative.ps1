@@ -24,20 +24,15 @@ if (-not (Test-Path -LiteralPath $fontPath -PathType Leaf)) {
 }
 
 if (-not $SkipTests) {
-    & cargo clippy --manifest-path (Join-Path $rustRoot 'Cargo.toml') --workspace --all-targets -- -D warnings
-    if ($LASTEXITCODE -ne 0) {
-        throw "cargo clippy failed with exit code $LASTEXITCODE."
-    }
-    & cargo test --manifest-path (Join-Path $rustRoot 'Cargo.toml') --workspace
-    if ($LASTEXITCODE -ne 0) {
-        throw "cargo test failed with exit code $LASTEXITCODE."
-    }
+    & (Join-Path $PSScriptRoot 'Test-RustWorkspace.ps1')
 }
-
-& (Join-Path $PSScriptRoot 'Test-NativeIntegrations.ps1')
+else {
+    & (Join-Path $PSScriptRoot 'Test-NativeIntegrations.ps1')
+}
 
 & cargo build `
     --manifest-path (Join-Path $rustRoot 'Cargo.toml') `
+    --locked `
     --release `
     --target $targetTriple `
     --package model-merger-gui `

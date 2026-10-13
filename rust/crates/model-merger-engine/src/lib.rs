@@ -15,6 +15,7 @@ use cast_codec::{CastFile, CodecError};
 use domain::{Model, check_cancelled, merge_model};
 use std::fmt;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const MINIMUM_PARTS: usize = 2;
@@ -159,11 +160,7 @@ impl PreparedMerge {
     pub fn execute(mut self, observer: &impl MergeObserver) -> Result<MergeResult, MergeError> {
         check_cancelled(observer)?;
         if self.output_path.exists() && !self.overwrite {
-            return Err(validation(
-                MergeValidationCode::OutputAlreadyExists,
-                format!("output already exists: {}", self.output_path.display()),
-                Some(self.output_path.clone()),
-            ));
+            return Err(output_already_exists(&self.output_path));
         }
 
         let part_count = self.loaded.len();
@@ -261,11 +258,7 @@ impl PreparedMerge {
         observer.on_progress(MergeStage::Saving, 0, 1, Some(&output_name));
         let bytes = cast_model::encode_model(&root)?;
         let temporary_path = temporary_path(&self.output_path);
-        let temporary = TemporaryOutput::new(temporary_path.clone());
-        fs::write(&temporary_path, &bytes).map_err(|source| MergeError::Io {
-            path: temporary_path.clone(),
-            source,
-        })?;
+        let temporary = TemporaryOutput::write(temporary_path.clone(), &bytes)?;
         check_cancelled(observer)?;
 
         observer.on_progress(MergeStage::Verifying, 0, 1, None);
@@ -287,7 +280,7 @@ impl PreparedMerge {
         check_cancelled(observer)?;
 
         commit_output(&temporary_path, &self.output_path, self.overwrite)?;
-        temporary.disarm();
+        drop(temporary);
         observer.on_progress(MergeStage::Completed, 1, 1, Some(&output_name));
 
         Ok(MergeResult {
@@ -361,11 +354,7 @@ pub fn prepare(
         .unwrap_or_else(|| format!("{root_name}.cast"));
     let output_path = validated.output_directory.join(output_name);
     if output_path.exists() && !validated.overwrite {
-        return Err(validation(
-            MergeValidationCode::OutputAlreadyExists,
-            format!("output already exists: {}", output_path.display()),
-            Some(output_path),
-        ));
+        return Err(output_already_exists(&output_path));
     }
 
     Ok(PreparedMerge {
@@ -583,7 +572,19 @@ fn temporary_path(output: &Path) -> PathBuf {
 }
 
 fn commit_output(temporary: &Path, output: &Path, overwrite: bool) -> Result<(), MergeError> {
-    if !overwrite || !output.exists() {
+    if !overwrite {
+        return output::publish_new(temporary, output).map_err(|source| {
+            if source.kind() == std::io::ErrorKind::AlreadyExists {
+                output_already_exists(output)
+            } else {
+                MergeError::Io {
+                    path: output.to_path_buf(),
+                    source,
+                }
+            }
+        });
+    }
+    if !output.exists() {
         return fs::rename(temporary, output).map_err(|source| MergeError::Io {
             path: output.to_path_buf(),
             source,
@@ -610,28 +611,87 @@ fn commit_output(temporary: &Path, output: &Path, overwrite: bool) -> Result<(),
     }
 }
 
+fn output_already_exists(output: &Path) -> MergeError {
+    validation(
+        MergeValidationCode::OutputAlreadyExists,
+        format!("output already exists: {}", output.display()),
+        Some(output.to_path_buf()),
+    )
+}
+
 struct TemporaryOutput {
     path: PathBuf,
-    armed: std::cell::Cell<bool>,
 }
 
 impl TemporaryOutput {
-    fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-            armed: std::cell::Cell::new(true),
-        }
-    }
-
-    fn disarm(&self) {
-        self.armed.set(false);
+    fn write(path: PathBuf, bytes: &[u8]) -> Result<Self, MergeError> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|source| MergeError::Io {
+                path: path.clone(),
+                source,
+            })?;
+        // Arm cleanup after creation, so collisions cannot replace or delete another file.
+        let temporary = Self { path };
+        let written = file.write_all(bytes);
+        drop(file);
+        written.map_err(|source| MergeError::Io {
+            path: temporary.path.clone(),
+            source,
+        })?;
+        Ok(temporary)
     }
 }
 
 impl Drop for TemporaryOutput {
     fn drop(&mut self) {
-        if self.armed.get() {
-            let _ = fs::remove_file(&self.path);
-        }
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+#[cfg(test)]
+mod temporary_output_tests {
+    use super::*;
+
+    #[test]
+    fn temporary_output_collision_preserves_the_existing_file() {
+        let path = std::env::temp_dir().join(format!(
+            "cast-output-collision-{}.tmp.cast",
+            std::process::id()
+        ));
+        let existing = TemporaryOutput::write(path.clone(), b"previous output").unwrap();
+
+        let error = TemporaryOutput::write(path.clone(), b"new output")
+            .err()
+            .expect("an existing temporary file must not be claimed");
+
+        assert!(matches!(
+            error,
+            MergeError::Io { source, .. } if source.kind() == std::io::ErrorKind::AlreadyExists
+        ));
+        assert_eq!(fs::read(&path).unwrap(), b"previous output");
+        drop(existing);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn temporary_output_cleanup_preserves_published_output() {
+        let path = std::env::temp_dir().join(format!(
+            "cast-output-cleanup-{}.tmp.cast",
+            std::process::id()
+        ));
+        let published = path.with_extension("published.cast");
+        let temporary = TemporaryOutput::write(path.clone(), b"validated model").unwrap();
+        output::publish_new(&path, &published).unwrap();
+        drop(temporary);
+        // The test owns the published link too, and must remove it if an assertion fails.
+        let published_cleanup = TemporaryOutput {
+            path: published.clone(),
+        };
+        assert!(!path.exists());
+        assert_eq!(fs::read(&published).unwrap(), b"validated model");
+        drop(published_cleanup);
     }
 }

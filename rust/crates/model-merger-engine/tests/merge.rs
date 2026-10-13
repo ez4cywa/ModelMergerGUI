@@ -245,6 +245,68 @@ fn part_count_outside_two_through_fifteen_is_rejected() {
     }
 }
 
+#[test]
+fn output_created_during_verification_is_preserved_without_overwrite() {
+    struct ConcurrentWriter(PathBuf);
+    impl MergeObserver for ConcurrentWriter {
+        fn on_progress(&self, stage: MergeStage, _: usize, _: usize, _: Option<&str>) {
+            if stage == MergeStage::Verifying {
+                std::fs::write(&self.0, b"another writer's output").unwrap();
+            }
+        }
+    }
+    let fixture_directory = chain_fixture_directory();
+    let directory = TestDirectory::new();
+    let output = directory.path.join("raced.cast");
+    let prepared = prepare(
+        MergeRequest {
+            input_files: chain_inputs(&fixture_directory, 2),
+            output_directory: directory.path.clone(),
+            output_file_name: Some("raced.cast".into()),
+            root_selection: RootSelection::Automatic,
+            overwrite: false,
+        },
+        &NoopObserver,
+    )
+    .unwrap();
+    // The writer runs after execute's existence check, just before publication.
+    let error = prepared
+        .execute(&ConcurrentWriter(output.clone()))
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        model_merger_engine::MergeError::Validation {
+            code: model_merger_engine::MergeValidationCode::OutputAlreadyExists,
+            path: Some(path),
+            ..
+        } if path == output
+    ));
+    assert_eq!(std::fs::read(&output).unwrap(), b"another writer's output");
+    assert_eq!(1, std::fs::read_dir(&directory.path).unwrap().count());
+}
+
+#[test]
+fn successful_merge_leaves_no_temporary_output_links() {
+    let fixture_directory = chain_fixture_directory();
+    let directory = TestDirectory::new();
+    let result = prepare(
+        MergeRequest {
+            input_files: chain_inputs(&fixture_directory, 2),
+            output_directory: directory.path.clone(),
+            output_file_name: Some("complete.cast".into()),
+            root_selection: RootSelection::Automatic,
+            overwrite: false,
+        },
+        &NoopObserver,
+    )
+    .unwrap()
+    .execute(&NoopObserver)
+    .unwrap();
+
+    assert!(result.output_path.is_file());
+    assert_eq!(1, std::fs::read_dir(&directory.path).unwrap().count());
+}
+
 fn chain_fixture_directory() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../tests/fixtures/rust-migration/golden-chain-15")

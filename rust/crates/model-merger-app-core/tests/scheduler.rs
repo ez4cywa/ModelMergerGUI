@@ -65,6 +65,57 @@ fn backend_panic_fails_one_task_releases_its_claim_and_keeps_worker_alive() {
 }
 
 #[test]
+fn consumed_success_and_failure_results_can_be_forgotten_without_accumulating_history() {
+    let scheduler = TaskScheduler::new(Arc::new(PanicOnceBackend::default()), 1).unwrap();
+    let failed = scheduler.schedule(request("reclaimed.cast")).unwrap();
+    assert_eq!(TaskState::Failed, scheduler.wait(failed).unwrap().state);
+    assert!(scheduler.forget_finished(failed));
+    assert!(scheduler.snapshot(failed).is_none());
+    assert!(scheduler.wait(failed).is_none());
+    assert!(!scheduler.forget_finished(failed));
+
+    for _ in 0..50 {
+        let succeeded = scheduler.schedule(request("reclaimed.cast")).unwrap();
+        assert_eq!(
+            TaskState::Succeeded,
+            scheduler.wait(succeeded).unwrap().state
+        );
+        assert!(scheduler.forget_finished(succeeded));
+        assert!(scheduler.snapshots().is_empty());
+    }
+}
+
+#[test]
+fn only_terminal_tasks_can_be_forgotten_and_cancelled_queue_entries_do_not_execute() {
+    let backend = Arc::new(BlockingBackend::default());
+    let scheduler = TaskScheduler::new(backend.clone(), 1).unwrap();
+    let running = scheduler
+        .schedule(request("retained-running.cast"))
+        .unwrap();
+    let queued = scheduler.schedule(request("retained-queued.cast")).unwrap();
+    backend.wait_for_started(1);
+
+    assert!(!scheduler.forget_finished(running));
+    assert!(!scheduler.forget_finished(queued));
+    assert_eq!(
+        TaskState::Running,
+        scheduler.snapshot(running).unwrap().state
+    );
+    assert_eq!(TaskState::Queued, scheduler.snapshot(queued).unwrap().state);
+
+    assert!(scheduler.cancel(queued));
+    assert_eq!(TaskState::Cancelled, scheduler.wait(queued).unwrap().state);
+    assert!(scheduler.forget_finished(queued));
+    assert!(scheduler.snapshot(queued).is_none());
+    backend.state.release.store(true, Ordering::Release);
+    backend.wake_all();
+    assert_eq!(TaskState::Succeeded, scheduler.wait(running).unwrap().state);
+    assert!(scheduler.forget_finished(running));
+    assert_eq!(1, backend.state.started.load(Ordering::Acquire));
+    assert!(scheduler.snapshots().is_empty());
+}
+
+#[test]
 fn queued_task_can_be_cancelled_without_entering_the_backend() {
     let backend = Arc::new(BlockingBackend::default());
     let scheduler = TaskScheduler::new(backend.clone(), 1).unwrap();

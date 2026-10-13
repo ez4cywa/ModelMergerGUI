@@ -169,15 +169,8 @@ impl SettingsStore {
             NEXT_ID.fetch_add(1, Ordering::Relaxed)
         ));
         let backup_path = self.path.with_extension("json.backup");
-        let temporary = TemporarySettings::new(temporary_path.clone());
         let bytes = serde_json::to_vec_pretty(&settings.clone().sanitized())?;
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary_path)?;
-        file.write_all(&bytes)?;
-        file.sync_all()?;
-        drop(file);
+        let temporary = TemporarySettings::write(temporary_path.clone(), &bytes)?;
 
         if self.path.exists() {
             let _ = fs::remove_file(&backup_path);
@@ -211,11 +204,20 @@ struct TemporarySettings {
 }
 
 impl TemporarySettings {
-    fn new(path: PathBuf) -> Self {
-        Self {
+    fn write(path: PathBuf, bytes: &[u8]) -> std::io::Result<Self> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        // Cleanup owns only files successfully created by this save attempt.
+        let temporary = Self {
             path,
             armed: std::cell::Cell::new(true),
-        }
+        };
+        let written = file.write_all(bytes).and_then(|()| file.sync_all());
+        drop(file);
+        written?;
+        Ok(temporary)
     }
 
     fn disarm(&self) {
@@ -232,8 +234,37 @@ impl Drop for TemporarySettings {
 }
 
 #[cfg(test)]
-mod theme_tests {
+mod tests {
     use super::*;
+
+    #[test]
+    fn temporary_settings_collision_preserves_the_existing_file() {
+        let path = std::env::temp_dir().join(format!(
+            "cast-settings-collision-{}.tmp",
+            std::process::id()
+        ));
+        let existing = TemporarySettings::write(path.clone(), b"previous save").unwrap();
+
+        let error = TemporarySettings::write(path.clone(), b"new save")
+            .err()
+            .expect("an existing temporary file must not be claimed");
+
+        assert_eq!(std::io::ErrorKind::AlreadyExists, error.kind());
+        assert_eq!(fs::read(&path).unwrap(), b"previous save");
+        drop(existing);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn temporary_settings_cleanup_removes_only_its_owned_file() {
+        let path =
+            std::env::temp_dir().join(format!("cast-settings-cleanup-{}.tmp", std::process::id()));
+        let temporary = TemporarySettings::write(path.clone(), b"saved settings").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"saved settings");
+        drop(temporary);
+        assert!(!path.exists());
+    }
+
     #[test]
     fn old_settings_follow_system_and_manual_themes_round_trip() {
         assert_eq!(

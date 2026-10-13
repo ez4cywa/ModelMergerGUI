@@ -240,10 +240,11 @@ impl NativeApp {
             let Some(snapshot) = self.scheduler.snapshot(task_id) else {
                 continue;
             };
-            if let Some(completion) = self.state.apply_task_snapshot(group_index, snapshot)
-                && completion.requires_overwrite_confirmation
-            {
-                overwrite_candidates.push(completion.group_id);
+            if let Some(completion) = self.state.apply_task_snapshot(group_index, snapshot) {
+                self.scheduler.forget_finished(task_id);
+                if completion.requires_overwrite_confirmation {
+                    overwrite_candidates.push(completion.group_id);
+                }
             }
         }
         for group_id in overwrite_candidates {
@@ -1561,6 +1562,102 @@ mod tests {
             armature: Default::default(),
             about: Default::default(),
         }
+    }
+
+    #[test]
+    fn refreshing_completed_tasks_reclaims_scheduler_history_and_keeps_group_results() {
+        let mut app = drop_test_app();
+        for attempt in 1..=20 {
+            let task_id = app
+                .scheduler
+                .schedule(model_merger_engine::MergeRequest {
+                    input_files: Vec::new(),
+                    output_directory: PathBuf::new(),
+                    output_file_name: None,
+                    root_selection: model_merger_engine::RootSelection::Automatic,
+                    overwrite: false,
+                })
+                .unwrap();
+            assert!(app.state.start_task(0, task_id, None));
+            let completed = app.scheduler.wait(task_id).unwrap();
+            assert_eq!(model_merger_app_core::TaskState::Failed, completed.state);
+
+            app.refresh_tasks();
+
+            let group = &app.state.groups()[0];
+            assert!(group.task_id().is_none());
+            assert_eq!(completed.id, group.task_snapshot().unwrap().id);
+            assert_eq!(completed.state, group.task_snapshot().unwrap().state);
+            assert!(matches!(group.log().last(), Some(GroupLog::Error(_))));
+            assert_eq!(attempt * 2, group.log().len());
+            assert!(app.scheduler.snapshots().is_empty());
+        }
+    }
+
+    #[test]
+    fn reclaiming_merge_results_preserves_success_display_and_overwrite_confirmation() {
+        struct OutputDirectory(PathBuf);
+        impl Drop for OutputDirectory {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let output_directory = OutputDirectory(std::env::temp_dir().join(format!(
+            "model-merger-gui-reclaim-results-{}",
+            std::process::id()
+        )));
+        std::fs::create_dir_all(&output_directory.0).unwrap();
+        let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/rust-migration/golden-small");
+        let mut app = drop_test_app();
+        app.state.add_parts(
+            0,
+            [
+                fixture_directory.join("part-00.cast"),
+                fixture_directory.join("part-01.cast"),
+            ],
+        );
+        let plan = &mut app.state.groups_mut()[0].plan;
+        plan.choose_output_directory(&output_directory.0);
+        plan.set_output_file_name("completed.cast");
+
+        app.schedule_group(0, true);
+        let task_id = app.state.groups()[0].task_id().unwrap();
+        let completed = app.scheduler.wait(task_id).unwrap();
+        assert_eq!(model_merger_app_core::TaskState::Succeeded, completed.state);
+        app.refresh_tasks();
+
+        let group = &app.state.groups()[0];
+        assert_eq!(completed.state, group.task_snapshot().unwrap().state);
+        assert_eq!(completed.progress, group.task_snapshot().unwrap().progress);
+        assert_eq!(
+            Some(output_directory.0.join("completed.cast").as_path()),
+            group.last_output()
+        );
+        assert!(matches!(group.log().last(), Some(GroupLog::Output(_))));
+        assert!(app.scheduler.snapshots().is_empty());
+
+        app.schedule_group(0, false);
+        let task_id = app.state.groups()[0].task_id().unwrap();
+        assert_eq!(
+            model_merger_app_core::TaskState::Failed,
+            app.scheduler.wait(task_id).unwrap().state
+        );
+        app.refresh_tasks();
+
+        assert!(app.scheduler.snapshots().is_empty());
+        assert_eq!(
+            VecDeque::from([app.state.groups()[0].id()]),
+            app.pending_overwrites
+        );
+        assert!(matches!(
+            app.state.groups()[0].log().last(),
+            Some(GroupLog::Error(_))
+        ));
+        let log_count = app.state.groups()[0].log().len();
+        app.refresh_tasks();
+        assert_eq!(log_count, app.state.groups()[0].log().len());
+        assert_eq!(1, app.pending_overwrites.len());
     }
 
     #[test]

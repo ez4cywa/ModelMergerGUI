@@ -202,13 +202,11 @@ MiSans 的许可允许把字体嵌入应用，但不允许把字体文件作为�
 脚本从小米官网下载经校验的字体包，只提取程序使用的 Medium 字重；中文标题层级通过字号、颜色和间距区分，避免合成粗体造成观感不一致。下载的本地字体文件会被 Git 忽略，Rust Release 编译时将其嵌入 EXE。官方 GitHub Release 已包含嵌入字体，普通用户无需运行该脚本。
 
 ```powershell
-cd .\rust
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release -p model-merger-gui --bin CastModelMerger
+.\scripts\Test-RustWorkspace.ps1
+cargo build --manifest-path rust/Cargo.toml --locked --release -p model-merger-gui --bin CastModelMerger
 ```
 
-CAST 解码器还提供节点、属性、数值和文本资源预算。仓库通过 Windows CI 检查格式、Clippy、测试、Release 构建和图标资源，并每周运行解码模糊测试；也可本地安装 `cargo-fuzz` 后执行：
+以上命令从仓库根目录运行。验证脚本与 CI、默认发布流程共用，检查格式、Clippy、测试及浏览器／剪贴板集成，依赖锁定到 `Cargo.lock`。CAST 解码器还提供节点、属性、数值和文本资源预算。CI 另检查 Release 构建和图标资源，并每周运行解码模糊测试；也可本地安装 `cargo-fuzz` 后在 `rust` 目录执行：
 
 ```powershell
 cargo fuzz --fuzz-dir .\fuzz run decode
