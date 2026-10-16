@@ -1,5 +1,7 @@
 use crate::MergeError;
-use crate::domain::{Bone, MaterialInfo, MaterialSlotValue, Mesh, Model, ShapeDelta};
+use crate::domain::{
+    Bone, MaterialInfo, MaterialSlotValue, Mesh, Model, ShapeDelta, VertexColorLayer,
+};
 use crate::math::Vec3;
 use cast_codec::{CastFile, CastNode, CastProperty, PropertyValues};
 use std::collections::HashMap;
@@ -13,6 +15,7 @@ const MESH: u32 = u32::from_le_bytes(*b"mesh");
 const MATERIAL: u32 = u32::from_le_bytes(*b"matl");
 const FILE: u32 = u32::from_le_bytes(*b"file");
 const BLEND_SHAPE: u32 = u32::from_le_bytes(*b"blsh");
+const METADATA: u32 = u32::from_le_bytes(*b"meta");
 
 pub(crate) fn decode_model(bytes: &[u8], path: &Path) -> Result<Model, MergeError> {
     decode_model_with_cancel(bytes, path, &|| false)
@@ -60,9 +63,16 @@ pub(crate) fn decode_model_with_cancel(
         .iter()
         .filter(|node| node.identifier == MATERIAL)
         .collect();
+    let source_directory = std::path::absolute(path)
+        .map_err(|source| MergeError::Io {
+            path: path.to_owned(),
+            source,
+        })?
+        .parent()
+        .map(Path::to_owned);
     let materials = material_nodes
         .iter()
-        .map(|node| decode_material(node))
+        .map(|node| decode_material(node, source_directory.clone()))
         .collect::<Result<Vec<_>, _>>()?;
     let material_by_hash: HashMap<u64, usize> = material_nodes
         .iter()
@@ -105,6 +115,14 @@ pub(crate) fn decode_model_with_cancel(
         meshes,
         materials,
         shapes,
+        up_axis: file
+            .roots
+            .iter()
+            .flat_map(|root| &root.children)
+            .find(|node| node.identifier == METADATA)
+            .map(|node| optional_string_property(node, "up"))
+            .transpose()?
+            .flatten(),
     })
 }
 
@@ -116,7 +134,10 @@ fn check_decode_cancelled(is_cancelled: &impl Fn() -> bool) -> Result<(), MergeE
     }
 }
 
-fn decode_material(node: &CastNode) -> Result<MaterialInfo, MergeError> {
+fn decode_material(
+    node: &CastNode,
+    source_directory: Option<std::path::PathBuf>,
+) -> Result<MaterialInfo, MergeError> {
     let name = string_property(node, "n")?;
     let mut file_paths: HashMap<u64, String> = HashMap::new();
     for child in &node.children {
@@ -148,7 +169,18 @@ fn decode_material(node: &CastNode) -> Result<MaterialInfo, MergeError> {
             _ => {}
         }
     }
-    Ok(MaterialInfo { name, slots })
+    let source_directory = source_directory.filter(|_| {
+        slots.iter().any(|(_, value)| {
+            value
+                .file_path()
+                .is_some_and(|path| !path.is_empty() && Path::new(path).is_relative())
+        })
+    });
+    Ok(MaterialInfo {
+        name,
+        slots,
+        source_directory,
+    })
 }
 
 fn decode_bone(node: &CastNode) -> Result<Bone, MergeError> {
@@ -191,34 +223,53 @@ fn decode_mesh(
             "normal buffer length does not match vertex count".into(),
         ));
     }
-    let uvs = match property(node, "u0") {
-        Some(PropertyValues::Vector2(values)) if values.len() == vertex_count => values.clone(),
-        Some(_) => {
-            return Err(MergeError::InvalidModel(
-                "UV buffer has an unsupported type or length".into(),
-            ));
+    let uv_count = layer_count(node, "ul", property(node, "u0").is_some())?;
+    let mut uv_layers = Vec::with_capacity(uv_count);
+    for index in 0..uv_count {
+        let name = format!("u{index}");
+        match property(node, &name) {
+            Some(PropertyValues::Vector2(values)) if values.len() == vertex_count => {
+                uv_layers.push(values.clone())
+            }
+            _ => {
+                return Err(MergeError::InvalidModel(format!(
+                    "UV layer '{name}' has an unsupported type or length"
+                )));
+            }
         }
-        None => vec![[0.0, 0.0]; vertex_count],
-    };
-    let colors = match property(node, "vc") {
-        Some(PropertyValues::Integer32(values)) if values.len() == vertex_count => values
-            .iter()
-            .map(|value| {
-                [
-                    (*value & 0xff) as f32 / 255.0,
-                    ((*value >> 8) & 0xff) as f32 / 255.0,
-                    ((*value >> 16) & 0xff) as f32 / 255.0,
-                    ((*value >> 24) & 0xff) as f32 / 255.0,
-                ]
-            })
-            .collect(),
-        Some(_) => {
-            return Err(MergeError::InvalidModel(
-                "color buffer has an unsupported type or length".into(),
-            ));
-        }
-        None => vec![[1.0, 1.0, 1.0, 1.0]; vertex_count],
-    };
+    }
+    // Modern CAST uses cl/cN; vc is a legacy alias for packed layer zero.
+    let color_count = layer_count(
+        node,
+        "cl",
+        property(node, "c0").is_some() || property(node, "vc").is_some(),
+    )?;
+    let mut color_layers = Vec::with_capacity(color_count);
+    for index in 0..color_count {
+        let name = format!("c{index}");
+        let values = property(node, &name).or_else(|| {
+            if index == 0 {
+                property(node, "vc")
+            } else {
+                None
+            }
+        });
+        let layer = match values {
+            Some(PropertyValues::Integer32(values)) if values.len() == vertex_count => {
+                VertexColorLayer::Packed(values.clone())
+            }
+            Some(PropertyValues::Vector4(values)) if values.len() == vertex_count => {
+                VertexColorLayer::Float(values.clone())
+            }
+            _ => {
+                return Err(MergeError::InvalidModel(format!(
+                    "color layer '{name}' has an unsupported type or length"
+                )));
+            }
+        };
+        color_layers.push(layer);
+    }
+    let skinning_method = optional_string_property(node, "sm")?;
     let weights_per_vertex = optional_unsigned_scalar(node, "mi")?.unwrap_or(0) as usize;
     let weight_bones = unsigned_values(node, "wb")?.unwrap_or_default();
     let weight_values = match property(node, "wv") {
@@ -299,8 +350,9 @@ fn decode_mesh(
         positions,
         normals,
         tangents: vec![Vec3::default(); vertex_count],
-        colors,
-        uvs,
+        color_layers,
+        uv_layers,
+        skinning_method,
         faces,
         weights_per_vertex,
         weight_bones,
@@ -342,6 +394,20 @@ pub(crate) fn encode_model(model: &Model) -> Result<Vec<u8>, MergeError> {
         model_children.extend(encode_blend_shapes(model, mesh, mesh_hash)?);
     }
 
+    let mut root_children = vec![CastNode {
+        identifier: MODEL,
+        hash: 0,
+        properties: Vec::new(),
+        children: model_children,
+    }];
+    if let Some(up_axis) = &model.up_axis {
+        root_children.push(CastNode {
+            identifier: METADATA,
+            hash: fnv1a("CastMetadata"),
+            properties: vec![prop("up", PropertyValues::String(up_axis.clone()))],
+            children: Vec::new(),
+        });
+    }
     CastFile {
         version: 1,
         flags: 0,
@@ -349,12 +415,7 @@ pub(crate) fn encode_model(model: &Model) -> Result<Vec<u8>, MergeError> {
             identifier: ROOT,
             hash: 0,
             properties: Vec::new(),
-            children: vec![CastNode {
-                identifier: MODEL,
-                hash: 0,
-                properties: Vec::new(),
-                children: model_children,
-            }],
+            children: root_children,
         }],
     }
     .encode()
@@ -421,15 +482,24 @@ fn encode_material(material: &MaterialInfo, hash: u64) -> CastNode {
         for (slot_name, value) in &material.slots {
             match value {
                 MaterialSlotValue::File(path) => {
+                    let path = if !path.is_empty() && Path::new(path).is_relative() {
+                        material
+                            .source_directory
+                            .as_ref()
+                            .map(|directory| directory.join(path).to_string_lossy().into_owned())
+                            .unwrap_or_else(|| path.clone())
+                    } else {
+                        path.clone()
+                    };
                     let file_hash = *file_hashes
                         .entry(path.clone())
-                        .or_insert_with(|| fnv1a(path));
+                        .or_insert_with(|| fnv1a(&path));
                     properties.push(prop(slot_name, PropertyValues::Integer64(vec![file_hash])));
                     if !children.iter().any(|child| child.hash == file_hash) {
                         children.push(CastNode {
                             identifier: FILE,
                             hash: file_hash,
-                            properties: vec![prop("p", PropertyValues::String(path.clone()))],
+                            properties: vec![prop("p", PropertyValues::String(path))],
                             children: Vec::new(),
                         });
                     }
@@ -449,9 +519,16 @@ fn encode_material(material: &MaterialInfo, hash: u64) -> CastNode {
 }
 
 fn encode_mesh(mesh: &Mesh, hash: u64, material_hashes: &[u64]) -> Result<CastNode, MergeError> {
-    if mesh.positions.len() != mesh.normals.len()
-        || mesh.positions.len() != mesh.colors.len()
-        || mesh.positions.len() != mesh.uvs.len()
+    let vertex_count = mesh.positions.len();
+    if vertex_count != mesh.normals.len()
+        || mesh
+            .uv_layers
+            .iter()
+            .any(|layer| layer.len() != vertex_count)
+        || mesh.color_layers.iter().any(|layer| match layer {
+            VertexColorLayer::Packed(values) => values.len() != vertex_count,
+            VertexColorLayer::Float(values) => values.len() != vertex_count,
+        })
     {
         return Err(MergeError::InvalidModel(
             "mesh vertex buffers have inconsistent lengths".into(),
@@ -475,33 +552,50 @@ fn encode_mesh(mesh: &Mesh, hash: u64, material_hashes: &[u64]) -> Result<CastNo
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let uv_count = u8::try_from(mesh.uv_layers.len())
+        .map_err(|_| MergeError::InvalidModel("too many UV layers".into()))?;
+    let color_count = u8::try_from(mesh.color_layers.len())
+        .map_err(|_| MergeError::InvalidModel("too many color layers".into()))?;
+    let mut properties = vec![
+        prop("f", faces),
+        prop("m", PropertyValues::Integer64(materials)),
+        prop(
+            "mi",
+            PropertyValues::Byte(vec![mesh.weights_per_vertex as u8]),
+        ),
+        prop("ul", PropertyValues::Byte(vec![uv_count])),
+        prop("cl", PropertyValues::Byte(vec![color_count])),
+        prop(
+            "vn",
+            PropertyValues::Vector3(mesh.normals.iter().copied().map(Into::into).collect()),
+        ),
+        prop(
+            "vp",
+            PropertyValues::Vector3(mesh.positions.iter().copied().map(Into::into).collect()),
+        ),
+        prop("wb", weight_bones),
+        prop("wv", PropertyValues::Float(mesh.weight_values.clone())),
+    ];
+    for (index, layer) in mesh.uv_layers.iter().enumerate() {
+        properties.push(prop(
+            &format!("u{index}"),
+            PropertyValues::Vector2(layer.clone()),
+        ));
+    }
+    for (index, layer) in mesh.color_layers.iter().enumerate() {
+        let values = match layer {
+            VertexColorLayer::Packed(values) => PropertyValues::Integer32(values.clone()),
+            VertexColorLayer::Float(values) => PropertyValues::Vector4(values.clone()),
+        };
+        properties.push(prop(&format!("c{index}"), values));
+    }
+    if let Some(method) = &mesh.skinning_method {
+        properties.push(prop("sm", PropertyValues::String(method.clone())));
+    }
     Ok(CastNode {
         identifier: MESH,
         hash,
-        properties: vec![
-            prop("f", faces),
-            prop("m", PropertyValues::Integer64(materials)),
-            prop(
-                "mi",
-                PropertyValues::Byte(vec![mesh.weights_per_vertex as u8]),
-            ),
-            prop("u0", PropertyValues::Vector2(mesh.uvs.clone())),
-            prop("ul", PropertyValues::Byte(vec![1])),
-            prop(
-                "vc",
-                PropertyValues::Integer32(mesh.colors.iter().map(pack_color).collect()),
-            ),
-            prop(
-                "vn",
-                PropertyValues::Vector3(mesh.normals.iter().copied().map(Into::into).collect()),
-            ),
-            prop(
-                "vp",
-                PropertyValues::Vector3(mesh.positions.iter().copied().map(Into::into).collect()),
-            ),
-            prop("wb", weight_bones),
-            prop("wv", PropertyValues::Float(mesh.weight_values.clone())),
-        ],
+        properties,
         children: Vec::new(),
     })
 }
@@ -567,6 +661,27 @@ fn string_property(node: &CastNode, name: &str) -> Result<String, MergeError> {
             "node is missing string property '{name}'"
         ))),
     }
+}
+
+fn optional_string_property(node: &CastNode, name: &str) -> Result<Option<String>, MergeError> {
+    match property(node, name) {
+        None => Ok(None),
+        Some(PropertyValues::String(value)) => Ok(Some(value.clone())),
+        Some(_) => Err(MergeError::InvalidModel(format!(
+            "invalid string property '{name}'"
+        ))),
+    }
+}
+
+fn layer_count(node: &CastNode, name: &str, has_layer_zero: bool) -> Result<usize, MergeError> {
+    let count = optional_unsigned_scalar(node, name)?.unwrap_or(u32::from(has_layer_zero));
+    // The CAST layer-count fields are bytes; reject before allocating on hostile input.
+    if count > u8::MAX.into() {
+        return Err(MergeError::InvalidModel(format!(
+            "too many layers in '{name}'"
+        )));
+    }
+    Ok(count as usize)
 }
 
 fn u32_property(node: &CastNode, name: &str) -> Result<u32, MergeError> {
@@ -676,13 +791,6 @@ fn model_bone_limit(mesh: &Mesh) -> usize {
         .map_or(0, |value| value as usize + 1)
 }
 
-fn pack_color(value: &[f32; 4]) -> u32 {
-    ((value[0] * 255.0) as u32 & 0xff)
-        | (((value[1] * 255.0) as u32 & 0xff) << 8)
-        | (((value[2] * 255.0) as u32 & 0xff) << 16)
-        | (((value[3] * 255.0) as u32 & 0xff) << 24)
-}
-
 fn fnv1a(value: &str) -> u64 {
     value
         .as_bytes()
@@ -699,6 +807,7 @@ mod tests {
     fn model_with_materials(materials: Vec<MaterialInfo>) -> Model {
         Model {
             name: "test".to_owned(),
+            up_axis: None,
             bones: Vec::new(),
             meshes: Vec::new(),
             materials,
@@ -718,6 +827,7 @@ mod tests {
     fn material_texture_paths_survive_an_encode_decode_roundtrip() {
         let model = model_with_materials(vec![MaterialInfo {
             name: "m/wpn_test".to_owned(),
+            source_directory: None,
             slots: vec![
                 (
                     "albedo".to_owned(),
@@ -759,6 +869,7 @@ mod tests {
     fn materials_without_slots_keep_the_legacy_empty_file_nodes() {
         let model = model_with_materials(vec![MaterialInfo {
             name: "plain".to_owned(),
+            source_directory: None,
             slots: Vec::new(),
         }]);
 
@@ -780,6 +891,7 @@ mod tests {
         let model = model_with_materials(vec![
             MaterialInfo {
                 name: "same".to_owned(),
+                source_directory: None,
                 slots: vec![(
                     "albedo".to_owned(),
                     MaterialSlotValue::File("a.png".to_owned()),
@@ -787,6 +899,7 @@ mod tests {
             },
             MaterialInfo {
                 name: "same".to_owned(),
+                source_directory: None,
                 slots: vec![(
                     "albedo".to_owned(),
                     MaterialSlotValue::File("b.png".to_owned()),
@@ -816,6 +929,7 @@ mod tests {
     fn file_slot_hashes_reference_their_own_file_nodes() {
         let model = model_with_materials(vec![MaterialInfo {
             name: "wired".to_owned(),
+            source_directory: None,
             slots: vec![
                 (
                     "albedo".to_owned(),

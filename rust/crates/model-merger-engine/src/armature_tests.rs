@@ -24,8 +24,9 @@ fn mesh() -> Mesh {
         ],
         normals: vec![Vec3(1.0, 0.0, 0.0); 3],
         tangents: vec![Vec3::default(); 3],
-        colors: vec![[1.0; 4]; 3],
-        uvs: vec![[0.0; 2]; 3],
+        color_layers: vec![crate::domain::VertexColorLayer::Float(vec![[1.0; 4]; 3])],
+        uv_layers: vec![vec![[0.0; 2]; 3]],
+        skinning_method: None,
         faces: vec![0, 1, 2],
         weights_per_vertex: 1,
         weight_bones: vec![0; 3],
@@ -37,6 +38,7 @@ fn mesh() -> Mesh {
 fn model(name: &str, bones: Vec<Bone>, meshes: Vec<Mesh>) -> Model {
     Model {
         name: name.into(),
+        up_axis: None,
         bones,
         meshes,
         materials: vec![],

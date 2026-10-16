@@ -363,7 +363,13 @@ pub fn load_preview(
                         } else {
                             [0.0; 3]
                         });
-                        uvs.push(mesh.uvs.get(source_index).copied().unwrap_or([0.0, 0.0]));
+                        uvs.push(
+                            mesh.uv_layers
+                                .first()
+                                .and_then(|layer| layer.get(source_index))
+                                .copied()
+                                .unwrap_or([0.0, 0.0]),
+                        );
                         vertex_map.insert(source_index, preview_index);
                         preview_index
                     };

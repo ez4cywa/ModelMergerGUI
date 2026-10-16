@@ -51,13 +51,12 @@ public static class NativeIconProbe
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetWindowTextLength(IntPtr window);
 
-    public static IntPtr FindVisibleApplicationWindow(uint processId)
+    public static IntPtr FindApplicationWindow(uint processId)
     {
         IntPtr result = IntPtr.Zero;
         EnumWindows((window, parameter) => {
             GetWindowThreadProcessId(window, out uint ownerProcessId);
             if (ownerProcessId == processId &&
-                IsWindowVisible(window) &&
                 GetWindowTextLength(window) > 0)
             {
                 result = window;
@@ -100,7 +99,7 @@ if ($groupIconCount -lt 1) {
     $failures.Add('Explorer icon check failed: the executable has no RT_GROUP_ICON resource.')
 }
 
-$process = Start-Process -FilePath $resolvedExecutable -PassThru
+$process = Start-Process -FilePath $resolvedExecutable -WindowStyle Hidden -PassThru
 try {
     $windowHandle = [IntPtr]::Zero
     for ($attempt = 0; $attempt -lt 50; $attempt++) {
@@ -109,7 +108,7 @@ try {
         if ($process.HasExited) {
             throw "Application exited before creating its main window (exit code $($process.ExitCode))."
         }
-        $windowHandle = [NativeIconProbe]::FindVisibleApplicationWindow($process.Id)
+        $windowHandle = [NativeIconProbe]::FindApplicationWindow($process.Id)
         if ($windowHandle -ne [IntPtr]::Zero) {
             break
         }

@@ -162,7 +162,7 @@ By default the preview renders models in a neutral flat color. Click the checker
 - Textures come from the paths referenced by the material slots inside the `.cast` file (for example `_images/.../*.png` produced by exporters). Relative paths resolve against the cast file's folder; absolute paths are used as-is.
 - Color textures are sampled as sRGB, normal/mask data as linear. Normal slots are decoded with the COD packed NOG convention (G/A jointly encode the tangent-space normal, R is a gloss candidate), based on the material reverse-engineering research in [ez4cywa-cod-blender-shaders](https://github.com/ez4cywa/ez4cywa-cod-blender-shaders).
 - Textures decode on a background thread without blocking the UI; the status bar shows "Materials loaded/total". Missing or unreadable files fall back to a flat color per material and the status bar reports "Missing textures".
-- Merged `.cast` outputs keep the texture paths of the input parts, so merged models support material previews too. Keep the output next to the exported asset folder so relative paths keep resolving.
+- Since v2.5.4, ordinary merging anchors each part's relative texture paths to its source CAST directory and writes absolute references, so changing the output folder does not break them. Empty and existing absolute paths remain unchanged. Textures are not copied or embedded in CAST; moving or deleting the source textures still breaks those references.
 - Material preview is equally read-only and never modifies source files or merge results.
 
 #### Profile-based shading (aligned with the shader project)

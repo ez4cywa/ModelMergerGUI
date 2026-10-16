@@ -24,8 +24,9 @@ fn mesh() -> Mesh {
         ],
         normals: vec![Vec3(1.0, 0.0, 0.0); 3],
         tangents: vec![Vec3::default(); 3],
-        colors: vec![[1.0; 4]; 3],
-        uvs: vec![[0.0; 2]; 3],
+        color_layers: vec![crate::domain::VertexColorLayer::Float(vec![[1.0; 4]; 3])],
+        uv_layers: vec![vec![[0.0; 2]; 3]],
+        skinning_method: None,
         faces: vec![0, 1, 2],
         weights_per_vertex: 1,
         weight_bones: vec![0; 3],
@@ -38,6 +39,7 @@ fn mesh() -> Mesh {
 fn groups_follow_ancestry_and_exclude_non_magazine_ammo() {
     let model = Model {
         name: "weapon".into(),
+        up_axis: None,
         bones: vec![
             bone("j_mag1", -1, Vec3::default()),
             bone("j_ammo_01", 0, Vec3::default()),
@@ -58,6 +60,7 @@ fn groups_follow_ancestry_and_exclude_non_magazine_ammo() {
 fn magazine_wrapper_is_not_offered_as_a_spare() {
     let model = Model {
         name: "magazine".into(),
+        up_axis: None,
         bones: vec![
             bone("tag_clip", -1, Vec3::default()),
             bone("j_mag1", 0, Vec3::default()),
@@ -86,6 +89,7 @@ fn fill_rotates_about_source_anchor_binds_and_preserves_original_nodes() {
     );
     let model = Model {
         name: "weapon".into(),
+        up_axis: None,
         bones: vec![
             bone("j_mag1", -1, Vec3::default()),
             target,
@@ -97,6 +101,7 @@ fn fill_rotates_about_source_anchor_binds_and_preserves_original_nodes() {
     };
     let ammo = Model {
         name: "ammo".into(),
+        up_axis: None,
         bones: vec![bone("tag_ammo", -1, Vec3(2.0, 0.0, 0.0))],
         meshes: vec![mesh()],
         materials: vec![],
@@ -221,6 +226,7 @@ fn spare_magazine_copies_local_layout_and_remains_bound_to_its_own_bone() {
     let model = Model {
         name: "weapon".into(),
         bones: vec![source, bone("j_ammo_01", 0, Vec3(2.0, 0.0, 0.0)), spare],
+        up_axis: None,
         meshes: vec![],
         materials: vec![],
         shapes: vec![],
@@ -228,6 +234,7 @@ fn spare_magazine_copies_local_layout_and_remains_bound_to_its_own_bone() {
     let ammo = Model {
         name: "ammo".into(),
         bones: vec![bone("tag_ammo", -1, Vec3(2.0, 0.0, 0.0))],
+        up_axis: None,
         meshes: vec![mesh()],
         materials: vec![],
         shapes: vec![],

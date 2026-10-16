@@ -1,5 +1,6 @@
 use crate::math::{Quaternion, Vec3};
 use crate::{MergeError, MergeObserver};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Model {
@@ -8,12 +9,15 @@ pub(crate) struct Model {
     pub(crate) meshes: Vec<Mesh>,
     pub(crate) materials: Vec<MaterialInfo>,
     pub(crate) shapes: Vec<String>,
+    pub(crate) up_axis: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct MaterialInfo {
     pub(crate) name: String,
     pub(crate) slots: Vec<(String, MaterialSlotValue)>,
+    /// Relative texture references are anchored to the original CAST, not the output.
+    pub(crate) source_directory: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -81,14 +85,21 @@ pub(crate) struct Mesh {
     pub(crate) positions: Vec<Vec3>,
     pub(crate) normals: Vec<Vec3>,
     pub(crate) tangents: Vec<Vec3>,
-    pub(crate) colors: Vec<[f32; 4]>,
-    pub(crate) uvs: Vec<[f32; 2]>,
+    pub(crate) color_layers: Vec<VertexColorLayer>,
+    pub(crate) uv_layers: Vec<Vec<[f32; 2]>>,
+    pub(crate) skinning_method: Option<String>,
     pub(crate) faces: Vec<u32>,
     pub(crate) weights_per_vertex: usize,
     pub(crate) weight_bones: Vec<u32>,
     pub(crate) weight_values: Vec<f32>,
     pub(crate) material_indices: Vec<usize>,
     pub(crate) shape_deltas: Vec<ShapeDelta>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum VertexColorLayer {
+    Packed(Vec<u32>),
+    Float(Vec<[f32; 4]>),
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +115,13 @@ pub(crate) fn merge_model(
     observer: &impl MergeObserver,
 ) -> Result<(), MergeError> {
     check_cancelled(observer)?;
+    if let (Some(root_axis), Some(source_axis)) = (&root.up_axis, &model.up_axis)
+        && root_axis != source_axis
+    {
+        return Err(MergeError::InvalidModel(format!(
+            "models use different up axes ('{root_axis}' and '{source_axis}'); convert them to the same axis before merging"
+        )));
+    }
     let mut bone_lookup =
         std::collections::HashMap::with_capacity(root.bones.len() + model.bones.len());
     for (index, bone) in root.bones.iter().enumerate() {
@@ -182,7 +200,7 @@ pub(crate) fn merge_model(
         let index = root
             .materials
             .iter()
-            .position(|current| current.name == material.name && current.slots == material.slots)
+            .position(|current| current == &material)
             .unwrap_or_else(|| {
                 root.materials.push(material);
                 root.materials.len() - 1
@@ -245,6 +263,7 @@ mod tests {
                 "albedo".to_owned(),
                 MaterialSlotValue::File(albedo.to_owned()),
             )],
+            source_directory: None,
         }
     }
 
@@ -255,6 +274,7 @@ mod tests {
             meshes: Vec::new(),
             materials,
             shapes: Vec::new(),
+            up_axis: None,
         }
     }
 
