@@ -17,7 +17,6 @@ const NOTICES_URL: &str =
 pub struct AboutDialog {
     open: bool,
     copied: bool,
-    icon: Option<egui::TextureHandle>,
     updates: crate::updates::UpdateChecker,
     automatic_updates: bool,
     preference_changed: bool,
@@ -59,19 +58,7 @@ impl AboutDialog {
             return;
         }
         let catalog = Catalog::new(language);
-        if self.icon.is_none()
-            && let Ok(icon) =
-                eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
-        {
-            self.icon = Some(context.load_texture(
-                "about-app-icon",
-                egui::ColorImage::from_rgba_unmultiplied(
-                    [icon.width as usize, icon.height as usize],
-                    &icon.rgba,
-                ),
-                Default::default(),
-            ));
-        }
+        let icon = crate::icon::texture(context);
         let height = (context.content_rect().height() - 180.0).clamp(180.0, 600.0);
         let mut close = false;
         let response = egui::Modal::new(egui::Id::new("about-dialog")).frame(egui::Frame::popup(&context.style_of(context.theme())).inner_margin(20)).show(context, |ui| {
@@ -85,7 +72,7 @@ impl AboutDialog {
             ui.add_space(8.0);
             egui::ScrollArea::vertical().id_salt("about-content").auto_shrink([false, false]).max_height(height).show(ui, |ui| {
                 ui.vertical_centered(|ui| {
-                    if let Some(icon) = &self.icon { ui.image((icon.id(), egui::vec2(64.0,64.0))); }
+                    ui.image((icon.id(), egui::vec2(64.0, 64.0)));
                         ui.label(RichText::new(catalog.text(TextKey::AppTitle)).size(22.0));
                         ui.label(RichText::new(format!("{} {} · Windows x64", text(language,["版本", "Version"]), env!("CARGO_PKG_VERSION"))).size(13.0).color(palette.secondary));
                 });

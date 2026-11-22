@@ -3,6 +3,7 @@ mod ammunition;
 mod armature;
 mod chrome;
 pub mod diagnostics;
+mod icon;
 mod menu_bar;
 mod messages;
 mod notices;

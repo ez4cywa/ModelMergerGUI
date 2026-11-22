@@ -824,6 +824,7 @@ fn default_settings_store() -> SettingsStore {
 pub fn startup_viewport() -> egui::ViewportBuilder {
     let settings = default_settings_store().load();
     let mut viewport = egui::ViewportBuilder::default()
+        .with_icon(crate::icon::data())
         .with_decorations(false)
         .with_inner_size([1180.0, 860.0])
         .with_min_inner_size([900.0, 680.0]);

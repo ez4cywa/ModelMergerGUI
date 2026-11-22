@@ -20,12 +20,8 @@ fn main() {
 }
 
 fn run() -> eframe::Result {
-    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
-        .expect("application icon should be valid PNG data");
     let options = eframe::NativeOptions {
-        viewport: startup_viewport()
-            .with_app_id("io.github.echo000.cast-model-merger")
-            .with_icon(icon),
+        viewport: startup_viewport().with_app_id("io.github.echo000.cast-model-merger"),
         depth_buffer: 24,
         multisampling: model_merger_gui::GPU_SAMPLE_COUNT,
         persist_window: false,

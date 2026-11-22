@@ -133,7 +133,7 @@ pub(crate) fn show_with_title(ui: &mut egui::Ui, language: AppLanguage, title: &
             } else if response.drag_started() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
             }
-            let icon = title_icon(ui.ctx());
+            let icon = crate::icon::texture(ui.ctx());
             let color = if focused {
                 palette.foreground
             } else {
@@ -142,19 +142,17 @@ pub(crate) fn show_with_title(ui: &mut egui::Ui, language: AppLanguage, title: &
             let galley =
                 ui.painter()
                     .layout_no_wrap(title.to_owned(), FontId::proportional(13.0), color);
-            let icon_space = if icon.is_some() { 22.0 } else { 0.0 };
+            let icon_space = 22.0;
             let left = rect.center().x - (galley.size().x + icon_space) * 0.5;
-            if let Some(icon) = icon {
-                ui.painter().image(
-                    icon.id(),
-                    Rect::from_min_size(
-                        Pos2::new(left, rect.center().y - 9.0),
-                        egui::vec2(18.0, 18.0),
-                    ),
-                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-            }
+            ui.painter().image(
+                icon.id(),
+                Rect::from_min_size(
+                    Pos2::new(left, rect.center().y - 9.0),
+                    egui::vec2(18.0, 18.0),
+                ),
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
             let y = rect.center().y - galley.size().y * 0.5;
             ui.painter()
                 .galley(Pos2::new(left + icon_space, y), galley, color);
@@ -164,21 +162,6 @@ pub(crate) fn show_with_title(ui: &mut egui::Ui, language: AppLanguage, title: &
                 Stroke::new(1.0, palette.border),
             );
         });
-}
-
-fn title_icon(context: &egui::Context) -> Option<egui::TextureHandle> {
-    let id = egui::Id::new("cast-assembly-title-icon");
-    if let Some(texture) = context.data_mut(|data| data.get_temp::<egui::TextureHandle>(id)) {
-        return Some(texture);
-    }
-    let data = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).ok()?;
-    let image = egui::ColorImage::from_rgba_unmultiplied(
-        [data.width as usize, data.height as usize],
-        &data.rgba,
-    );
-    let texture = context.load_texture("cast-assembly-icon", image, egui::TextureOptions::LINEAR);
-    context.data_mut(|data| data.insert_temp(id, texture.clone()));
-    Some(texture)
 }
 
 pub(crate) fn resize_edges(ui: &mut egui::Ui) {

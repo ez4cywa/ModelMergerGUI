@@ -1,7 +1,7 @@
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -11,6 +11,11 @@ fn main() {
     );
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo must set OUT_DIR"));
     embed_font(&manifest, &output).expect("MiSans Medium font compression failed");
+    let icon_path = manifest.join("assets/icon.ico");
+    println!("cargo:rerun-if-changed={}", icon_path.display());
+    let icon = fs::read(&icon_path).expect("could not read assets/icon.ico");
+    let png = ui_icon_png(&icon).expect("assets/icon.ico must contain a 256×256 PNG icon");
+    fs::write(output.join("app-icon.png"), png).expect("could not write the shared UI icon");
     let repository = manifest.join("../../..");
     let revision = std::process::Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -39,9 +44,6 @@ fn main() {
         return;
     }
 
-    let icon_path = manifest.join("assets/icon.ico");
-    println!("cargo:rerun-if-changed={}", icon_path.display());
-
     let icon_path = icon_path
         .to_str()
         .expect("Windows icon path must contain valid Unicode");
@@ -51,6 +53,32 @@ fn main() {
         .set("FileDescription", "CAST 装配台")
         .compile()
         .expect("Windows application resources should compile");
+}
+
+fn ui_icon_png(ico: &[u8]) -> Option<&[u8]> {
+    // ICO represents a 256×256 image with zero in both size bytes.
+    const HEADER_SIZE: usize = 6;
+    const ENTRY_SIZE: usize = 16;
+    const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+    let header = ico.get(..HEADER_SIZE)?;
+    if header[..4] != [0, 0, 1, 0] {
+        return None;
+    }
+    let image_count = usize::from(u16::from_le_bytes(header[4..6].try_into().ok()?));
+    let directory_end = HEADER_SIZE + image_count * ENTRY_SIZE;
+    let entries = ico.get(HEADER_SIZE..directory_end)?;
+    entries.chunks_exact(ENTRY_SIZE).find_map(|entry| {
+        if entry[..2] != [0, 0] {
+            return None;
+        }
+        let length = usize::try_from(u32::from_le_bytes(entry[8..12].try_into().ok()?)).ok()?;
+        let start = usize::try_from(u32::from_le_bytes(entry[12..16].try_into().ok()?)).ok()?;
+        if start < directory_end {
+            return None;
+        }
+        let image = ico.get(start..start.checked_add(length)?)?;
+        image.starts_with(PNG_SIGNATURE).then_some(image)
+    })
 }
 
 fn embed_font(manifest: &Path, output: &Path) -> io::Result<()> {
