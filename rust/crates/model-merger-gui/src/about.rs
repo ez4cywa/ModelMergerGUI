@@ -24,7 +24,7 @@ pub struct AboutDialog {
     update_notified: bool,
 }
 
-fn text(language: AppLanguage, variants: [&'static str; 5]) -> &'static str {
+fn text(language: AppLanguage, variants: [&'static str; 2]) -> &'static str {
     variants[language as usize]
 }
 
@@ -87,10 +87,10 @@ impl AboutDialog {
                 ui.vertical_centered(|ui| {
                     if let Some(icon) = &self.icon { ui.image((icon.id(), egui::vec2(64.0,64.0))); }
                         ui.label(RichText::new(catalog.text(TextKey::AppTitle)).size(22.0));
-                        ui.label(RichText::new(format!("{} {} · Windows x64", text(language,["版本","Version","Version","Версия","Versión"]), env!("CARGO_PKG_VERSION"))).size(13.0).color(palette.secondary));
+                        ui.label(RichText::new(format!("{} {} · Windows x64", text(language,["版本", "Version"]), env!("CARGO_PKG_VERSION"))).size(13.0).color(palette.secondary));
                 });
                 ui.add_space(8.0);
-                ui.label(RichText::new(text(language,["Rust 原生桌面应用 · 模型合并、弹匣装填与 3D 预览", "Native Rust desktop app · model merging, ammunition placement and 3D preview", "Application native Rust · fusion de modèles, placement de munitions et aperçu 3D", "Приложение на Rust · объединение моделей, размещение патронов и 3D-просмотр", "Aplicación nativa Rust · combinación de modelos, colocación de munición y vista 3D"])).size(13.0).color(palette.secondary));
+                ui.label(RichText::new(text(language,["Rust 原生桌面应用 · 模型合并、弹匣装填与 3D 预览", "Native Rust desktop app · model merging, ammunition placement and 3D preview"])).size(13.0).color(palette.secondary));
                 ui.add_space(8.0);
                 ui.separator();
                 egui::Frame::new().fill(palette.surface).corner_radius(10).inner_margin(16).show(ui, |ui| {
@@ -98,14 +98,14 @@ impl AboutDialog {
                 ui.label(RichText::new("GitHub").size(17.0));
                 ui.hyperlink_to("ez4cywa / ModelMergerGUI", PROJECT_URL).on_hover_text(PROJECT_URL);
                 ui.horizontal_wrapped(|ui| {
-                    link_button(ui, text(language,["下载发布版","Download releases","Téléchargements","Скачать выпуск","Descargar versiones"]),RELEASES_URL);
-                    link_button(ui, text(language,["问题反馈","Report an issue","Signaler un problème","Сообщить о проблеме","Informar de un problema"]),ISSUES_URL);
+                    link_button(ui, text(language,["下载发布版", "Download releases"]),RELEASES_URL);
+                    link_button(ui, text(language,["问题反馈", "Report an issue"]),ISSUES_URL);
                 });
                 ui.horizontal_wrapped(|ui| {
-                if ui.add(egui::Button::new(text(language,["复制项目链接","Copy project link","Copier le lien du projet","Скопировать ссылку","Copiar enlace del proyecto"])).min_size(egui::vec2(0.0,40.0))).clicked() {
+                if ui.add(egui::Button::new(text(language,["复制项目链接", "Copy project link"])).min_size(egui::vec2(0.0,40.0))).clicked() {
                     context.copy_text(PROJECT_URL.to_owned()); self.copied = true;
                 }
-                if self.copied { ui.label(RichText::new(text(language,["已复制","Copied","Copié","Скопировано","Copiado"])).size(13.0).color(palette.secondary)); }
+                if self.copied { ui.label(RichText::new(text(language,["已复制", "Copied"])).size(13.0).color(palette.secondary)); }
                 });
                 });
                 ui.add_space(8.0);
@@ -113,15 +113,15 @@ impl AboutDialog {
                 self.preference_changed |= self.updates.show(ui, language, &mut self.automatic_updates);
                 ui.add_space(8.0);
                 ui.separator();
-                egui::CollapsingHeader::new(RichText::new(text(language,["致谢与许可","Credits and licenses","Crédits et licences","Авторы и лицензии","Créditos y licencias"])).size(17.0)).id_salt("about-credits").show(ui, |ui| {
-                ui.label(text(language,["GUI 维护：ez4cywa", "GUI maintainer: ez4cywa", "Maintenance de l’interface : ez4cywa", "Поддержка интерфейса: ez4cywa", "Mantenimiento de la interfaz: ez4cywa"]));
-                ui.label(text(language,["原始 ModelMerger：Philip / Scobalula；Cast 支持：echo000。", "Original ModelMerger: Philip / Scobalula. Cast support: echo000.", "ModelMerger original : Philip / Scobalula. Prise en charge de Cast : echo000.", "Оригинальный ModelMerger: Philip / Scobalula. Поддержка Cast: echo000.", "ModelMerger original: Philip / Scobalula. Soporte de Cast: echo000."]));
+                egui::CollapsingHeader::new(RichText::new(text(language,["致谢与许可", "Credits and licenses"])).size(17.0)).id_salt("about-credits").show(ui, |ui| {
+                ui.label(text(language,["GUI 维护：ez4cywa", "GUI maintainer: ez4cywa"]));
+                ui.label(text(language,["原始 ModelMerger：Philip / Scobalula；Cast 支持：echo000。", "Original ModelMerger: Philip / Scobalula. Cast support: echo000."]));
                 ui.horizontal_wrapped(|ui| {
-                    ui.hyperlink_to(text(language,["上游项目","Upstream project","Projet d’origine","Исходный проект","Proyecto original"]),UPSTREAM_URL);
+                    ui.hyperlink_to(text(language,["上游项目", "Upstream project"]),UPSTREAM_URL);
                     ui.hyperlink_to("MIT License",LICENSE_URL);
-                    ui.hyperlink_to(text(language,["第三方声明","Third-party notices","Mentions tierces","Сторонние компоненты","Avisos de terceros"]),NOTICES_URL);
+                    ui.hyperlink_to(text(language,["第三方声明", "Third-party notices"]),NOTICES_URL);
                 });
-                ui.label(RichText::new(text(language,["中文字体采用小米 MiSans，遵循其独立字体许可。", "Chinese text uses Xiaomi MiSans under its separate font license.", "Le texte chinois utilise Xiaomi MiSans sous sa propre licence de police.", "Для китайского текста используется Xiaomi MiSans по отдельной лицензии шрифта.", "El texto chino utiliza Xiaomi MiSans bajo su propia licencia de fuente."])).size(13.0).color(palette.secondary));
+                ui.label(RichText::new(text(language,["界面字体采用小米 MiSans，遵循其独立字体许可。", "The interface uses Xiaomi MiSans under its separate font license."])).size(13.0).color(palette.secondary));
                 });
             });
             ui.add_space(8.0);

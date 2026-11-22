@@ -26,7 +26,7 @@ jobs:
       - name: Verify tag and source version
         shell: pwsh
         run: ./scripts/Test-ReleaseVersion.ps1 -Tag '${{ github.ref_name }}' -RequireCleanTree -RequireHeadTag
-      - name: Install MiSans for the embedded Chinese UI
+      - name: Install the embedded MiSans UI font
         shell: pwsh
         run: ./scripts/Install-MiSans.ps1 -AcceptLicense
       - name: Build and verify package
@@ -38,8 +38,9 @@ jobs:
         shell: pwsh
         run: >-
           gh release create '${{ github.ref_name }}'
+          artifacts/release/CastAssembly.exe
           artifacts/release/CastModelMerger-win-x64.zip
           artifacts/release/CastModelMerger-win-x64.zip.sha256
           --verify-tag
-          --title 'Cast Model Merger GUI ${{ github.ref_name }}'
+          --title 'CAST 装配台 ${{ github.ref_name }}'
           --notes-file 'docs/release-notes/${{ github.ref_name }}.md'

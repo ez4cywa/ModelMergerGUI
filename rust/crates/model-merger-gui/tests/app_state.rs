@@ -12,9 +12,9 @@ fn workspace_starts_with_one_group_and_preserves_state_across_language_switches(
     assert_eq!(1, state.groups().len());
     assert_eq!(AddPartStatus::Added, state.add_part(0, &first).status);
     assert_eq!(AddPartStatus::Added, state.add_part(0, &second).status);
-    state.set_language(AppLanguage::French);
+    state.set_language(AppLanguage::ChineseSimplified);
 
-    assert_eq!(AppLanguage::French, state.language());
+    assert_eq!(AppLanguage::ChineseSimplified, state.language());
     assert_eq!(
         vec![first, second],
         state.groups()[0].plan.state().part_files

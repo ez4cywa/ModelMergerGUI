@@ -25,6 +25,7 @@ declare_text_keys!(
     About,
     UpdateAvailable,
     Group,
+    CurrentGroup,
     ModelParts,
     ModelPartsHint,
     DropHere,
@@ -43,6 +44,7 @@ declare_text_keys!(
     OutputFileName,
     GroupStatus,
     RunLog,
+    NoRunLog,
     Preview,
     OpenPreview,
     PreviewMerged,
@@ -131,7 +133,7 @@ declare_text_keys!(
     MergeCompletedLog,
     CancelledLog,
     ModelPartReadError,
-    Attribution,
+    InterfaceFont,
 );
 
 #[derive(Debug, Clone, Copy)]
@@ -152,9 +154,6 @@ impl Catalog {
         match self.language {
             AppLanguage::ChineseSimplified => "中文",
             AppLanguage::English => "English",
-            AppLanguage::French => "Français",
-            AppLanguage::Russian => "Русский",
-            AppLanguage::Spanish => "Español",
         }
     }
 
@@ -162,16 +161,13 @@ impl Catalog {
         match self.language {
             AppLanguage::ChineseSimplified => chinese(key),
             AppLanguage::English => english(key),
-            AppLanguage::French => french(key),
-            AppLanguage::Russian => russian(key),
-            AppLanguage::Spanish => spanish(key),
         }
     }
 }
 
 fn chinese(key: TextKey) -> &'static str {
     match key {
-        TextKey::AppTitle => "Cast 模型合并器",
+        TextKey::AppTitle => "CAST 装配台",
         TextKey::AppSubtitle => "按模型组管理和并发合并 Cast 部件；每组支持 2–15 个部件",
         TextKey::Language => "界面语言",
         TextKey::NewGroup => "新建模型组",
@@ -180,16 +176,15 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::About => "关于",
         TextKey::UpdateAvailable => "发现软件更新，可在“关于”中查看和下载。",
         TextKey::Group => "模型组",
+        TextKey::CurrentGroup => "当前模型组",
         TextKey::ModelParts => "模型部件",
-        TextKey::ModelPartsHint => "点击“添加下一个”或空槽可多选 .cast 文件，也可拖入本组",
+        TextKey::ModelPartsHint => "拖到组上可追加部件，拖到空白处可新建一组。",
         TextKey::DropHere => "松开鼠标，将文件添加到本组",
         TextKey::DropPreview => "松开以预览 CAST 模型",
         TextKey::SwitchToLight => "切换到亮色",
         TextKey::SwitchToDark => "切换到暗色",
         TextKey::DropBatch => "松开以导入新一组部件",
-        TextKey::PreviewDropZone => {
-            "模型预览区\n拖入一个或多个 CAST 模型，或点击选择文件 · 其他区域用于导入部件"
-        }
+        TextKey::PreviewDropZone => "拖入 CAST 文件预览，或点击选择文件",
         TextKey::AddNext => "添加下一个",
         TextKey::Clear => "清空",
         TextKey::RootModel => "根模型",
@@ -200,6 +195,7 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::OutputFileName => "输出文件名（可选）",
         TextKey::GroupStatus => "本组状态",
         TextKey::RunLog => "运行日志",
+        TextKey::NoRunLog => "此组暂无运行日志",
         TextKey::Preview => "预览",
         TextKey::OpenPreview => "打开模型预览…",
         TextKey::PreviewMerged => "预览合并模型",
@@ -288,15 +284,13 @@ fn chinese(key: TextKey) -> &'static str {
         TextKey::MergeCompletedLog => "合并完成：{0} 个骨骼，{1} 个网格",
         TextKey::CancelledLog => "用户取消了本组任务",
         TextKey::ModelPartReadError => "无法读取模型部件：{0}\n格式：{1}",
-        TextKey::Attribution => {
-            "基于 Scobalula / echo000 ModelMerger · MIT License · 中文界面使用 MiSans"
-        }
+        TextKey::InterfaceFont => "界面使用 MiSans 字体",
     }
 }
 
 fn english(key: TextKey) -> &'static str {
     match key {
-        TextKey::AppTitle => "Cast Model Merger",
+        TextKey::AppTitle => "Cast Assembly",
         TextKey::AppSubtitle => {
             "Manage and merge Cast parts in parallel groups; 2–15 parts per group"
         }
@@ -307,18 +301,17 @@ fn english(key: TextKey) -> &'static str {
         TextKey::About => "About",
         TextKey::UpdateAvailable => "An update is available. Open About to view and download it.",
         TextKey::Group => "Model group",
+        TextKey::CurrentGroup => "Current group",
         TextKey::ModelParts => "Model parts",
         TextKey::ModelPartsHint => {
-            "Use Add next or an empty slot to select multiple .cast files, or drop them here"
+            "Drop on a group to append, or on empty space to start a new group."
         }
         TextKey::DropHere => "Release to add files to this group",
         TextKey::DropPreview => "Release to preview CAST models",
         TextKey::SwitchToLight => "Switch to light",
         TextKey::SwitchToDark => "Switch to dark",
         TextKey::DropBatch => "Release to import a new batch of parts",
-        TextKey::PreviewDropZone => {
-            "Model preview area\nDrop one or more CAST models or click to browse · Other areas import parts"
-        }
+        TextKey::PreviewDropZone => "Drop CAST files to preview, or click to browse",
         TextKey::AddNext => "Add next",
         TextKey::Clear => "Clear",
         TextKey::RootModel => "Root model",
@@ -329,6 +322,7 @@ fn english(key: TextKey) -> &'static str {
         TextKey::OutputFileName => "Output file name (optional)",
         TextKey::GroupStatus => "Group status",
         TextKey::RunLog => "Run log",
+        TextKey::NoRunLog => "No run log for this group yet",
         TextKey::Preview => "Preview",
         TextKey::OpenPreview => "Open model preview…",
         TextKey::PreviewMerged => "Preview merged model",
@@ -433,439 +427,6 @@ fn english(key: TextKey) -> &'static str {
         TextKey::MergeCompletedLog => "Merge completed: {0} bones, {1} meshes",
         TextKey::CancelledLog => "The user cancelled this group task",
         TextKey::ModelPartReadError => "Could not read model part: {0}\nFormat: {1}",
-        TextKey::Attribution => "Based on Scobalula / echo000 ModelMerger · MIT License",
-    }
-}
-
-fn french(key: TextKey) -> &'static str {
-    match key {
-        TextKey::AppTitle => "Fusionneur de modèles Cast",
-        TextKey::AppSubtitle => {
-            "Gérez et fusionnez des pièces Cast par groupes parallèles ; 2 à 15 pièces par groupe"
-        }
-        TextKey::Language => "Langue",
-        TextKey::NewGroup => "Nouveau groupe",
-        TextKey::SaveSettings => "Enregistrer",
-        TextKey::RestoreDefaults => "Valeurs par défaut",
-        TextKey::About => "À propos",
-        TextKey::UpdateAvailable => "Une mise à jour est disponible dans À propos.",
-        TextKey::Group => "Groupe de modèles",
-        TextKey::ModelParts => "Pièces du modèle",
-        TextKey::ModelPartsHint => {
-            "Ajoutez plusieurs fichiers .cast avec Ajouter ou un emplacement vide, ou déposez-les ici"
-        }
-        TextKey::DropHere => "Relâchez pour ajouter les fichiers à ce groupe",
-        TextKey::DropPreview => "Relâchez pour prévisualiser les modèles CAST",
-        TextKey::SwitchToLight => "Passer au thème clair",
-        TextKey::SwitchToDark => "Passer au thème sombre",
-        TextKey::DropBatch => "Relâchez pour importer un nouveau groupe de pièces",
-        TextKey::PreviewDropZone => {
-            "Zone de prévisualisation\nDéposez des modèles CAST ou cliquez pour choisir · Les autres zones importent des pièces"
-        }
-        TextKey::AddNext => "Ajouter le suivant",
-        TextKey::Clear => "Effacer",
-        TextKey::RootModel => "Modèle racine",
-        TextKey::Automatic => "Automatique",
-        TextKey::Manual => "Manuel",
-        TextKey::OutputFolder => "Dossier de sortie",
-        TextKey::Browse => "Parcourir",
-        TextKey::OutputFileName => "Nom du fichier (facultatif)",
-        TextKey::GroupStatus => "État du groupe",
-        TextKey::RunLog => "Journal",
-        TextKey::Preview => "Aperçu",
-        TextKey::OpenPreview => "Ouvrir un aperçu du modèle…",
-        TextKey::PreviewMerged => "Aperçu du modèle fusionné",
-        TextKey::StartGroup => "Démarrer le groupe",
-        TextKey::Cancel => "Annuler",
-        TextKey::DeleteGroup => "Supprimer le groupe",
-        TextKey::MergeAllReady => "Fusionner tous les groupes prêts",
-        TextKey::CancelAll => "Tout annuler",
-        TextKey::RememberOutput => "Mémoriser le dernier dossier de sortie",
-        TextKey::AddPart => "Ajouter une pièce",
-        TextKey::Replace => "Remplacer",
-        TextKey::Remove => "Retirer",
-        TextKey::SetAsRoot => "Définir comme racine",
-        TextKey::RootBadge => "Racine",
-        TextKey::FileMissing => "Fichier manquant",
-        TextKey::SelectCast => "Sélectionner une ou plusieurs pièces Cast",
-        TextKey::SelectOutput => "Sélectionner le dossier de sortie",
-        TextKey::SettingsSaved => {
-            "Paramètres enregistrés ; les chemins des modèles ne le sont jamais"
-        }
-        TextKey::SettingsSaveFailed => "Impossible d’enregistrer les paramètres",
-        TextKey::DefaultsRestored => "Paramètres par défaut restaurés",
-        TextKey::Overwrite => "Remplacer le fichier de sortie",
-        TextKey::OverwriteQuestion => "Le fichier de sortie existe déjà. Le remplacer ?",
-        TextKey::Yes => "Oui",
-        TextKey::No => "Non",
-        TextKey::Close => "Fermer",
-        TextKey::PreviewLoading => "Chargement et préparation du modèle en arrière-plan…",
-        TextKey::PreviewInstructions => {
-            "Faites glisser avec le bouton gauche pour pivoter et utilisez la molette pour zoomer."
-        }
-        TextKey::RotateLeft => "Pivoter à gauche",
-        TextKey::RotateRight => "Pivoter à droite",
-        TextKey::ZoomIn => "Zoom avant",
-        TextKey::ZoomOut => "Zoom arrière",
-        TextKey::ResetView => "Réinitialiser la vue",
-        TextKey::PreviewSimplified => {
-            "L’aperçu est échantillonné pour rester fluide ; les fichiers ne sont pas modifiés."
-        }
-        TextKey::PreviewFailed => {
-            "Impossible d’afficher ce fichier Cast ; vérifiez qu’il est complet et contient des maillages."
-        }
-        TextKey::PreviewWorkerStopped => {
-            "La tâche d’aperçu s’est arrêtée ; fermez cette fenêtre et réessayez."
-        }
-        TextKey::Meshes => "maillages",
-        TextKey::PreviewViewport => "Vue",
-        TextKey::PreviewInfo => "Informations",
-        TextKey::PreviewName => "Nom",
-        TextKey::PreviewFile => "Fichier",
-        TextKey::PreviewGrid => "Grille au sol (G)",
-        TextKey::PreviewMaterials => "Matériaux",
-        TextKey::PreviewMaterialsMissing => "Textures manquantes",
-        TextKey::PreviewMaterialsNone => "Aucun chemin de texture dans ce modèle",
-        TextKey::PreviewVertices => "Sommets",
-        TextKey::PreviewDisplayedTriangles => "Triangles affichés",
-        TextKey::PreviewDimensions => "Dimensions",
-        TextKey::Triangles => "triangles",
-        TextKey::Actions => "Actions",
-        TextKey::MiSansMissing => {
-            "MiSans Medium est absent ; extrayez à nouveau le paquet complet."
-        }
-        TextKey::NeedTwoToFifteen => "Ajoutez 2 à 15 pièces Cast",
-        TextKey::Ready => "Prêt",
-        TextKey::Queued => "En attente",
-        TextKey::Running => "En cours",
-        TextKey::Succeeded => "Terminé",
-        TextKey::Failed => "Échec",
-        TextKey::Cancelled => "Annulé",
-        TextKey::OutputConflict => "Un autre groupe utilise le même chemin de sortie",
-        TextKey::MergeFailed => "Échec de la fusion",
-        TextKey::Completed => "Fusion terminée",
-        TextKey::Concurrency => "Jusqu’à 2 groupes en parallèle",
-        TextKey::AddPartInvalidPath => "Le chemin du fichier n’est pas valide",
-        TextKey::AddPartMissing => "Le fichier n’existe pas",
-        TextKey::AddPartNotCast => "Seuls les fichiers .cast sont pris en charge",
-        TextKey::AddPartDuplicate => "Cette pièce a déjà été ajoutée",
-        TextKey::AddPartFull => "Ce groupe a atteint la limite de 15 pièces",
-        TextKey::ValidationInvalidPartCount => "Chaque groupe doit contenir 2 à 15 pièces.",
-        TextKey::ValidationInvalidPath => "Le chemin de la pièce n’est pas valide : {0}",
-        TextKey::ValidationMissingFile => "La pièce du modèle n’existe pas : {0}",
-        TextKey::ValidationUnsupportedExtension => "Seules les pièces .cast sont acceptées : {0}",
-        TextKey::ValidationDuplicateFile => {
-            "La même pièce ne peut pas être ajoutée deux fois : {0}"
-        }
-        TextKey::ValidationInvalidOutputDirectory => "Choisissez un dossier de sortie valide.",
-        TextKey::ValidationInvalidOutputFileName => {
-            "Le nom de sortie doit être valide et utiliser .cast."
-        }
-        TextKey::ValidationOutputAlreadyExists => "Le fichier de sortie existe déjà : {0}",
-        TextKey::ValidationManualRootNotSelected => {
-            "La racine manuelle doit être une pièce sélectionnée."
-        }
-        TextKey::WarningNoAttachmentBone => {
-            "{0} ne partage aucun os de liaison avec {1} ; fusion sur place."
-        }
-        TextKey::WarningUnconnectedHierarchy => {
-            "{0} n’a pas pu rejoindre la hiérarchie ; fusion sur place."
-        }
-        TextKey::ProgressValidating => "Validation de la demande de fusion",
-        TextKey::ProgressLoading => "Chargement de {0}",
-        TextKey::ProgressSelectingRoot => "Sélection du modèle racine",
-        TextKey::ProgressMerging => "Fusion de {0}",
-        TextKey::ProgressSaving => "Enregistrement de {0}",
-        TextKey::ProgressVerifying => "Vérification du modèle Cast enregistré",
-        TextKey::ProgressCompleted => "Enregistré : {0}",
-        TextKey::QueueWaiting => "En attente d’un emplacement de traitement",
-        TextKey::MergeCompletedLog => "Fusion terminée : {0} os, {1} maillages",
-        TextKey::CancelledLog => "L’utilisateur a annulé la tâche de ce groupe",
-        TextKey::ModelPartReadError => "Impossible de lire la pièce : {0}\nFormat : {1}",
-        TextKey::Attribution => "Basé sur Scobalula / echo000 ModelMerger · Licence MIT",
-    }
-}
-
-fn russian(key: TextKey) -> &'static str {
-    match key {
-        TextKey::AppTitle => "Объединение моделей Cast",
-        TextKey::AppSubtitle => {
-            "Управляйте группами деталей Cast и объединяйте их параллельно; 2–15 деталей в группе"
-        }
-        TextKey::Language => "Язык интерфейса",
-        TextKey::NewGroup => "Новая группа",
-        TextKey::SaveSettings => "Сохранить настройки",
-        TextKey::RestoreDefaults => "По умолчанию",
-        TextKey::About => "О программе",
-        TextKey::UpdateAvailable => "Доступно обновление. Откройте «О программе» для загрузки.",
-        TextKey::Group => "Группа моделей",
-        TextKey::ModelParts => "Детали модели",
-        TextKey::ModelPartsHint => {
-            "Выберите несколько файлов .cast через добавление или пустую ячейку либо перетащите их сюда"
-        }
-        TextKey::DropHere => "Отпустите, чтобы добавить файлы в эту группу",
-        TextKey::DropPreview => "Отпустите для просмотра моделей CAST",
-        TextKey::SwitchToLight => "Включить светлую тему",
-        TextKey::SwitchToDark => "Включить тёмную тему",
-        TextKey::DropBatch => "Отпустите для импорта новой группы деталей",
-        TextKey::PreviewDropZone => {
-            "Область просмотра моделей\nПеретащите модели CAST или нажмите для выбора · Другие области импортируют детали"
-        }
-        TextKey::AddNext => "Добавить следующую",
-        TextKey::Clear => "Очистить",
-        TextKey::RootModel => "Корневая модель",
-        TextKey::Automatic => "Автоматически",
-        TextKey::Manual => "Вручную",
-        TextKey::OutputFolder => "Папка вывода",
-        TextKey::Browse => "Обзор",
-        TextKey::OutputFileName => "Имя выходного файла (необязательно)",
-        TextKey::GroupStatus => "Состояние группы",
-        TextKey::RunLog => "Журнал",
-        TextKey::Preview => "Предпросмотр",
-        TextKey::OpenPreview => "Открыть предпросмотр модели…",
-        TextKey::PreviewMerged => "Предпросмотр объединённой модели",
-        TextKey::StartGroup => "Запустить группу",
-        TextKey::Cancel => "Отмена",
-        TextKey::DeleteGroup => "Удалить группу",
-        TextKey::MergeAllReady => "Объединить все готовые группы",
-        TextKey::CancelAll => "Отменить всё",
-        TextKey::RememberOutput => "Запомнить последнюю папку вывода",
-        TextKey::AddPart => "Добавить деталь",
-        TextKey::Replace => "Заменить",
-        TextKey::Remove => "Удалить",
-        TextKey::SetAsRoot => "Сделать корневой",
-        TextKey::RootBadge => "Корень",
-        TextKey::FileMissing => "Файл отсутствует",
-        TextKey::SelectCast => "Выберите одну или несколько деталей Cast",
-        TextKey::SelectOutput => "Выберите папку вывода",
-        TextKey::SettingsSaved => "Настройки сохранены; пути моделей не сохраняются",
-        TextKey::SettingsSaveFailed => "Не удалось сохранить настройки",
-        TextKey::DefaultsRestored => "Настройки по умолчанию восстановлены",
-        TextKey::Overwrite => "Заменить выходной файл",
-        TextKey::OverwriteQuestion => "Выходной файл уже существует. Заменить его?",
-        TextKey::Yes => "Да",
-        TextKey::No => "Нет",
-        TextKey::Close => "Закрыть",
-        TextKey::PreviewLoading => "Модель загружается и подготавливается в фоне…",
-        TextKey::PreviewInstructions => {
-            "Перетаскивайте левой кнопкой для вращения и используйте колесо для масштаба."
-        }
-        TextKey::RotateLeft => "Повернуть влево",
-        TextKey::RotateRight => "Повернуть вправо",
-        TextKey::ZoomIn => "Приблизить",
-        TextKey::ZoomOut => "Отдалить",
-        TextKey::ResetView => "Сбросить вид",
-        TextKey::PreviewSimplified => {
-            "Для плавности предпросмотр упрощён; исходный и выходной файлы не меняются."
-        }
-        TextKey::PreviewFailed => {
-            "Не удалось показать файл Cast; проверьте его целостность и наличие сеток модели."
-        }
-        TextKey::PreviewWorkerStopped => {
-            "Задача предпросмотра остановилась; закройте окно и повторите попытку."
-        }
-        TextKey::Meshes => "сеток",
-        TextKey::PreviewViewport => "Вид",
-        TextKey::PreviewInfo => "Информация",
-        TextKey::PreviewName => "Имя",
-        TextKey::PreviewFile => "Файл",
-        TextKey::PreviewGrid => "Сетка основания (G)",
-        TextKey::PreviewMaterials => "Материалы",
-        TextKey::PreviewMaterialsMissing => "Отсутствуют текстуры",
-        TextKey::PreviewMaterialsNone => "В модели нет путей к текстурам",
-        TextKey::PreviewVertices => "Вершины",
-        TextKey::PreviewDisplayedTriangles => "Показанные треугольники",
-        TextKey::PreviewDimensions => "Размеры",
-        TextKey::Triangles => "треугольников",
-        TextKey::Actions => "Действия",
-        TextKey::MiSansMissing => "Шрифт MiSans Medium не найден; распакуйте полный пакет ещё раз.",
-        TextKey::NeedTwoToFifteen => "Добавьте от 2 до 15 деталей Cast",
-        TextKey::Ready => "Готово",
-        TextKey::Queued => "В очереди",
-        TextKey::Running => "Выполняется",
-        TextKey::Succeeded => "Завершено",
-        TextKey::Failed => "Ошибка",
-        TextKey::Cancelled => "Отменено",
-        TextKey::OutputConflict => "Другая группа использует тот же путь вывода",
-        TextKey::MergeFailed => "Ошибка объединения",
-        TextKey::Completed => "Объединение завершено",
-        TextKey::Concurrency => "До 2 групп параллельно",
-        TextKey::AddPartInvalidPath => "Недопустимый путь к файлу",
-        TextKey::AddPartMissing => "Файл не существует",
-        TextKey::AddPartNotCast => "Поддерживаются только файлы .cast",
-        TextKey::AddPartDuplicate => "Эта деталь уже добавлена",
-        TextKey::AddPartFull => "Достигнут предел в 15 деталей",
-        TextKey::ValidationInvalidPartCount => "В группе должно быть от 2 до 15 деталей.",
-        TextKey::ValidationInvalidPath => "Недопустимый путь детали: {0}",
-        TextKey::ValidationMissingFile => "Деталь модели не существует: {0}",
-        TextKey::ValidationUnsupportedExtension => "Поддерживаются только детали .cast: {0}",
-        TextKey::ValidationDuplicateFile => "Нельзя добавить одну деталь дважды: {0}",
-        TextKey::ValidationInvalidOutputDirectory => "Выберите допустимую папку вывода.",
-        TextKey::ValidationInvalidOutputFileName => {
-            "Имя выхода должно быть допустимым и иметь .cast."
-        }
-        TextKey::ValidationOutputAlreadyExists => "Выходной файл уже существует: {0}",
-        TextKey::ValidationManualRootNotSelected => "Корень должен быть выбранной деталью.",
-        TextKey::WarningNoAttachmentBone => {
-            "У {0} и {1} нет общей соединительной кости; объединено на месте."
-        }
-        TextKey::WarningUnconnectedHierarchy => {
-            "{0} не удалось подключить к иерархии; объединено на месте."
-        }
-        TextKey::ProgressValidating => "Проверка запроса на объединение",
-        TextKey::ProgressLoading => "Загрузка {0}",
-        TextKey::ProgressSelectingRoot => "Выбор корневой модели",
-        TextKey::ProgressMerging => "Объединение {0}",
-        TextKey::ProgressSaving => "Сохранение {0}",
-        TextKey::ProgressVerifying => "Проверка сохранённой модели Cast",
-        TextKey::ProgressCompleted => "Сохранено: {0}",
-        TextKey::QueueWaiting => "Ожидание свободного места обработки",
-        TextKey::MergeCompletedLog => "Объединение завершено: костей {0}, сеток {1}",
-        TextKey::CancelledLog => "Пользователь отменил задачу группы",
-        TextKey::ModelPartReadError => "Не удалось прочитать деталь: {0}\nФормат: {1}",
-        TextKey::Attribution => "На основе Scobalula / echo000 ModelMerger · Лицензия MIT",
-    }
-}
-
-fn spanish(key: TextKey) -> &'static str {
-    match key {
-        TextKey::AppTitle => "Combinador de modelos Cast",
-        TextKey::AppSubtitle => {
-            "Gestiona y combina piezas Cast en grupos paralelos; de 2 a 15 piezas por grupo"
-        }
-        TextKey::Language => "Idioma",
-        TextKey::NewGroup => "Nuevo grupo",
-        TextKey::SaveSettings => "Guardar ajustes",
-        TextKey::RestoreDefaults => "Restaurar valores",
-        TextKey::About => "Acerca de",
-        TextKey::UpdateAvailable => "Hay una actualización disponible en Acerca de.",
-        TextKey::Group => "Grupo de modelos",
-        TextKey::ModelParts => "Piezas del modelo",
-        TextKey::ModelPartsHint => {
-            "Selecciona varios archivos .cast con Añadir o un espacio vacío, o arrástralos aquí"
-        }
-        TextKey::DropHere => "Suelta para añadir los archivos a este grupo",
-        TextKey::DropPreview => "Suelta para previsualizar modelos CAST",
-        TextKey::SwitchToLight => "Cambiar a tema claro",
-        TextKey::SwitchToDark => "Cambiar a tema oscuro",
-        TextKey::DropBatch => "Suelta para importar un nuevo grupo de piezas",
-        TextKey::PreviewDropZone => {
-            "Área de vista previa\nArrastra modelos CAST o haz clic para elegir · Las demás áreas importan piezas"
-        }
-        TextKey::AddNext => "Añadir siguiente",
-        TextKey::Clear => "Vaciar",
-        TextKey::RootModel => "Modelo raíz",
-        TextKey::Automatic => "Automático",
-        TextKey::Manual => "Manual",
-        TextKey::OutputFolder => "Carpeta de salida",
-        TextKey::Browse => "Examinar",
-        TextKey::OutputFileName => "Nombre del archivo (opcional)",
-        TextKey::GroupStatus => "Estado del grupo",
-        TextKey::RunLog => "Registro",
-        TextKey::Preview => "Vista previa",
-        TextKey::OpenPreview => "Abrir vista previa del modelo…",
-        TextKey::PreviewMerged => "Vista previa del modelo combinado",
-        TextKey::StartGroup => "Iniciar grupo",
-        TextKey::Cancel => "Cancelar",
-        TextKey::DeleteGroup => "Eliminar grupo",
-        TextKey::MergeAllReady => "Combinar todos los grupos listos",
-        TextKey::CancelAll => "Cancelar todo",
-        TextKey::RememberOutput => "Recordar la última carpeta de salida",
-        TextKey::AddPart => "Añadir pieza",
-        TextKey::Replace => "Reemplazar",
-        TextKey::Remove => "Quitar",
-        TextKey::SetAsRoot => "Fijar raíz",
-        TextKey::RootBadge => "Raíz",
-        TextKey::FileMissing => "Falta el archivo",
-        TextKey::SelectCast => "Seleccionar una o varias piezas Cast",
-        TextKey::SelectOutput => "Seleccionar la carpeta de salida",
-        TextKey::SettingsSaved => "Ajustes guardados; las rutas de modelos nunca se almacenan",
-        TextKey::SettingsSaveFailed => "No se pudieron guardar los ajustes",
-        TextKey::DefaultsRestored => "Valores predeterminados restaurados",
-        TextKey::Overwrite => "Reemplazar archivo de salida",
-        TextKey::OverwriteQuestion => "El archivo de salida ya existe. ¿Quieres reemplazarlo?",
-        TextKey::Yes => "Sí",
-        TextKey::No => "No",
-        TextKey::Close => "Cerrar",
-        TextKey::PreviewLoading => "Cargando y preparando el modelo en segundo plano…",
-        TextKey::PreviewInstructions => {
-            "Arrastra con el botón izquierdo para girar y usa la rueda para acercar o alejar."
-        }
-        TextKey::RotateLeft => "Girar a la izquierda",
-        TextKey::RotateRight => "Girar a la derecha",
-        TextKey::ZoomIn => "Acercar",
-        TextKey::ZoomOut => "Alejar",
-        TextKey::ResetView => "Restablecer vista",
-        TextKey::PreviewSimplified => {
-            "La vista se ha muestreado para mantener la fluidez; los archivos no se modifican."
-        }
-        TextKey::PreviewFailed => {
-            "No se puede previsualizar este archivo Cast; comprueba que esté completo y tenga mallas."
-        }
-        TextKey::PreviewWorkerStopped => {
-            "La tarea de vista previa se detuvo; cierra esta ventana e inténtalo de nuevo."
-        }
-        TextKey::Meshes => "mallas",
-        TextKey::PreviewViewport => "Vista",
-        TextKey::PreviewInfo => "Información",
-        TextKey::PreviewName => "Nombre",
-        TextKey::PreviewFile => "Archivo",
-        TextKey::PreviewGrid => "Cuadrícula del suelo (G)",
-        TextKey::PreviewMaterials => "Materiales",
-        TextKey::PreviewMaterialsMissing => "Texturas faltantes",
-        TextKey::PreviewMaterialsNone => "El modelo no tiene rutas de texturas",
-        TextKey::PreviewVertices => "Vértices",
-        TextKey::PreviewDisplayedTriangles => "Triángulos mostrados",
-        TextKey::PreviewDimensions => "Dimensiones",
-        TextKey::Triangles => "triángulos",
-        TextKey::Actions => "Acciones",
-        TextKey::MiSansMissing => "Falta MiSans Medium; vuelve a extraer el paquete completo.",
-        TextKey::NeedTwoToFifteen => "Añade de 2 a 15 piezas Cast",
-        TextKey::Ready => "Listo",
-        TextKey::Queued => "En espera",
-        TextKey::Running => "Procesando",
-        TextKey::Succeeded => "Completado",
-        TextKey::Failed => "Error",
-        TextKey::Cancelled => "Cancelado",
-        TextKey::OutputConflict => "Otro grupo está usando la misma ruta de salida",
-        TextKey::MergeFailed => "Error al combinar",
-        TextKey::Completed => "Combinación completada",
-        TextKey::Concurrency => "Hasta 2 grupos en paralelo",
-        TextKey::AddPartInvalidPath => "La ruta del archivo no es válida",
-        TextKey::AddPartMissing => "El archivo no existe",
-        TextKey::AddPartNotCast => "Solo se admiten archivos .cast",
-        TextKey::AddPartDuplicate => "Esta pieza ya se ha añadido",
-        TextKey::AddPartFull => "Este grupo ha alcanzado el límite de 15 piezas",
-        TextKey::ValidationInvalidPartCount => "Cada grupo debe tener entre 2 y 15 piezas.",
-        TextKey::ValidationInvalidPath => "La ruta de la pieza no es válida: {0}",
-        TextKey::ValidationMissingFile => "La pieza del modelo no existe: {0}",
-        TextKey::ValidationUnsupportedExtension => "Solo se admiten piezas .cast: {0}",
-        TextKey::ValidationDuplicateFile => "No se puede añadir la misma pieza dos veces: {0}",
-        TextKey::ValidationInvalidOutputDirectory => "Elige una carpeta de salida válida.",
-        TextKey::ValidationInvalidOutputFileName => {
-            "El nombre de salida debe ser válido y usar .cast."
-        }
-        TextKey::ValidationOutputAlreadyExists => "El archivo de salida ya existe: {0}",
-        TextKey::ValidationManualRootNotSelected => {
-            "La raíz manual debe ser una pieza seleccionada."
-        }
-        TextKey::WarningNoAttachmentBone => {
-            "{0} no comparte ningún hueso de unión con {1}; se combinó en su sitio."
-        }
-        TextKey::WarningUnconnectedHierarchy => {
-            "{0} no pudo conectarse a la jerarquía; se combinó en su sitio."
-        }
-        TextKey::ProgressValidating => "Validando la solicitud de combinación",
-        TextKey::ProgressLoading => "Cargando {0}",
-        TextKey::ProgressSelectingRoot => "Seleccionando el modelo raíz",
-        TextKey::ProgressMerging => "Combinando {0}",
-        TextKey::ProgressSaving => "Guardando {0}",
-        TextKey::ProgressVerifying => "Verificando el modelo Cast guardado",
-        TextKey::ProgressCompleted => "Guardado: {0}",
-        TextKey::QueueWaiting => "Esperando un puesto de procesamiento disponible",
-        TextKey::MergeCompletedLog => "Combinación completada: {0} huesos, {1} mallas",
-        TextKey::CancelledLog => "El usuario canceló la tarea de este grupo",
-        TextKey::ModelPartReadError => "No se pudo leer la pieza: {0}\nFormato: {1}",
-        TextKey::Attribution => "Basado en Scobalula / echo000 ModelMerger · Licencia MIT",
+        TextKey::InterfaceFont => "UI font: MiSans",
     }
 }

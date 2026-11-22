@@ -1,8 +1,10 @@
 <div align="center">
 
-# Cast Model Merger GUI
+<img src="docs/images/cast-assembly/icon.png" width="88" height="88" alt="CAST 装配台图标">
 
-**拖入 CAST 部件，分组合并，在独立 3D 窗口中检查结果。**
+# CAST 装配台
+
+**拖入 CAST 部件，分组合并，在同一个窗口预览多个模型。**
 
 面向 Windows 的 Rust 原生模型合并、预览与弹匣装填工具。
 
@@ -14,13 +16,13 @@
 
 简体中文 · [English](README.en.md)
 
-[**下载免安装版**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [使用说明](docs/user-guide.zh-CN.md) · [更新记录](https://github.com/ez4cywa/ModelMergerGUI/releases) · [反馈问题](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose)
+[**下载 EXE**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastAssembly.exe) · [下载 ZIP](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [使用说明](docs/user-guide.zh-CN.md) · [更新记录](https://github.com/ez4cywa/ModelMergerGUI/releases) · [反馈问题](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose)
 
 </div>
 
-![Cast 模型合并器中文主界面](docs/images/rust-native/main-window-zh.png)
+![CAST 装配台浅色界面：左侧部件、右侧标签式预览，上方输出设置，下方运行日志](docs/images/cast-assembly/workspace-zh.jpg)
 
-*截图来自 Rust 原生界面；部分截图早于最新版本，按钮与布局以当前发布包为准。*
+*实机截图，预览中载入了仓库自带的 CAST 测试模型。*
 
 ## 可以做什么
 
@@ -28,18 +30,18 @@
 | --- | --- |
 | 把分散的部件合成模型 | 每组 2–15 个 CAST 部件，自动识别或手动指定根模型 |
 | 分批处理多个模型 | 每批独立成组，最多同时执行 2 组合并，其余排队；支持取消 |
-| 只查看模型、不合并 | 专用预览区支持一次拖入多个 CAST，分别打开独立窗口 |
+| 只查看模型、不合并 | 右侧预览区支持一次拖入多个 CAST，每个模型独立标签 |
 | 检查形状、尺寸与拼接结果 | GPU 深度渲染、旋转、缩放、地面网格和模型信息 |
 | 给弹匣补齐子弹模型 | 按子弹骨骼装填，可为备用弹匣复制位置与朝向布局 |
-| 使用不同语言或主题 | 中、英、法、俄、西五语即时切换；醒目的亮暗按钮并记住选择 |
+| 使用不同语言或主题 | 中文和 English 即时切换；醒目的亮暗按钮并记住选择 |
 
 模型处理在本机完成。预览不修改源文件；合并输出先写入临时文件并重新读取验证。更新检查默认关闭，可在“帮助 → 关于”中手动检查或启用启动时检查。
 
 ## 下载与运行
 
-1. 下载 [**CastModelMerger-win-x64.zip**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip)。
-2. 完整解压 ZIP，再运行 `CastModelMerger.exe`，不要直接在压缩包内启动。
-3. 准备自己的 `.cast` 文件，按下方流程预览或合并。
+1. 下载 [**CastAssembly.exe**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastAssembly.exe)，双击即可运行。
+2. 想下载更小的文件，选 [ZIP 版](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip)。完整解压后再运行其中的 `CastAssembly.exe`。
+3. 把 `.cast` 文件拖入工作区，按下方流程预览或合并。
 
 支持 Windows 10/11 x64，预览需要支持 Direct3D 12 的显卡驱动。**无需安装 .NET 或 Rust**；发布包只有 Windows x64 原生免安装版，不是安装向导。
 
@@ -47,7 +49,7 @@
 
 ## 快速上手
 
-- **预览**：把一个或多个 CAST 拖到工作区顶部“模型预览区” → 在独立窗口中旋转、缩放或查看模型信息。
+- **预览**：把一个或多个 CAST 拖到右侧预览区 → 切换标签、旋转、缩放或查看模型信息。
 - **合并**：把 2–15 个部件拖入组 → 确认根模型和输出路径 → 开始合并 → 预览结果。
 - **弹匣装填**：打开“弹匣装填” → 选择武器与单个 `tag_ammo` 骨骼的子弹模型 → 勾选目标 → 另存新文件。
 
@@ -55,22 +57,16 @@
 
 | 拖放区域 | 结果 |
 | --- | --- |
-| 顶部模型预览区 | 批量打开独立预览，不加入合并组 |
-| 已有模型组或部件槽 | 向该组追加部件，最多 15 个 |
+| 右侧模型预览区 | 批量打开预览标签，不加入合并组 |
+| 左侧已有模型组 | 向该组追加部件，最多 15 个 |
 | 其他区域 | 每批单独成组，优先使用空闲空组，否则新建；无需先合并上一批 |
 
 拖放目标区域会高亮提示。更多操作、快捷键及装填规则见[完整使用说明](docs/user-guide.zh-CN.md)。
 
 <details>
-<summary>查看预览与弹匣装填截图</summary>
+<summary>查看深色英文界面</summary>
 
-| 浅色预览 | 深色预览 |
-| --- | --- |
-| ![浅色模型预览](docs/images/rust-native/model-preview-zh.png) | ![深色模型预览](docs/images/rust-native/model-preview-dark-zh.png) |
-
-![弹匣装填（v2.2.1 界面）](docs/images/rust-native/ammo-fill-zh.png)
-
-*弹匣截图为 v2.2.1；当前版本已合并重复控件，使用行内“复制来源”选择。*
+![CAST 装配台深色英文界面](docs/images/cast-assembly/workspace-en-dark.jpg)
 
 </details>
 
@@ -84,9 +80,9 @@
 
 ## 常见问题与日志
 
-**拖入文件却没有预览？** 只有顶部预览区用于拖入预览；其他区域用于导入部件。也可使用“文件 → 打开模型预览…”（`Ctrl+O`）。
+**拖入文件却没有预览？** 只有右侧预览区用于拖入预览；其他区域用于导入部件。也可使用“文件 → 打开模型预览…”（`Ctrl+O`）。
 
-**窗口打不开或预览崩溃？** 先确认已完整解压并更新显卡驱动，再提供复现步骤和诊断日志。日志通常位于：
+**窗口打不开或预览崩溃？** 如果使用 ZIP 版，先确认已完整解压。更新显卡驱动后再试，再提供复现步骤和诊断日志。日志通常位于：
 
 ```text
 %LocalAppData%\CastModelMerger\logs\CastModelMerger.log

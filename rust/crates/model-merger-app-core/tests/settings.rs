@@ -9,7 +9,7 @@ fn settings_round_trip_uses_schema_two_and_leaves_no_temporary_file() {
     let path = directory.path.join("settings.json");
     let store = SettingsStore::new(&path);
     let settings = AppSettings {
-        language: Some(AppLanguage::French),
+        language: Some(AppLanguage::ChineseSimplified),
         preferred_output_directory: Some(output.clone()),
         remember_output_directory: true,
         check_updates_on_startup: true,
@@ -45,15 +45,38 @@ fn corrupt_or_invalid_settings_fall_back_to_sanitized_defaults() {
 
     std::fs::write(
         &path,
-        br#"{"schemaVersion":99,"uiLanguage":4,"preferredOutputDirectory":"missing","rememberOutputDirectory":true,"rootSelectionMode":0,"windowBounds":{"left":0,"top":0,"width":200,"height":100}}"#,
+        br#"{"schemaVersion":99,"uiLanguage":1,"preferredOutputDirectory":"missing","rememberOutputDirectory":true,"rootSelectionMode":0,"windowBounds":{"left":0,"top":0,"width":200,"height":100}}"#,
     )
     .unwrap();
     let loaded = store.load();
     assert_eq!(2, loaded.schema_version);
-    assert_eq!(Some(AppLanguage::Spanish), loaded.language);
+    assert_eq!(Some(AppLanguage::English), loaded.language);
     assert!(!loaded.remember_output_directory);
     assert!(loaded.preferred_output_directory.is_none());
     assert!(loaded.window_bounds.is_none());
+}
+
+#[test]
+fn retired_languages_fall_back_to_english_without_resetting_settings() {
+    let directory = TestDirectory::new();
+    let path = directory.path.join("settings.json");
+    let output = directory.path.join("output");
+    std::fs::create_dir(&output).unwrap();
+    let store = SettingsStore::new(&path);
+    let expected = AppSettings {
+        language: Some(AppLanguage::English),
+        preferred_output_directory: Some(output),
+        remember_output_directory: true,
+        dark_mode: Some(true),
+        root_mode: RootMode::Manual,
+        ..AppSettings::default()
+    };
+    for id in 2..=4 {
+        let mut settings = serde_json::to_value(&expected).unwrap();
+        settings["uiLanguage"] = serde_json::json!(id);
+        std::fs::write(&path, serde_json::to_vec(&settings).unwrap()).unwrap();
+        assert_eq!(expected, store.load(), "retired language ID {id}");
+    }
 }
 
 #[test]
@@ -63,7 +86,7 @@ fn load_recovers_the_previous_settings_if_replacement_was_interrupted() {
     let backup = directory.path.join("settings.json.backup");
     let store = SettingsStore::new(&path);
     let settings = AppSettings {
-        language: Some(AppLanguage::Russian),
+        language: Some(AppLanguage::English),
         ..AppSettings::default()
     };
     store.save(&settings).unwrap();

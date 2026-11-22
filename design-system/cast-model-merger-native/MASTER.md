@@ -30,8 +30,7 @@ All normal text/background and button text/fill pairs must meet WCAG AA contrast
 
 ## Typography
 
-- Chinese: bundled MiSans Medium for all UI text.
-- Other languages: installed Segoe UI, with MiSans Medium as fallback.
+- Simplified Chinese and English: the same embedded MiSans Medium UI font.
 - Type scale: 22 px app title, 17 px section/group titles, 15 px body and controls, 13 px helper/status text, 12 px slot indexes.
 - Keep weight consistent through the selected font file. Create hierarchy with size, spacing, and color rather than mixing arbitrary font weights.
 

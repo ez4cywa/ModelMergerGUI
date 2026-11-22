@@ -5,19 +5,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub enum AppLanguage {
     ChineseSimplified = 0,
     English = 1,
-    French = 2,
-    Russian = 3,
-    Spanish = 4,
 }
 
 impl AppLanguage {
-    pub const ALL: [Self; 5] = [
-        Self::ChineseSimplified,
-        Self::English,
-        Self::French,
-        Self::Russian,
-        Self::Spanish,
-    ];
+    pub const ALL: [Self; 2] = [Self::ChineseSimplified, Self::English];
 }
 
 impl TryFrom<u8> for AppLanguage {
@@ -27,9 +18,6 @@ impl TryFrom<u8> for AppLanguage {
         match value {
             0 => Ok(Self::ChineseSimplified),
             1 => Ok(Self::English),
-            2 => Ok(Self::French),
-            3 => Ok(Self::Russian),
-            4 => Ok(Self::Spanish),
             _ => Err(()),
         }
     }
@@ -49,7 +37,11 @@ impl<'de> Deserialize<'de> for AppLanguage {
     where
         D: Deserializer<'de>,
     {
-        Self::try_from(u8::deserialize(deserializer)?)
-            .map_err(|_| serde::de::Error::custom("unsupported application language"))
+        match u8::deserialize(deserializer)? {
+            // Keep the rest of a saved configuration when its language was retired.
+            2..=4 => Ok(Self::English),
+            value => Self::try_from(value)
+                .map_err(|_| serde::de::Error::custom("unsupported application language")),
+        }
     }
 }

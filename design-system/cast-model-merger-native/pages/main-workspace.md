@@ -4,7 +4,7 @@ This page follows the macOS-inspired native utility contract in `MASTER.md`.
 
 - Use a compact top command bar, scrollable collapsible group cards, and a persistent bottom status/action bar.
 - Default viewport: 1180 × 860 logical pixels; minimum: 900 × 680. Reflow the slot grid from five to three columns before allowing horizontal scrolling.
-- Chinese text uses only MiSans Medium. Other languages prefer the installed Segoe UI face, with MiSans Medium as fallback. Body and control text is 15 px; helper text is at least 13 px; section headings are 17 px.
+- Simplified Chinese and English use the same embedded MiSans Medium UI font. Body and control text is 15 px; helper text is at least 13 px; section headings are 17 px.
 - Use the paired semantic light/dark palettes from `MASTER.md`. Initially follow the operating system theme. A high-contrast, labeled button at the right of the menu bar switches light/dark and saves the choice. Language changes preserve it; restoring defaults resumes system theme.
 - Standard command controls are 40 px high; path/name fields and their adjacent Browse control are 36 px high. Keep at least 8 px between controls. Slot cards are at least 136 × 108 px. Keep 16 px group padding and 24 px workspace margins.
 - Give every slot card an explicit grid-derived width and a vertical internal layout. Truncate long file names with an ellipsis and expose the complete path in a tooltip; slot content must never widen the left pane or reduce the reserved 300 px settings pane.

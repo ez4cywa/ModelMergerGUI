@@ -1,31 +1,31 @@
-# Cast Model Merger GUI User Guide
+# Cast Assembly User Guide
 
 [简体中文](../README.md) | English
 
-A native Windows desktop tool for `.cast` models, built with Rust, egui and wgpu. Merge model parts in independent groups, inspect them in standalone 3D previews, and fill magazines at ammunition bones. Based on the merging logic from [echo000/ModelMerger](https://github.com/echo000/ModelMerger).
+A native Windows desktop tool for `.cast` models, built with Rust, egui and wgpu. Merge model parts in independent groups, inspect them in separate 3D preview tabs, and fill magazines at ammunition bones. Based on the merging logic from [echo000/ModelMerger](https://github.com/echo000/ModelMerger).
 
 [Download Windows x64 portable](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [Release notes](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) · [Usage guide](#usage) · [Build from source](#build-and-test) · [Report an issue](https://github.com/ez4cywa/ModelMergerGUI/issues)
 
 - **Multi-group merging**: 2–15 parts per group, batch drag-and-drop, independent jobs, queuing and cancellation.
 - **Model previews**: a dedicated drop zone opens multiple models, with rotation, zoom and model information.
 - **Magazine filling**: place cartridge models at ammunition bones and optionally copy the layout to spare magazines.
-- **Ready to run**: portable Windows x64 app, no .NET required; Chinese, English, French, Russian and Spanish, with one-click light/dark switching.
+- **Ready to run**: portable Windows x64 app, no .NET required; Simplified Chinese and English, with one-click light/dark switching.
 
 ## Screenshots
 
 ### Main interface
 
-![Cast Model Merger English interface](images/rust-native/main-window-en.png)
+![Cast Assembly English interface](images/cast-assembly/workspace-en-dark.jpg)
 
 ### Magazine filling (v2.2.1)
 
-The following feature screenshots show the Chinese interface. The application also supports English, French, Russian and Spanish.
+The following feature screenshots show the Chinese interface. The application also supports English.
 
 ![Magazine bone detection and optional ammunition slots](images/rust-native/ammo-fill-zh.png)
 
 ### Model preview
 
-All preview entry points share a full-window layout: a compact name row, model and perspective grid, lower-left camera tools, and bottom Viewport / Model info tabs. The existing macOS-inspired styling, light/dark themes and neutral model shading are preserved.
+Previews open in tabs on the right, above a perspective grid with camera controls in the lower left and Viewport / Model info buttons below. The existing macOS-inspired styling, light/dark themes and neutral model shading are preserved.
 
 | Light theme | Dark theme |
 | --- | --- |
@@ -37,7 +37,7 @@ Following the full Rust migration, [Releases](https://github.com/ez4cywa/ModelMe
 
 | Edition | Download | Runtime requirements |
 | --- | --- | --- |
-| Rust-native portable | [CastModelMerger-win-x64.zip](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) | 64-bit Windows; **no .NET, Rust or additional runtime installation required** |
+| Rust-native portable | [CastAssembly.exe](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastAssembly.exe) or [CastModelMerger-win-x64.zip](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) | 64-bit Windows; **no .NET, Rust or additional runtime installation required** |
 
 ### System requirements
 
@@ -45,13 +45,13 @@ Following the full Rust migration, [Releases](https://github.com/ez4cywa/ModelMe
 - A graphics driver supporting Direct3D 12. Rendering uses `wgpu`; if the application cannot create a window, update your Intel, AMD or NVIDIA graphics driver.
 - No .NET Desktop Runtime or Rust installation is needed. Rust 1.96 is a source-build requirement only.
 
-Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, application state, settings, localized interface and model preview are compiled into one native Rust application.
+Run `CastAssembly.exe` directly, or extract the entire ZIP before running the copy inside it. The merge engine, application state, settings, localized interface and model preview are compiled into one native Rust application.
 
 ## Features
 
 - Create independent merge groups and expand or collapse each one.
-- Use a visual 5 × 3 slot grid with a selected-part count for each group.
-- Click **Add next** or an empty slot to select multiple `.cast` files in one file-picker operation, or drag files into a group.
+- See each group's part list and count in the left sidebar. Each group supports up to 15 parts.
+- Click **Add part** to select multiple `.cast` files in one file-picker operation, or drag files into a group.
 - Fixed-width part cards truncate long filenames. Hover to see the full path without squeezing the settings pane.
 - Each group remembers its most recently used input folder for subsequent selections.
 - Remove or replace parts and manually select a root model for each group.
@@ -66,9 +66,9 @@ Extract the entire ZIP before running `CastModelMerger.exe`. The merge engine, a
 - Background processing, horizontal percentage progress bars, stage updates, logs and cancellation keep the interface responsive.
 - Write output to a temporary file and read it back for validation before creating the final file.
 - A fully native Rust architecture handles CAST parsing, merging, scheduling, settings, five-language UI and previews in one process. See the [full migration record (Chinese)](full-rust-migration.md).
-- Switch instantly between 中文, English, Français, Русский and Español. Existing state, logs and dialogs update with the selected language.
+- Switch instantly between 中文 and English. Existing state, logs and dialogs update with the selected language.
 - A prominent light/dark button at the right of the menu bar switches the entire app and previews, and saves your choice. New installations follow the system theme; restoring defaults returns to system mode.
-- Embedded MiSans for Chinese; Segoe UI for the other four interface languages.
+- Both interfaces use the embedded MiSans Medium font.
 - The compact **File / Settings / Help** menu bar replaces the repeated heading and introduction. Create groups under **File**; choose a language or save/restore settings under **Settings**. Existing shortcuts are unchanged.
 - Use **File → Open model preview…** (**Ctrl+O**) to open a CAST file in a standalone 3D preview without adding it to a merge group. Rotate, zoom and reset the view without changing the source file.
 - Open **Help → About** to view the version, visit the GitHub repository and downloads, report issues, copy the project link, and check credits and licenses. The dialog follows the current language and light/dark theme.
@@ -96,15 +96,15 @@ For troubleshooting, share the log files in this directory, including `CastModel
 ## Usage
 
 1. Click **New model group** to add a task. Collapse groups you do not need to view.
-2. Click **Add next** or an empty slot in the target group and select one or more `.cast` files. Files fill the remaining slots in the order returned by the file picker.
+2. Select the group, click **Add part** and choose one or more `.cast` files. The parts appear in the order returned by the file picker.
 3. Add 2–15 parts, or drag multiple files into the group. Files beyond the 15-part limit are not added, and a capacity notice is shown.
 4. Click a part's **Preview** button to inspect it. Keep automatic root detection, or select manual root mode and use the part's set-as-root action.
 5. Choose the group's output folder. Leave the output filename blank to use the root model's name.
-6. Start the group or merge all ready groups using the bottom action bar. After a successful merge, preview the result from the group's status pane.
+6. Start the group or merge all ready groups using the bottom action bar. Use **Run log** in the bottom action bar to see the selected group's log. After a successful merge, preview the result from the group's status pane.
 
-Choose a language in the **Settings** menu. Click **Save settings** to keep that choice for the next launch. On first launch, the application follows Windows when its language is one of the five supported languages; otherwise it defaults to Chinese.
+Choose a language in the **Settings** menu. Click **Save settings** to keep that choice for the next launch. On first launch, the application uses Chinese for Chinese Windows locales and English for other Windows locales. Saved choices for retired languages fall back to English without resetting other settings.
 
-The Chinese interface embeds Xiaomi MiSans. MiSans is not covered by this project's MIT license; its use and distribution follow Xiaomi's font license. See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) and the official license linked there.
+Both interfaces use embedded Xiaomi MiSans. MiSans is not covered by this project's MIT license; its use and distribution follow Xiaomi's font license. See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) and the official license linked there.
 
 The application uses a macOS-inspired layout, system light/dark themes and compact 36 px path/filename inputs. Main-window shortcuts: `Ctrl+N` creates a group, `Ctrl+S` saves settings, and `Ctrl+Enter` starts all ready groups.
 
@@ -126,7 +126,7 @@ Only unit-scale rigid skeletons are supported. Multi-bone cartridge sources, mod
 
 ### Preview a part
 
-1. Click **Add next** or an empty slot and choose one or more `.cast` files.
+1. Click **Add part** and choose one or more `.cast` files.
 2. Each imported part displays its filename and a **Preview** button.
 3. Click **Preview** to open an independent 3D window.
 4. Open additional previews to compare parts side by side.
@@ -140,7 +140,7 @@ Only unit-scale rigid skeletons are supported. Multi-bone cartridge sources, mod
 
 ### Preview controls
 
-Drop one or more `.cast` files onto the dedicated **Model preview area** at the top of the workspace to open separate previews, or click it to select multiple files. This area ignores non-CAST files and leaves groups and settings unchanged. Dropping onto a group or part slot appends parts to that group; other areas place each batch in a separate group, reusing an idle empty group or creating one. You do not need to merge the previous batch first. The 15-part limit per group still applies.
+Drop one or more `.cast` files onto the dedicated preview area on the right to open separate preview tabs, or click it to select multiple files. This area ignores non-CAST files and leaves groups and settings unchanged. Dropping onto a group on the left appends parts to that group; other areas place each batch in a separate group, reusing an idle empty group or creating one. You do not need to merge the previous batch first. The 15-part limit per group still applies.
 
 | Action | Mouse or keyboard |
 | --- | --- |

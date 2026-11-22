@@ -40,6 +40,8 @@ fn main() {
         .expect("Windows icon path must contain valid Unicode");
     winresource::WindowsResource::new()
         .set_icon(icon_path)
+        .set("ProductName", "Cast Assembly")
+        .set("FileDescription", "CAST 装配台")
         .compile()
         .expect("Windows application resources should compile");
 }

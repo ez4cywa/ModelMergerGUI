@@ -5,7 +5,7 @@
 - Build a Windows x64 native desktop GUI from `echo000/ModelMerger` using Rust, eframe/egui and wgpu.
 - The GUI accepts Cast (`.cast`) model parts only.
 - A merge contains at least 2 and at most 15 unique, existing files.
-- Keep one multilingual executable with live Simplified Chinese, English, French, Russian, and Spanish switching.
+- Keep one multilingual executable with live Simplified Chinese and English switching.
 - Preserve the upstream MIT licence and author attribution.
 
 ## Part selection
@@ -58,11 +58,11 @@
 
 ## Localization
 
-- The user can switch between Simplified Chinese, English, French, Russian, and Spanish without restarting.
+- The user can switch between Simplified Chinese and English without restarting.
 - Static UI, existing group status, existing run logs, file dialogs, confirmations, validation errors, warnings, and completion messages update to the selected language.
 - On first launch, use the Windows UI language when it is one of the five supported languages; otherwise default to Simplified Chinese.
 - Language resources have matching keys and format placeholders.
-- The Simplified Chinese interface uses the build-time embedded MiSans Medium face and visibly acknowledges MiSans; other languages use installed Segoe UI with MiSans as the CJK fallback.
+- Both interfaces use the build-time embedded MiSans Medium face and visibly acknowledge MiSans.
 - Embed only the original MiSans Medium font file; Chinese text uses that weight consistently, while size, color, and spacing carry the heading hierarchy without duplicate full CJK font files.
 - Main body text uses a 15 px medium-weight baseline. Helper and caption text stays at 12–13 px minimum with a darker high-contrast foreground, including disabled actions.
 

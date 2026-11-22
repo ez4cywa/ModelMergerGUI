@@ -58,18 +58,9 @@ impl MergeObserver for Progress {
 }
 
 pub fn title(language: AppLanguage) -> &'static str {
-    localized(
-        language,
-        [
-            "手臂武器拼接",
-            "Attach weapon to arms",
-            "Fixer l’arme aux bras",
-            "Прикрепить оружие к рукам",
-            "Acoplar arma a los brazos",
-        ],
-    )
+    localized(language, ["手臂武器拼接", "Attach weapon to arms"])
 }
-fn localized(language: AppLanguage, text: [&'static str; 5]) -> &'static str {
+fn localized(language: AppLanguage, text: [&'static str; 2]) -> &'static str {
     text[language as usize]
 }
 
@@ -180,20 +171,20 @@ impl ArmatureTool {
         egui::Window::new(title(language)).open(&mut open).default_width(560.0).max_width((context.content_rect().width() - 48.0).max(280.0)).default_height(height).max_height(height).default_pos(context.content_rect().center() - egui::vec2(280.0, height / 2.0 + 20.0)).resizable(true).show(context, |ui| {
             let p = theme::palette(ui);
             egui::ScrollArea::vertical().id_salt("armature-content").max_height((ui.available_height() - 92.0).max(160.0)).auto_shrink([false, true]).show(ui, |ui| {
-            ui.label(localized(language, ["把手臂与武器拼接成完整的第一人称模型：武器根骨骼归零挂接到手臂的 tag_weapon，另存新 CAST。", "Assemble the arms and weapon into a first-person model: the weapon root bone is zeroed onto the arms' tag_weapon and saved as a new CAST.", "Assemblez les bras et l’arme en un modèle à la première personne : l’os racine de l’arme est aligné sur le tag_weapon des bras et enregistré dans un nouveau CAST.", "Соберите руки и оружие в модель от первого лица: корневая кость оружия обнуляется на tag_weapon рук и сохраняется в новый CAST.", "Ensambla brazos y arma en un modelo en primera persona: el hueso raíz del arma se alinea con el tag_weapon de los brazos y se guarda en un CAST nuevo."]));
+            ui.label(localized(language, ["把手臂与武器拼接成完整的第一人称模型：武器根骨骼归零挂接到手臂的 tag_weapon，另存新 CAST。", "Assemble the arms and weapon into a first-person model: the weapon root bone is zeroed onto the arms' tag_weapon and saved as a new CAST."]));
             ui.add_enabled_ui(self.job.is_none(), |ui| {
-                let arms_label = localized(language, ["手臂模型（viewhands）", "Arms model (viewhands)", "Modèle de bras (viewhands)", "Модель рук (viewhands)", "Modelo de brazos (viewhands)"]);
+                let arms_label = localized(language, ["手臂模型（viewhands）", "Arms model (viewhands)"]);
                 if path_row(ui, arms_label, &self.arms) && let Some(path) = picker(&self.arms).pick_file() { self.set_arms(path); }
-                let weapon_label = localized(language, ["武器模型", "Weapon model", "Modèle d’arme", "Модель оружия", "Modelo de arma"]);
+                let weapon_label = localized(language, ["武器模型", "Weapon model"]);
                 if path_row(ui, weapon_label, &self.weapon) && let Some(path) = picker(&self.weapon).pick_file() { self.set_weapon(path); }
-                let output_label = localized(language, ["另存文件", "Save as", "Enregistrer sous", "Сохранить как", "Guardar como"]);
+                let output_label = localized(language, ["另存文件", "Save as"]);
                 if path_row(ui, output_label, &self.output) {
                     let mut dialog = picker(&self.output);
                     if let Some(name) = self.output.as_ref().and_then(|p| p.file_name()) { dialog = dialog.set_file_name(name.to_string_lossy()); }
                     if let Some(path) = dialog.save_file() { self.output = Some(path); self.result = None; }
                 }
-                let auto_label = localized(language, ["自动（tag_weapon）", "Auto (tag_weapon)", "Auto (tag_weapon)", "Авто (tag_weapon)", "Automático (tag_weapon)"]);
-                ui.label(localized(language, ["目标骨骼", "Target bone", "Os cible", "Целевая кость", "Hueso de destino"]));
+                let auto_label = localized(language, ["自动（tag_weapon）", "Auto (tag_weapon)"]);
+                ui.label(localized(language, ["目标骨骼", "Target bone"]));
                 let selected_display = match (&self.target, &self.bones) {
                     (Some(name), _) => name.clone(),
                     (None, _) => auto_label.to_owned(),
@@ -218,11 +209,11 @@ impl ArmatureTool {
                             }
                         }
                     });
-                if let Some(error) = &self.error { ui.colored_label(p.destructive, format!("{}: {error}", localized(language, ["操作失败", "Operation failed", "Échec", "Ошибка", "Error"]))); }
+                if let Some(error) = &self.error { ui.colored_label(p.destructive, format!("{}: {error}", localized(language, ["操作失败", "Operation failed"]))); }
                 if let Some(result) = &self.result {
-                    ui.label(format!("{}: {} · {}: {}", localized(language, ["目标骨骼", "Target bone", "Os cible", "Целевая кость", "Hueso de destino"]), result.target_bone, localized(language, ["已拼接网格", "Attached meshes", "Maillages assemblés", "Присоединено сеток", "Mallas acopladas"]), result.attached_meshes));
+                    ui.label(format!("{}: {} · {}: {}", localized(language, ["目标骨骼", "Target bone"]), result.target_bone, localized(language, ["已拼接网格", "Attached meshes"]), result.attached_meshes));
                     ui.add(egui::Label::new(result.output.display().to_string()).truncate()).on_hover_text(result.output.display().to_string());
-                    if ui.button(localized(language, ["预览拼接模型", "Preview assembled model", "Aperçu du modèle assemblé", "Просмотр результата", "Vista previa del modelo"])).clicked() { preview = Some(result.output.clone()); }
+                    if ui.button(localized(language, ["预览拼接模型", "Preview assembled model"])).clicked() { preview = Some(result.output.clone()); }
                 }
             });
             });
@@ -230,7 +221,7 @@ impl ArmatureTool {
             let ready = self.job.is_none() && self.arms.is_some() && self.weapon.is_some() && self.output.is_some();
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(ready, egui::Button::new(title(language)).min_size(egui::vec2(140.0, 36.0))).clicked() { self.assemble(); }
-                if self.job.is_some() && ui.button(localized(language, ["取消", "Cancel", "Annuler", "Отмена", "Cancelar"])).clicked() { self.observer.cancelled.store(true, Ordering::Relaxed); }
+                if self.job.is_some() && ui.button(localized(language, ["取消", "Cancel"])).clicked() { self.observer.cancelled.store(true, Ordering::Relaxed); }
             });
             if self.job.is_some() { ui.add(egui::ProgressBar::new(*self.observer.fraction.lock().unwrap()).desired_width(ui.available_width())); }
         });

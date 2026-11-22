@@ -59,18 +59,9 @@ impl MergeObserver for Progress {
 }
 
 pub fn title(language: AppLanguage) -> &'static str {
-    localized(
-        language,
-        [
-            "弹匣装填",
-            "Fill magazine",
-            "Remplir le chargeur",
-            "Заполнить магазин",
-            "Llenar cargador",
-        ],
-    )
+    localized(language, ["弹匣装填", "Fill magazine"])
 }
-fn localized(language: AppLanguage, text: [&'static str; 5]) -> &'static str {
+fn localized(language: AppLanguage, text: [&'static str; 2]) -> &'static str {
     text[language as usize]
 }
 
@@ -197,13 +188,13 @@ impl AmmoTool {
         egui::Window::new(title(language)).open(&mut open).default_width(560.0).max_width((context.content_rect().width() - 48.0).max(280.0)).default_height(height).max_height(height).default_pos(context.content_rect().center() - egui::vec2(280.0, height / 2.0 + 20.0)).resizable(true).show(context, |ui| {
             let p = theme::palette(ui);
             egui::ScrollArea::vertical().id_salt("ammo-content").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).max_height((ui.available_height() - 92.0).max(160.0)).auto_shrink([false, true]).show(ui, |ui| {
-            ui.label(localized(language, ["按弹匣骨骼放置子弹模型，并另存 CAST。", "Place ammunition at magazine bones and save a new CAST.", "Placer les munitions sur les os du chargeur et enregistrer un nouveau CAST.", "Разместить патроны по костям магазина и сохранить новый CAST.", "Colocar munición en los huesos del cargador y guardar un CAST nuevo."]));
+            ui.label(localized(language, ["按弹匣骨骼放置子弹模型，并另存 CAST。", "Place ammunition at magazine bones and save a new CAST."]));
             ui.add_enabled_ui(self.job.is_none(), |ui| {
-                let weapon_label = localized(language, ["武器 / 弹匣模型", "Weapon / magazine model", "Modèle d’arme / chargeur", "Модель оружия / магазина", "Modelo de arma / cargador"]);
+                let weapon_label = localized(language, ["武器 / 弹匣模型", "Weapon / magazine model"]);
                 if path_row(ui, weapon_label, &self.weapon) && let Some(path) = picker(&self.weapon).pick_file() { self.set_weapon(path); }
-                let ammo_label = localized(language, ["子弹模型（tag_ammo）", "Ammunition model (tag_ammo)", "Modèle de munition (tag_ammo)", "Модель патрона (tag_ammo)", "Modelo de munición (tag_ammo)"]);
+                let ammo_label = localized(language, ["子弹模型（tag_ammo）", "Ammunition model (tag_ammo)"]);
                 if path_row(ui, ammo_label, &self.ammo) && let Some(path) = picker(&self.ammo).pick_file() { self.ammo = Some(path); self.result = None; }
-                let output_label = localized(language, ["另存文件", "Save as", "Enregistrer sous", "Сохранить как", "Guardar como"]);
+                let output_label = localized(language, ["另存文件", "Save as"]);
                 if path_row(ui, output_label, &self.output) {
                     let mut dialog = picker(&self.output);
                     if let Some(name) = self.output.as_ref().and_then(|p| p.file_name()) { dialog = dialog.set_file_name(name.to_string_lossy()); }
@@ -211,10 +202,10 @@ impl AmmoTool {
                 }
                 ui.separator();
                 if let Some(analysis) = &self.analysis {
-                    if analysis.magazines.is_empty() { ui.label(localized(language, ["未找到受支持的弹匣子弹骨骼。", "No supported magazine ammunition bones found.", "Aucun os de munition de chargeur pris en charge.", "Поддерживаемые кости патронов магазина не найдены.", "No se encontraron huesos de munición compatibles."])); }
+                    if analysis.magazines.is_empty() { ui.label(localized(language, ["未找到受支持的弹匣子弹骨骼。", "No supported magazine ammunition bones found."])); }
                     for group in &analysis.magazines {
                         let mut selected = self.selected.contains(&group.name);
-                        let suffix = localized(language, ["骨骼 / 已占用", "bones / occupied", "os / occupés", "костей / занято", "huesos / ocupados"]);
+                        let suffix = localized(language, ["骨骼 / 已占用", "bones / occupied"]);
                         ui.horizontal_wrapped(|ui| {
                         if ui.checkbox(&mut selected, format!("{} · {} / {} {suffix}", group.name, group.slots.len(), group.occupied.len())).on_hover_ui(|ui| {
                             ui.label(group.slots.join(", "));
@@ -222,13 +213,13 @@ impl AmmoTool {
                             if selected { self.selected.push(group.name.clone()); } else { self.selected.retain(|n| n != &group.name); }
                             self.result = None;
                         }
-                        if !analysis.spare_magazines.is_empty() && ui.radio_value(&mut self.replica_source, group.name.clone(), localized(language, ["复制来源", "Copy source", "Source de copie", "Источник копии", "Origen de copia"])).changed() { self.result = None; }
+                        if !analysis.spare_magazines.is_empty() && ui.radio_value(&mut self.replica_source, group.name.clone(), localized(language, ["复制来源", "Copy source"])).changed() { self.result = None; }
                         });
                     }
                     if !analysis.spare_magazines.is_empty() && !analysis.magazines.is_empty() {
                         ui.separator();
-                        ui.label(localized(language,["备用弹匣（复制子弹布局，默认不选）", "Spare magazines (copy layout, optional)", "Chargeurs de réserve (copie facultative)", "Запасные магазины (копия по выбору)", "Cargadores de repuesto (copia opcional)"]));
-                        ui.label(egui::RichText::new(localized(language,["仅复制子弹的位置和朝向，不复制弹匣网格；新增定位骨骼随备用弹匣运动。", "Copy ammunition positions and rotations, not magazine meshes. New placement bones follow each spare magazine.", "Copier les positions et rotations des munitions, sans le maillage du chargeur. Les nouveaux os suivent le chargeur.", "Копируются положения и повороты патронов, а не сетка магазина. Новые кости следуют за запасным магазином.", "Copia posiciones y rotaciones de munición, no la malla del cargador. Los nuevos huesos siguen al cargador de repuesto."])).size(13.0).color(p.secondary));
+                        ui.label(localized(language,["备用弹匣（复制子弹布局，默认不选）", "Spare magazines (copy layout, optional)"]));
+                        ui.label(egui::RichText::new(localized(language,["仅复制子弹的位置和朝向，不复制弹匣网格；新增定位骨骼随备用弹匣运动。", "Copy ammunition positions and rotations, not magazine meshes. New placement bones follow each spare magazine."])).size(13.0).color(p.secondary));
                         for name in &analysis.spare_magazines {
                             let mut selected = self.selected_spares.contains(name);
                             if ui.checkbox(&mut selected, name).changed() {
@@ -239,7 +230,7 @@ impl AmmoTool {
                     }
                     if !analysis.excluded_slots.is_empty() {
                         ui.separator();
-                        ui.label(localized(language,["其他子弹骨骼（按需勾选）","Other ammunition bones (optional)","Autres os de munition (facultatif)","Другие кости патронов (по выбору)","Otros huesos de munición (opcionales)"]));
+                        ui.label(localized(language,["其他子弹骨骼（按需勾选）", "Other ammunition bones (optional)"]));
                         for name in &analysis.excluded_slots {
                             let mut selected = self.selected_extra.contains(name);
                             if ui.checkbox(&mut selected, name).changed() {
@@ -248,21 +239,21 @@ impl AmmoTool {
                             }
                         }
                     }
-                    ui.label(egui::RichText::new(localized(language,["默认首个弹匣；动画备用弹匣可能与其重叠。已绑定网格的骨骼会跳过。", "First magazine selected by default; animation variants may overlap. Occupied bones are skipped.", "Premier chargeur par défaut ; les variantes d’animation peuvent se superposer. Os occupés ignorés.", "По умолчанию выбран первый магазин; варианты анимации могут совпадать. Занятые кости пропускаются.", "Se selecciona el primer cargador; variantes animadas pueden solaparse. Se omiten huesos ocupados."])).size(13.0).color(p.secondary));
+                    ui.label(egui::RichText::new(localized(language,["默认首个弹匣；动画备用弹匣可能与其重叠。已绑定网格的骨骼会跳过。", "First magazine selected by default; animation variants may overlap. Occupied bones are skipped."])).size(13.0).color(p.secondary));
                 }
             });
-            if let Some(error) = &self.error { ui.colored_label(p.destructive, format!("{}: {error}",localized(language,["操作失败","Operation failed","Échec","Ошибка","Error"]))); }
+            if let Some(error) = &self.error { ui.colored_label(p.destructive, format!("{}: {error}",localized(language,["操作失败", "Operation failed"]))); }
             if let Some(result) = &self.result {
-                ui.label(format!("{}: {} · {}: {}", localized(language,["已装填","Inserted","Insérés","Добавлено","Insertados"]),result.inserted, localized(language,["已跳过","Skipped","Ignorés","Пропущено","Omitidos"]),result.skipped));
+                ui.label(format!("{}: {} · {}: {}", localized(language,["已装填", "Inserted"]),result.inserted, localized(language,["已跳过", "Skipped"]),result.skipped));
                 ui.add(egui::Label::new(result.output.display().to_string()).truncate()).on_hover_text(result.output.display().to_string());
-                if ui.button(localized(language,["预览装填模型","Preview filled model","Aperçu du modèle rempli","Просмотр результата","Vista previa del resultado"])).clicked() { preview = Some(result.output.clone()); }
+                if ui.button(localized(language,["预览装填模型", "Preview filled model"])).clicked() { preview = Some(result.output.clone()); }
             }
             });
             ui.separator();
             let ready = self.job.is_none() && self.ammo.is_some() && self.output.is_some() && (!self.selected.is_empty() || !self.selected_extra.is_empty() || (!self.selected_spares.is_empty() && !self.replica_source.is_empty())) && self.analysis.is_some();
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(ready, egui::Button::new(title(language)).min_size(egui::vec2(140.0,36.0))).clicked() { self.fill(); }
-                if self.job.is_some() && ui.button(localized(language,["取消","Cancel","Annuler","Отмена","Cancelar"])).clicked() { self.observer.cancelled.store(true,Ordering::Relaxed); }
+                if self.job.is_some() && ui.button(localized(language,["取消", "Cancel"])).clicked() { self.observer.cancelled.store(true,Ordering::Relaxed); }
             });
             if self.job.is_some() { ui.add(egui::ProgressBar::new(*self.observer.fraction.lock().unwrap()).desired_width(ui.available_width())); }
         });
@@ -313,7 +304,7 @@ mod tests {
     #[test]
     fn inline_copy_source_does_not_change_fill_targets() {
         let context = egui::Context::default();
-        theme::configure(&context, AppLanguage::English);
+        theme::configure(&context);
         let mut tool = AmmoTool::default();
         tool.start(None);
         tool.selected = vec!["j_mag1".into()];
@@ -389,7 +380,7 @@ mod tests {
     fn fill_action_stays_visible_with_long_localized_content() {
         for language in AppLanguage::ALL {
             let context = egui::Context::default();
-            theme::configure(&context, language);
+            theme::configure(&context);
             let mut tool = AmmoTool::default();
             tool.start(None);
             tool.analysis = Some(Analysis {

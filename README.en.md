@@ -1,8 +1,10 @@
 <div align="center">
 
-# Cast Model Merger GUI
+<img src="docs/images/cast-assembly/icon.png" width="88" height="88" alt="Cast Assembly icon">
 
-**Drop CAST parts, merge them in groups, and inspect the result in independent 3D windows.**
+# Cast Assembly
+
+**Drop CAST parts, merge them in groups, and inspect multiple models in one 3D workspace.**
 
 A Rust-native Windows tool for model merging, previews and magazine filling.
 
@@ -14,13 +16,13 @@ A Rust-native Windows tool for model merging, previews and magazine filling.
 
 [简体中文](README.md) · English
 
-[**Download portable edition**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [User guide](docs/user-guide.en.md) · [Release notes](https://github.com/ez4cywa/ModelMergerGUI/releases) · [Report an issue](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose)
+[**Download EXE**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastAssembly.exe) · [Download ZIP](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip) · [User guide](docs/user-guide.en.md) · [Release notes](https://github.com/ez4cywa/ModelMergerGUI/releases) · [Report an issue](https://github.com/ez4cywa/ModelMergerGUI/issues/new/choose)
 
 </div>
 
-![English main interface](docs/images/rust-native/main-window-en.png)
+![Cast Assembly dark theme: parts on the left, preview tabs on the right, output controls above and run log below](docs/images/cast-assembly/workspace-en-dark.jpg)
 
-*Screenshots show the Rust-native interface. Some predate the latest release; current controls may differ.*
+*Captured from the Windows app with the CAST fixtures included in this repository.*
 
 ## What you can do
 
@@ -28,26 +30,26 @@ A Rust-native Windows tool for model merging, previews and magazine filling.
 | --- | --- |
 | Combine separate parts | Merge 2–15 CAST parts per group with automatic or manual root selection |
 | Process several models | Independent groups, two concurrent merges, queuing and cancellation |
-| Inspect without merging | Drop multiple CAST files into the preview area to open independent windows |
+| Inspect without merging | Drop multiple CAST files into the preview area to open separate tabs |
 | Check geometry and assembly | GPU depth rendering, rotation, zoom, ground grid and model information |
 | Populate magazines | Place cartridges at ammunition bones; optionally copy layouts to spare magazines |
-| Personalize the interface | Chinese, English, French, Russian and Spanish; persistent light/dark switching |
+| Personalize the interface | Simplified Chinese and English; persistent light/dark switching |
 
 Model processing is local. Previews do not modify source files; merge output is written to a temporary file and read back for validation. Update checks are off by default and can be enabled or run manually in **Help → About**.
 
 ## Download and run
 
-1. Download [**CastModelMerger-win-x64.zip**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip).
-2. Extract the entire ZIP and run `CastModelMerger.exe`, not from inside the archive.
+1. Download and run [**CastAssembly.exe**](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastAssembly.exe).
+2. For a smaller download, choose the [portable ZIP](https://github.com/ez4cywa/ModelMergerGUI/releases/latest/download/CastModelMerger-win-x64.zip). Extract it before running `CastAssembly.exe`.
 3. Use your own `.cast` files to preview or merge models.
 
-Requires Windows 10/11 x64 and a Direct3D 12-capable graphics driver for previews. **No .NET or Rust installation is required.** Releases provide a portable ZIP, not an installer.
+Requires Windows 10/11 x64 and a Direct3D 12-capable graphics driver for previews. **No .NET or Rust installation is required.** Both downloads are portable and need no installer.
 
 The same [Release](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) includes a SHA-256 checksum. Run `Get-FileHash .\CastModelMerger-win-x64.zip -Algorithm SHA256` in the download directory and compare its digest with the checksum file.
 
 ## Quick start
 
-- **Preview**: drop one or more CAST files into the top preview area → rotate, zoom or inspect model information.
+- **Preview**: drop one or more CAST files into the preview area on the right → switch tabs, rotate, zoom or inspect model information.
 - **Merge**: add 2–15 parts to a group → check the root and output path → start merging → preview the result.
 - **Fill magazines**: open **Fill magazine** → select a weapon and a cartridge with one `tag_ammo` bone → select targets → save to a new file.
 
@@ -55,22 +57,16 @@ The same [Release](https://github.com/ez4cywa/ModelMergerGUI/releases/latest) in
 
 | Drop target | Result |
 | --- | --- |
-| Top model preview area | Open independent previews without adding parts to groups |
-| Existing group or part slot | Append parts to that group, up to 15 |
+| Model preview area on the right | Open separate preview tabs without adding parts to groups |
+| Existing group on the left | Append parts to that group, up to 15 |
 | Other areas | Put each batch in a separate group, reusing an idle empty group or creating one |
 
 Drop targets highlight during dragging. You do not need to merge the previous batch before importing another. See the [full guide](docs/user-guide.en.md) for controls and filling rules.
 
 <details>
-<summary>Preview and magazine screenshots</summary>
+<summary>See the light theme in Chinese</summary>
 
-| Light preview | Dark preview |
-| --- | --- |
-| ![Light preview](docs/images/rust-native/model-preview-zh.png) | ![Dark preview](docs/images/rust-native/model-preview-dark-zh.png) |
-
-![Magazine filling, v2.2.1 Chinese interface](docs/images/rust-native/ammo-fill-zh.png)
-
-*The magazine screenshot is from v2.2.1. Current versions consolidate duplicate controls into an inline Copy source selection.*
+![Cast Assembly light theme](docs/images/cast-assembly/workspace-zh.jpg)
 
 </details>
 
@@ -84,7 +80,7 @@ Drop targets highlight during dragging. You do not need to merge the previous ba
 
 ## Troubleshooting and local data
 
-**No preview after dropping a file?** Only the top preview area opens previews; other areas import parts. Alternatively use **File → Open model preview…** (`Ctrl+O`).
+**No preview after dropping a file?** Only the preview area on the right opens previews; other areas import parts. Alternatively use **File → Open model preview…** (`Ctrl+O`).
 
 **A window fails to open or a preview crashes?** Confirm full extraction and update the graphics driver. Include reproduction steps and diagnostic logs when reporting the issue:
 

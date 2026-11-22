@@ -14,7 +14,7 @@ The merge engine combines loaded model parts using one root-selection and geomet
 
 ## Language catalog
 
-The language catalog maps structured application meaning to user-facing text for one culture. Simplified Chinese, English, French, Russian, and Spanish are real language adapters at the same presentation seam. The native GUI selects embedded MiSans for Chinese and installed Segoe UI for the other supported languages.
+The language catalog maps structured application meaning to user-facing text for one culture. Simplified Chinese and English share the same presentation seam and the embedded MiSans Medium UI font.
 
 ## Native application core
 

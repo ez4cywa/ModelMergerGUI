@@ -1,21 +1,19 @@
-use crate::messages;
+mod workspace;
+
 use crate::notices::{NoticeCenter, UiNotice};
 use crate::preview::PreviewSession;
 use crate::preview_gpu;
-use crate::{GroupLog, NativeAppState, slot_columns, theme};
+use crate::{NativeAppState, theme};
 use eframe::egui::{self, RichText, Stroke};
 use model_merger_app_core::{
-    AddPartResult, AddPartStatus, AppLanguage, Catalog, GroupId, RootMode, SettingsStore,
-    TaskScheduler, TextKey, WindowBounds,
+    AddPartResult, AddPartStatus, AppLanguage, Catalog, GroupId, SettingsStore, TaskScheduler,
+    TextKey, WindowBounds,
 };
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const SLOT_COUNT: usize = 15;
-const SETTINGS_PANE_WIDTH: f32 = 300.0;
-const MINIMUM_SLOT_CARD_WIDTH: f32 = 136.0;
-const INPUT_HEIGHT: f32 = 36.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum FileDropTarget {
@@ -31,6 +29,8 @@ pub struct NativeApp {
     notices: NoticeCenter,
     configured_language: AppLanguage,
     previews: Vec<PreviewSession>,
+    active_preview: Option<u64>,
+    active_group: Option<GroupId>,
     next_preview_id: u64,
     drop_target: Option<FileDropTarget>,
     pending_group_delete: Option<usize>,
@@ -60,7 +60,7 @@ impl NativeApp {
         let store = default_settings_store();
         let state = NativeAppState::new(store.load());
         let configured_language = state.language();
-        theme::configure(context, configured_language);
+        theme::configure(context);
         theme::apply_preference(context, state.settings().dark_mode);
         context.send_viewport_cmd(egui::ViewportCommand::Title(
             Catalog::new(configured_language)
@@ -74,6 +74,8 @@ impl NativeApp {
             notices: NoticeCenter::default(),
             configured_language,
             previews: Vec::new(),
+            active_preview: None,
+            active_group: None,
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,
@@ -111,6 +113,7 @@ impl NativeApp {
 
     fn restore_defaults(&mut self) {
         self.state.reset_defaults();
+        self.active_group = None;
         self.about.set_update_preference(false);
         self.notices
             .set_global(UiNotice::Key(TextKey::DefaultsRestored));
@@ -192,7 +195,28 @@ impl NativeApp {
     fn open_preview(&mut self, path: &Path) {
         self.previews
             .push(PreviewSession::load(self.next_preview_id, path));
+        self.active_preview = Some(self.next_preview_id);
         self.next_preview_id += 1;
+    }
+
+    fn close_preview(&mut self, id: u64) {
+        let Some(index) = self.previews.iter().position(|preview| preview.id == id) else {
+            return;
+        };
+        self.previews.remove(index);
+        if self.active_preview == Some(id) {
+            self.active_preview = self
+                .previews
+                .get(index)
+                .or_else(|| self.previews.last())
+                .map(|preview| preview.id);
+        }
+        if let Some(render_state) = &self.render_state {
+            preview_gpu::retain_models(
+                render_state,
+                self.previews.iter().map(|preview| preview.id),
+            );
+        }
     }
 
     fn open_preview_dialog(&mut self) {
@@ -294,8 +318,16 @@ impl NativeApp {
                 egui::Key::Enter,
             ))
         });
+        let close_preview = !self.modal_open()
+            && context.input_mut(|input| {
+                input.consume_shortcut(&egui::KeyboardShortcut::new(
+                    egui::Modifiers::COMMAND,
+                    egui::Key::W,
+                ))
+            });
         if new_group {
-            self.state.add_group();
+            let index = self.state.add_group();
+            self.select_group(index);
         }
         if open_preview {
             self.open_preview_dialog();
@@ -305,6 +337,9 @@ impl NativeApp {
         }
         if merge {
             self.merge_all_ready();
+        }
+        if close_preview && let Some(id) = self.active_preview {
+            self.close_preview(id);
         }
     }
 
@@ -321,7 +356,8 @@ impl NativeApp {
             self.state.armature_tool_enabled(),
         ) {
             Some(crate::menu_bar::Action::NewGroup) => {
-                self.state.add_group();
+                let index = self.state.add_group();
+                self.select_group(index);
             }
             Some(crate::menu_bar::Action::SaveSettings) => self.save_settings(),
             Some(crate::menu_bar::Action::OpenPreview) => self.open_preview_dialog(),
@@ -340,7 +376,10 @@ impl NativeApp {
                 let dark = !root.visuals().dark_mode;
                 self.state.set_dark_mode(dark);
                 theme::apply_preference(root.ctx(), Some(dark));
-                self.save_settings();
+                if let Err(error) = self.store.save(self.state.settings()) {
+                    self.notices
+                        .set_global(UiNotice::SettingsSaveFailed(error.to_string()));
+                }
             }
             None => {}
         }
@@ -349,6 +388,9 @@ impl NativeApp {
     fn bottom_bar(&mut self, root: &mut egui::Ui) {
         let catalog = self.catalog();
         let palette = theme::palette(root);
+        let index = self.active_group_index();
+        let log_id = root.make_persistent_id(("run-log", self.state.groups()[index].id()));
+        let mut log_open = root.data(|data| data.get_temp::<bool>(log_id).unwrap_or(false));
         let ready = self
             .state
             .groups()
@@ -363,20 +405,36 @@ impl NativeApp {
                     .inner_margin(egui::Margin::symmetric(24, 10)),
             )
             .show(root, |ui| {
-                if ui.available_width() < bottom_bar_required_width(ui, catalog) {
+                if log_open {
+                    self.run_log_panel(ui, index, catalog);
+                }
+                let mut status_controls = |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
                         ui.label(format!(
                             "{} · {}",
                             catalog.text(TextKey::Concurrency),
                             ready
                         ));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            self.remember_output_control(ui, catalog);
-                        });
+                        let label =
+                            RichText::new(catalog.text(TextKey::RunLog)).color(if log_open {
+                                palette.on_primary
+                            } else {
+                                palette.foreground
+                            });
+                        if ui
+                            .add(egui::Button::new(label).selected(log_open))
+                            .clicked()
+                        {
+                            log_open = !log_open;
+                            ui.data_mut(|data| data.insert_temp(log_id, log_open));
+                        }
                     });
+                };
+                if ui.available_width() < bottom_bar_required_width(ui, catalog, ready) {
+                    status_controls(ui);
                     ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new(catalog.text(TextKey::Attribution))
+                            RichText::new(catalog.text(TextKey::InterfaceFont))
                                 .size(13.0)
                                 .color(palette.secondary),
                         );
@@ -387,20 +445,15 @@ impl NativeApp {
                 } else {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            ui.label(format!(
-                                "{} · {}",
-                                catalog.text(TextKey::Concurrency),
-                                ready
-                            ));
+                            status_controls(ui);
                             ui.label(
-                                RichText::new(catalog.text(TextKey::Attribution))
+                                RichText::new(catalog.text(TextKey::InterfaceFont))
                                     .size(13.0)
                                     .color(palette.secondary),
                             );
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             self.bottom_action_controls(ui, catalog, ready, palette);
-                            self.remember_output_control(ui, catalog);
                         });
                     });
                 }
@@ -448,616 +501,6 @@ impl NativeApp {
         }
     }
 
-    fn central_workspace(&mut self, root: &mut egui::Ui) {
-        self.drop_target = file_drop_pointer(root.ctx())
-            .filter(|position| root.ctx().content_rect().contains(*position))
-            .map(|_| FileDropTarget::Import);
-        if self.drop_target.is_none()
-            && root
-                .ctx()
-                .input(|input| !input.raw.dropped_files.is_empty())
-        {
-            self.drop_target = Some(FileDropTarget::Import);
-        }
-        let palette = theme::palette(root);
-        egui::CentralPanel::default()
-            .frame(
-                egui::Frame::new()
-                    .fill(palette.background)
-                    .inner_margin(egui::Margin::same(24)),
-            )
-            .show(root, |ui| {
-                self.notices.show_global(ui, self.catalog());
-                let response = ui.add_sized(
-                    [ui.available_width(), 76.0],
-                    egui::Button::new(
-                        RichText::new(self.catalog().text(TextKey::PreviewDropZone)).size(15.0),
-                    )
-                    .wrap()
-                    .fill(palette.surface)
-                    .stroke(Stroke::new(1.0, palette.border))
-                    .corner_radius(10.0),
-                );
-                if file_drop_contains_pointer(ui, response.rect) {
-                    self.drop_target = Some(FileDropTarget::Preview(response.rect));
-                }
-                if response.clicked() {
-                    self.open_preview_dialog();
-                }
-                ui.add_space(16.0);
-                let workspace_width = visible_available_width(ui);
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.set_width(workspace_width);
-                        let count = self.state.groups().len();
-                        for group_index in 0..count {
-                            self.group_card(ui, group_index);
-                            ui.add_space(16.0);
-                        }
-                    });
-                if let Some(index) = self.pending_group_delete.take() {
-                    if let Some(group) = self.state.groups().get(index) {
-                        self.notices.clear_group(group.id());
-                    }
-                    self.state.delete_group(index);
-                }
-            });
-        if self.about.is_open()
-            || self.ammunition.open
-            || self.armature.open
-            || !self.pending_overwrites.is_empty()
-        {
-            self.drop_target = None;
-        }
-        let drop_feedback = match self.drop_target {
-            Some(FileDropTarget::Preview(rect)) => Some((rect, TextKey::DropPreview)),
-            Some(FileDropTarget::Import) => Some((root.ctx().content_rect(), TextKey::DropBatch)),
-            _ => None,
-        };
-        if let Some((rect, message)) = drop_feedback
-            && root.ctx().input(|input| {
-                input
-                    .raw
-                    .hovered_files
-                    .iter()
-                    .any(|file| file.path.as_deref().is_some_and(is_cast_path))
-            })
-        {
-            let painter = root.painter();
-            if matches!(self.drop_target, Some(FileDropTarget::Preview(_))) {
-                painter.rect_filled(rect.shrink(3.0), 8.0, palette.primary.gamma_multiply(0.12));
-            }
-            painter.rect_stroke(
-                rect.shrink(3.0),
-                8.0,
-                Stroke::new(3.0, palette.primary),
-                egui::StrokeKind::Inside,
-            );
-            let text = painter.layout(
-                self.catalog().text(message).to_owned(),
-                egui::FontId::proportional(15.0),
-                palette.foreground,
-                (rect.width() - 40.0).clamp(1.0, 360.0),
-            );
-            let size = text.size() + egui::vec2(24.0, 16.0);
-            let pointer = file_drop_pointer(root.ctx()).unwrap_or(rect.center());
-            let position = egui::pos2(
-                (pointer.x + 16.0)
-                    .min(rect.right() - size.x - 8.0)
-                    .max(rect.left() + 8.0),
-                (pointer.y + 16.0)
-                    .min(rect.bottom() - size.y - 8.0)
-                    .max(rect.top() + 8.0),
-            );
-            painter.rect_filled(
-                egui::Rect::from_min_size(position, size),
-                8.0,
-                palette.notice_info,
-            );
-            painter.galley(position + egui::vec2(12.0, 8.0), text, palette.foreground);
-        }
-    }
-
-    fn group_card(&mut self, ui: &mut egui::Ui, group_index: usize) {
-        let catalog = self.catalog();
-        let palette = theme::palette(ui);
-        let group_snapshot = self.state.groups()[group_index].plan.state();
-        let collapsed = self.state.groups()[group_index].collapsed;
-        let group_id = self.state.groups()[group_index].id();
-        let task_id = self.state.groups()[group_index].task_id();
-        // Reserve space for the card's 2 px offset/10 px blur so its shadow never widens the
-        // workspace or encroaches on the settings pane at the minimum window size.
-        let group_inner_width = (visible_available_width(ui) - 44.0).max(280.0);
-        let response = panel_frame(ui)
-            .inner_margin(egui::Margin::same(16))
-            .show(ui, |ui| {
-                ui.set_width(group_inner_width);
-                ui.horizontal_wrapped(|ui| {
-                    if disclosure_button(
-                        ui,
-                        &format!("{} {}", catalog.text(TextKey::Group), group_index + 1),
-                        collapsed,
-                    )
-                    .clicked()
-                    {
-                        self.state.set_collapsed(group_index, !collapsed);
-                    }
-                    egui::Frame::new()
-                        .fill(palette.notice_info)
-                        .corner_radius(10.0)
-                        .inner_margin(egui::Margin::symmetric(8, 3))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!(
-                                    "{} / {SLOT_COUNT}",
-                                    group_snapshot.part_files.len()
-                                ))
-                                .size(13.0)
-                                .color(palette.primary),
-                            );
-                        });
-                    ui.label(if group_snapshot.is_ready {
-                        catalog.text(TextKey::Ready)
-                    } else {
-                        catalog.text(TextKey::NeedTwoToFifteen)
-                    });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let can_delete = self.state.groups().len() > 1 && task_id.is_none();
-                        if ui
-                            .add_enabled(
-                                can_delete,
-                                egui::Button::new(
-                                    RichText::new(catalog.text(TextKey::DeleteGroup)).color(
-                                        if can_delete {
-                                            palette.destructive
-                                        } else {
-                                            palette.foreground
-                                        },
-                                    ),
-                                )
-                                .min_size(egui::vec2(96.0, 40.0)),
-                            )
-                            .clicked()
-                        {
-                            self.pending_group_delete = Some(group_index);
-                        }
-                        if let Some(task_id) = task_id {
-                            if sized_button(ui, catalog.text(TextKey::Cancel)).clicked() {
-                                self.scheduler.cancel(task_id);
-                            }
-                        } else if ui
-                            .add_enabled(
-                                group_snapshot.is_ready,
-                                egui::Button::new(catalog.text(TextKey::StartGroup))
-                                    .min_size(egui::vec2(112.0, 40.0)),
-                            )
-                            .clicked()
-                        {
-                            self.schedule_group(group_index, false);
-                        }
-                    });
-                });
-                self.notices.show_group(ui, catalog, group_id);
-                if collapsed {
-                    return;
-                }
-                ui.separator();
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                    let width = ui.available_width();
-                    let settings_width = SETTINGS_PANE_WIDTH;
-                    let slots_width = (width - settings_width - 8.0).max(280.0);
-                    let columns = slot_columns(slots_width);
-                    let rows = SLOT_COUNT.div_ceil(columns);
-                    let panel_height = 124.0 + rows as f32 * 116.0;
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(slots_width, panel_height),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            ui.set_width(slots_width);
-                            self.parts_panel(ui, group_index, task_id.is_some(), slots_width);
-                        },
-                    );
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(settings_width, panel_height),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            ui.set_width(settings_width);
-                            egui::Frame::new()
-                                .fill(palette.sidebar)
-                                .stroke(Stroke::new(1.0, palette.border))
-                                .corner_radius(10.0)
-                                .inner_margin(egui::Margin::same(14))
-                                .show(ui, |ui| {
-                                    ui.set_width(settings_width - 28.0);
-                                    ui.set_min_height(panel_height - 28.0);
-                                    self.settings_panel(ui, group_index, task_id.is_some());
-                                });
-                        },
-                    );
-                });
-            })
-            .response;
-        if file_drop_contains_pointer(ui, response.rect.intersect(ui.clip_rect())) {
-            // Busy groups still own their drop region: never fall through to preview.
-            self.drop_target = Some(FileDropTarget::Group(group_index));
-            if task_id.is_none()
-                && !self.about.is_open()
-                && !self.ammunition.open
-                && !self.armature.open
-                && self.pending_overwrites.is_empty()
-                && ui.ctx().input(|input| {
-                    input
-                        .raw
-                        .hovered_files
-                        .iter()
-                        .any(|file| file.path.as_deref().is_some_and(is_cast_path))
-                })
-            {
-                let overlay = response.rect.intersect(ui.clip_rect()).shrink(2.0);
-                ui.painter()
-                    .rect_filled(overlay, 12.0, palette.notice_info.gamma_multiply(0.94));
-                ui.painter().rect_stroke(
-                    overlay,
-                    12.0,
-                    Stroke::new(3.0, palette.primary),
-                    egui::StrokeKind::Inside,
-                );
-                ui.painter().text(
-                    overlay.center(),
-                    egui::Align2::CENTER_CENTER,
-                    catalog.text(TextKey::DropHere),
-                    egui::FontId::proportional(18.0),
-                    palette.primary,
-                );
-            }
-        }
-    }
-
-    fn parts_panel(
-        &mut self,
-        ui: &mut egui::Ui,
-        group_index: usize,
-        locked: bool,
-        panel_width: f32,
-    ) {
-        let catalog = self.catalog();
-        let palette = theme::palette(ui);
-        let snapshot = self.state.groups()[group_index].plan.state();
-        ui.add_enabled_ui(!locked, |ui| {
-            ui.label(RichText::new(catalog.text(TextKey::ModelParts)).size(17.0));
-            ui.label(
-                RichText::new(catalog.text(TextKey::ModelPartsHint))
-                    .size(13.0)
-                    .color(palette.secondary),
-            );
-            ui.horizontal_wrapped(|ui| {
-                if sized_button(ui, catalog.text(TextKey::AddNext)).clicked() {
-                    self.add_part_dialog(group_index, None);
-                }
-                if sized_button(ui, crate::ammunition::title(self.state.language())).clicked() {
-                    let source = self.state.groups()[group_index]
-                        .last_output()
-                        .map(Path::to_path_buf)
-                        .or_else(|| snapshot.part_files.first().cloned());
-                    self.ammunition.start(source);
-                }
-                if self.state.armature_tool_enabled()
-                    && sized_button(ui, crate::armature::title(self.state.language())).clicked()
-                {
-                    let weapon = self.state.groups()[group_index]
-                        .last_output()
-                        .map(Path::to_path_buf)
-                        .or_else(|| snapshot.part_files.first().cloned());
-                    self.armature.start(weapon);
-                }
-                if ui
-                    .add_enabled(
-                        !snapshot.part_files.is_empty(),
-                        egui::Button::new(catalog.text(TextKey::Clear))
-                            .min_size(egui::vec2(80.0, 40.0)),
-                    )
-                    .clicked()
-                {
-                    self.clear_parts(group_index);
-                }
-            });
-            let columns = slot_columns(panel_width);
-            let card_width = slot_card_width(panel_width, columns);
-            egui::Grid::new(("parts-grid", group_index))
-                .num_columns(columns)
-                .spacing(egui::vec2(8.0, 8.0))
-                .show(ui, |ui| {
-                    for slot in 0..SLOT_COUNT {
-                        self.slot_card(ui, group_index, slot, &snapshot.part_files, card_width);
-                        if (slot + 1) % columns == 0 {
-                            ui.end_row();
-                        }
-                    }
-                });
-        });
-    }
-
-    fn slot_card(
-        &mut self,
-        ui: &mut egui::Ui,
-        group_index: usize,
-        slot: usize,
-        parts: &[PathBuf],
-        card_width: f32,
-    ) {
-        let catalog = self.catalog();
-        let palette = theme::palette(ui);
-        let content_width = (card_width - 16.0).max(96.0);
-        egui::Frame::new()
-            .fill(if parts.get(slot).is_some() {
-                palette.panel
-            } else {
-                palette.surface
-            })
-            .stroke(Stroke::new(1.0, palette.border))
-            .corner_radius(9.0)
-            .inner_margin(egui::Margin::same(8))
-            .show(ui, |ui| {
-                ui.set_width(content_width);
-                ui.vertical(|ui| {
-                    ui.set_width(content_width);
-                    ui.set_min_height(132.0);
-                    ui.label(
-                        RichText::new(format!("{:02}", slot + 1))
-                            .size(12.0)
-                            .color(palette.secondary),
-                    );
-                    if let Some(path) = parts.get(slot) {
-                        let file_name = path.file_name().unwrap_or_default().to_string_lossy();
-                        ui.add_sized(
-                            [content_width, 22.0],
-                            truncated_file_name_label(file_name.as_ref()),
-                        )
-                        .on_hover_text(path.display().to_string());
-                        if !path.is_file() {
-                            ui.colored_label(
-                                palette.destructive,
-                                catalog.text(TextKey::FileMissing),
-                            );
-                        }
-                        ui.vertical(|ui| {
-                            ui.spacing_mut().button_padding.x = 4.0;
-                            if ui
-                                .add_sized(
-                                    [content_width, 36.0],
-                                    egui::Button::new(catalog.text(TextKey::Preview))
-                                        .wrap_mode(egui::TextWrapMode::Extend),
-                                )
-                                .clicked()
-                            {
-                                self.open_preview(path);
-                            }
-                            ui.menu_button(catalog.text(TextKey::Actions), |ui| {
-                                if ui.button(catalog.text(TextKey::Replace)).clicked() {
-                                    self.add_part_dialog(group_index, Some(slot));
-                                    ui.close();
-                                }
-                                if ui.button(catalog.text(TextKey::SetAsRoot)).clicked() {
-                                    self.state.set_group_manual_root(group_index, slot);
-                                    ui.close();
-                                }
-                                if ui
-                                    .button(
-                                        RichText::new(catalog.text(TextKey::Remove))
-                                            .color(palette.destructive),
-                                    )
-                                    .clicked()
-                                {
-                                    self.remove_part(group_index, slot);
-                                    ui.close();
-                                }
-                            });
-                        });
-                    } else if ui
-                        .add_sized(
-                            [content_width, 72.0],
-                            egui::Button::new(
-                                RichText::new(format!("+\n{}", catalog.text(TextKey::AddPart)))
-                                    .color(palette.secondary),
-                            )
-                            .frame(false),
-                        )
-                        .clicked()
-                    {
-                        self.add_part_dialog(group_index, None);
-                    }
-                });
-            });
-    }
-
-    fn settings_panel(&mut self, ui: &mut egui::Ui, group_index: usize, locked: bool) {
-        let catalog = self.catalog();
-        let palette = theme::palette(ui);
-        let snapshot = self.state.groups()[group_index].plan.state();
-        ui.add_enabled_ui(!locked, |ui| {
-            ui.label(RichText::new(catalog.text(TextKey::RootModel)).size(17.0));
-            let mut root_mode = snapshot.root_mode;
-            ui.horizontal_wrapped(|ui| {
-                ui.radio_value(
-                    &mut root_mode,
-                    RootMode::Automatic,
-                    catalog.text(TextKey::Automatic),
-                );
-                ui.radio_value(
-                    &mut root_mode,
-                    RootMode::Manual,
-                    catalog.text(TextKey::Manual),
-                );
-            });
-            if root_mode != snapshot.root_mode {
-                self.state.set_group_root_mode(group_index, root_mode);
-            }
-            if root_mode == RootMode::Manual && !snapshot.part_files.is_empty() {
-                let current = snapshot
-                    .manual_root_file
-                    .as_ref()
-                    .and_then(|root| snapshot.part_files.iter().position(|part| part == root))
-                    .unwrap_or(0);
-                let mut selected = current;
-                egui::ComboBox::from_id_salt(("manual-root", group_index))
-                    .selected_text(short_name(&snapshot.part_files[current]))
-                    .width(ui.available_width())
-                    .truncate()
-                    .show_ui(ui, |ui| {
-                        for (index, path) in snapshot.part_files.iter().enumerate() {
-                            ui.selectable_value(&mut selected, index, short_name(path));
-                        }
-                    });
-                if selected != current {
-                    self.state.set_group_manual_root(group_index, selected);
-                }
-            }
-            ui.add_space(8.0);
-            ui.label(catalog.text(TextKey::OutputFolder));
-            let mut output_directory = snapshot.output_directory.display().to_string();
-            ui.horizontal(|ui| {
-                let browse_width = text_width(ui, catalog.text(TextKey::Browse), 15.0)
-                    + ui.spacing().button_padding.x * 2.0;
-                let browse_width = browse_width.max(80.0);
-                let field_width =
-                    (ui.available_width() - browse_width - ui.spacing().item_spacing.x).max(96.0);
-                ui.add_sized(
-                    [field_width, INPUT_HEIGHT],
-                    egui::TextEdit::singleline(&mut output_directory)
-                        .vertical_align(egui::Align::Center)
-                        .interactive(false),
-                );
-                if ui
-                    .add(
-                        egui::Button::new(catalog.text(TextKey::Browse))
-                            .min_size(egui::vec2(browse_width, INPUT_HEIGHT)),
-                    )
-                    .clicked()
-                {
-                    self.choose_output_directory(group_index);
-                }
-            });
-            ui.label(catalog.text(TextKey::OutputFileName));
-            let mut output_name = snapshot.output_file_name;
-            let output_name_response = egui::Frame::new()
-                .fill(palette.panel)
-                .stroke(Stroke::new(1.0, palette.border))
-                .corner_radius(7.0)
-                .inner_margin(egui::Margin::same(1))
-                .show(ui, |ui| {
-                    ui.add_sized(
-                        [ui.available_width(), INPUT_HEIGHT - 2.0],
-                        egui::TextEdit::singleline(&mut output_name)
-                            .vertical_align(egui::Align::Center)
-                            .frame(egui::Frame::NONE),
-                    )
-                })
-                .inner;
-            if output_name_response.changed() {
-                self.state.groups_mut()[group_index]
-                    .plan
-                    .set_output_file_name(output_name);
-            }
-        });
-        ui.add_space(12.0);
-        let progress = self.state.groups()[group_index]
-            .task_id()
-            .and_then(|id| self.scheduler.snapshot(id))
-            .or_else(|| self.state.groups()[group_index].task_snapshot().cloned());
-        let progress_value = progress
-            .as_ref()
-            .and_then(|snapshot| snapshot.progress.as_ref())
-            .map_or(0.0, |progress| {
-                normalized_progress(progress.current, progress.total)
-            });
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(catalog.text(TextKey::GroupStatus)).size(17.0));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    RichText::new(format!("{:.0}%", progress_value * 100.0)).color(palette.primary),
-                );
-            });
-        });
-        ui.scope(|ui| {
-            ui.style_mut().visuals.extreme_bg_color = palette.progress_track;
-            ui.add(
-                egui::ProgressBar::new(progress_value)
-                    .desired_width(ui.available_width())
-                    .desired_height(12.0)
-                    .corner_radius(6.0)
-                    .fill(palette.primary),
-            );
-        });
-        let status = progress
-            .as_ref()
-            .and_then(|snapshot| snapshot.progress.as_ref())
-            .map_or_else(
-                || {
-                    messages::task_label(catalog, progress.as_ref().map(|value| value.state))
-                        .to_owned()
-                },
-                |task_progress| messages::task_progress(catalog, task_progress),
-            );
-        ui.label(status);
-        ui.label(RichText::new(catalog.text(TextKey::RunLog)).size(16.0));
-        egui::ScrollArea::vertical()
-            .max_height(120.0)
-            .show(ui, |ui| {
-                for entry in self.state.groups()[group_index].log() {
-                    let message = match entry {
-                        GroupLog::Status(key) => catalog.text(*key).to_owned(),
-                        GroupLog::Warning(warning) => messages::merge_warning(catalog, warning),
-                        GroupLog::Output(path) => catalog
-                            .text(TextKey::ProgressCompleted)
-                            .replace("{0}", &path.display().to_string()),
-                        GroupLog::Error(error) => messages::task_error(catalog, error),
-                    };
-                    ui.label(RichText::new(message).size(13.0).color(palette.secondary));
-                }
-            });
-        if let Some(path) = self.state.groups()[group_index]
-            .last_output()
-            .map(Path::to_path_buf)
-            && path.is_file()
-            && ui
-                .add_sized(
-                    [ui.available_width(), 44.0],
-                    egui::Button::new(catalog.text(TextKey::PreviewMerged)),
-                )
-                .clicked()
-        {
-            self.open_preview(&path);
-        }
-    }
-
-    fn preview_windows(&mut self, context: &egui::Context) {
-        let catalog = self.catalog();
-        for preview in &mut self.previews {
-            let viewport_id = egui::ViewportId::from_hash_of(("model-preview", preview.id));
-            let title = PreviewSession::path_title(
-                Path::new(&preview.title),
-                catalog.text(TextKey::Preview),
-            );
-            context.show_viewport_immediate(
-                viewport_id,
-                egui::ViewportBuilder::default()
-                    .with_title(title)
-                    .with_decorations(false)
-                    .with_inner_size([900.0, 700.0])
-                    .with_min_inner_size([640.0, 480.0]),
-                |ui, _class| preview.show(ui, catalog),
-            );
-        }
-        self.previews.retain(|preview| preview.open);
-        if let Some(render_state) = &self.render_state {
-            preview_gpu::retain_models(
-                render_state,
-                self.previews.iter().map(|preview| preview.id),
-            );
-        }
-    }
-
     fn handle_dropped_files(&mut self, context: &egui::Context) {
         let paths: Vec<_> = context.input(|input| {
             input
@@ -1101,6 +544,7 @@ impl NativeApp {
             _ => return,
         };
         let results = self.state.add_parts(group_index, paths);
+        self.select_group(group_index);
         if let Some(status) = latest_add_part_error(&results) {
             self.set_group_notice(group_index, UiNotice::AddPart(status));
         } else {
@@ -1222,7 +666,6 @@ impl eframe::App for NativeApp {
         }
         if self.configured_language != self.state.language() {
             self.configured_language = self.state.language();
-            theme::configure(&context, self.configured_language);
             context.send_viewport_cmd(egui::ViewportCommand::Title(
                 self.catalog().text(TextKey::AppTitle).to_owned(),
             ));
@@ -1238,11 +681,11 @@ impl eframe::App for NativeApp {
         crate::chrome::show(ui, self.state.language());
         self.top_bar(ui);
         self.bottom_bar(ui);
+        self.output_bar(ui);
         self.central_workspace(ui);
         crate::chrome::resize_edges(ui);
         self.handle_dropped_files(&context);
         self.overwrite_dialog(&context);
-        self.preview_windows(&context);
         if let Some(path) = self.ammunition.show(&context, self.state.language()) {
             self.open_preview(&path);
         }
@@ -1263,20 +706,6 @@ impl eframe::App for NativeApp {
             context.request_repaint_after(Duration::from_millis(100));
         }
     }
-}
-
-fn panel_frame(ui: &egui::Ui) -> egui::Frame {
-    let palette = theme::palette(ui);
-    egui::Frame::new()
-        .fill(palette.panel)
-        .stroke(Stroke::new(1.0, palette.border))
-        .corner_radius(12.0)
-        .shadow(egui::epaint::Shadow {
-            offset: [0, 2],
-            blur: 10,
-            spread: 0,
-            color: egui::Color32::from_black_alpha(if ui.visuals().dark_mode { 48 } else { 14 }),
-        })
 }
 
 fn sized_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
@@ -1326,24 +755,6 @@ fn disclosure_button(ui: &mut egui::Ui, label: &str, collapsed: bool) -> egui::R
     response
 }
 
-fn visible_available_width(ui: &egui::Ui) -> f32 {
-    let viewport_right = ui
-        .ctx()
-        .input(|input| input.viewport().inner_rect.map(|rect| rect.right()))
-        .unwrap_or_else(|| ui.ctx().content_rect().right());
-    let visible = viewport_right - ui.next_widget_position().x;
-    ui.available_width().min(visible).max(0.0)
-}
-
-fn slot_card_width(available_width: f32, columns: usize) -> f32 {
-    let columns = columns.max(1);
-    let spacing = 8.0 * columns.saturating_sub(1) as f32;
-    (((available_width - spacing) / columns as f32) / 8.0)
-        .floor()
-        .mul_add(8.0, 0.0)
-        .max(MINIMUM_SLOT_CARD_WIDTH)
-}
-
 fn latest_add_part_error(results: &[AddPartResult]) -> Option<AddPartStatus> {
     results
         .iter()
@@ -1357,10 +768,6 @@ fn normalized_progress(current: usize, total: usize) -> f32 {
     } else {
         (current as f32 / total as f32).clamp(0.0, 1.0)
     }
-}
-
-fn truncated_file_name_label(file_name: &str) -> egui::Label {
-    egui::Label::new(RichText::new(file_name.to_owned()).size(15.0)).truncate()
 }
 
 fn text_width(ui: &egui::Ui, text: &str, size: f32) -> f32 {
@@ -1382,10 +789,14 @@ fn command_width(ui: &egui::Ui, catalog: Catalog, key: TextKey, minimum: f32) ->
     (text_width(ui, catalog.text(key), 15.0) + ui.spacing().button_padding.x * 2.0).max(minimum)
 }
 
-fn bottom_bar_required_width(ui: &egui::Ui, catalog: Catalog) -> f32 {
-    text_width(ui, catalog.text(TextKey::Attribution), 13.0)
-        + text_width(ui, catalog.text(TextKey::RememberOutput), 15.0)
-        + 24.0
+fn bottom_bar_required_width(ui: &egui::Ui, catalog: Catalog, ready: usize) -> f32 {
+    let status_width = text_width(
+        ui,
+        &format!("{} · {ready}", catalog.text(TextKey::Concurrency)),
+        15.0,
+    ) + command_width(ui, catalog, TextKey::RunLog, 0.0)
+        + ui.spacing().item_spacing.x;
+    status_width.max(text_width(ui, catalog.text(TextKey::InterfaceFont), 13.0))
         + command_width(ui, catalog, TextKey::MergeAllReady, 200.0)
         + command_width(ui, catalog, TextKey::CancelAll, 80.0)
         + 5.0 * ui.spacing().item_spacing.x
@@ -1460,6 +871,7 @@ fn saved_position_is_visible(_bounds: WindowBounds) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::GroupLog;
     use eframe::egui::accesskit::Role;
 
     #[derive(Debug)]
@@ -1476,8 +888,8 @@ mod tests {
     #[test]
     fn native_drag_positions_override_stale_pointer_and_route_the_drop() {
         for (position, preview) in [
-            (egui::pos2(100.0, 50.0), true),
-            (egui::pos2(100.0, 145.0), false),
+            (egui::pos2(590.0, 125.0), true),
+            (egui::pos2(100.0, 92.0), false),
             (egui::pos2(15.0, 500.0), false),
         ] {
             let mut app = drop_test_app();
@@ -1553,6 +965,8 @@ mod tests {
             notices: Default::default(),
             configured_language: AppLanguage::English,
             previews: Vec::new(),
+            active_preview: None,
+            active_group: None,
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,
@@ -1770,16 +1184,35 @@ mod tests {
                 app.state.set_language(language);
                 app.state.set_collapsed(0, true);
                 let context = egui::Context::default();
-                theme::configure(&context, language);
+                theme::configure(&context);
                 context.set_theme(if dark {
                     egui::ThemePreference::Dark
                 } else {
                     egui::ThemePreference::Light
                 });
                 let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(980.0, 680.0));
+                let mut group_position = None;
+                let group_label = format!("{} 1 · 0", app.catalog().text(TextKey::Group));
+                for _ in 0..3 {
+                    let output = context.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(screen),
+                            ..Default::default()
+                        },
+                        |ui| app.central_workspace(ui),
+                    );
+                    group_position = theme::review_text(&output.shapes)
+                        .iter()
+                        .find(|(_, text, _)| *text == group_label)
+                        .map(|(rect, _, _)| rect.center());
+                    output.drop_without_applying_deltas();
+                }
                 for (position, key) in [
-                    (egui::pos2(100.0, 145.0), TextKey::DropHere),
-                    (egui::pos2(100.0, 50.0), TextKey::DropPreview),
+                    (
+                        group_position.expect("the group header is visible"),
+                        TextKey::DropHere,
+                    ),
+                    (egui::pos2(590.0, 125.0), TextKey::DropPreview),
                     (egui::pos2(15.0, 500.0), TextKey::DropBatch),
                 ] {
                     for _ in 0..3 {
@@ -1798,7 +1231,8 @@ mod tests {
                         output.textures_delta.clear();
                         assert_eq!(
                             matches!(app.drop_target, Some(FileDropTarget::Group(0))),
-                            key == TextKey::DropHere
+                            key == TextKey::DropHere,
+                            "wrong drop target for {key:?} in {language:?}"
                         );
                         assert!(output.shapes.iter().any(|shape| {
                             matches!(&shape.shape, egui::Shape::Rect(rect) if rect.stroke.width == 3.0)
@@ -1862,9 +1296,10 @@ mod tests {
     #[test]
     fn theme_button_switches_and_persists_without_language_reset() {
         let context = egui::Context::default();
-        theme::configure(&context, AppLanguage::English);
+        theme::configure(&context);
         theme::apply_preference(&context, Some(false));
         let mut app = drop_test_app();
+        app.state.set_language(AppLanguage::English);
         let test_dir = std::env::temp_dir().join(format!(
             "cast-theme-test-{}-{}",
             std::process::id(),
@@ -1921,10 +1356,11 @@ mod tests {
             }
             assert_eq!(app.state.settings().dark_mode, Some(dark));
             assert_eq!(app.store.load().dark_mode, Some(dark));
-            theme::configure(&context, AppLanguage::French);
+            assert_eq!(app.state.language(), AppLanguage::English);
+            assert_eq!(app.store.load().language, Some(AppLanguage::English));
             assert_eq!(context.theme() == egui::Theme::Dark, dark);
             let restored = egui::Context::default();
-            theme::configure(&restored, AppLanguage::English);
+            theme::configure(&restored);
             theme::apply_preference(&restored, app.store.load().dark_mode);
             assert_eq!(restored.theme() == egui::Theme::Dark, dark);
         }
@@ -1952,11 +1388,75 @@ mod tests {
     }
 
     #[test]
+    fn run_log_button_is_in_the_footer_and_tracks_the_selected_group() {
+        for language in AppLanguage::ALL {
+            let context = egui::Context::default();
+            theme::configure(&context);
+            let mut app = drop_test_app();
+            app.state.set_language(language);
+            let second_group = app.state.add_group();
+            let catalog = app.catalog();
+            let render = |app: &mut NativeApp, events| {
+                let output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(900.0, 680.0),
+                        )),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        app.bottom_bar(ui);
+                        app.output_bar(ui);
+                    },
+                );
+                let labels = theme::review_text(&output.shapes);
+                output.drop_without_applying_deltas();
+                labels
+            };
+            render(&mut app, vec![]);
+            let labels = render(&mut app, vec![]);
+            let buttons: Vec<_> = labels
+                .iter()
+                .filter(|(_, text, _)| text == catalog.text(TextKey::RunLog))
+                .collect();
+            assert_eq!(buttons.len(), 1);
+            let position = buttons[0].0.center();
+            assert!(position.y > 600.0 && buttons[0].2.contains(position));
+            for pressed in [true, false] {
+                render(
+                    &mut app,
+                    vec![
+                        egui::Event::PointerMoved(position),
+                        egui::Event::PointerButton {
+                            pos: position,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: Default::default(),
+                        },
+                    ],
+                );
+            }
+            let shows_log = |app: &mut NativeApp| {
+                render(app, vec![])
+                    .iter()
+                    .any(|(_, text, _)| text == catalog.text(TextKey::NoRunLog))
+            };
+            assert!(shows_log(&mut app));
+            app.select_group(second_group);
+            assert!(!shows_log(&mut app));
+            app.select_group(0);
+            assert!(shows_log(&mut app));
+        }
+    }
+
+    #[test]
     fn localized_command_bars_fit_without_text_collisions() {
         for language in AppLanguage::ALL {
             for width in [900.0, 1180.0, 1440.0] {
                 let context = egui::Context::default();
-                theme::configure(&context, language);
+                theme::configure(&context);
                 let mut app = NativeApp {
                     state: NativeAppState::new(model_merger_app_core::AppSettings {
                         language: Some(language),
@@ -1969,6 +1469,8 @@ mod tests {
                     notices: Default::default(),
                     configured_language: language,
                     previews: Vec::new(),
+                    active_preview: None,
+                    active_group: None,
                     next_preview_id: 1,
                     drop_target: None,
                     pending_group_delete: None,
@@ -1990,9 +1492,15 @@ mod tests {
                         |ui| {
                             app.top_bar(ui);
                             app.bottom_bar(ui);
+                            app.output_bar(ui);
                         },
                     );
-                    let labels = theme::review_text(&output.shapes);
+                    let labels: Vec<_> = theme::review_text(&output.shapes)
+                        .into_iter()
+                        .filter(|(rect, text, clip)| {
+                            !text.trim().is_empty() && clip.intersects(*rect)
+                        })
+                        .collect();
                     output.textures_delta.clear();
                     if frame < 2 {
                         continue;
@@ -2043,6 +1551,8 @@ mod tests {
                 notices: NoticeCenter::default(),
                 configured_language: language,
                 previews: Vec::new(),
+                active_preview: None,
+                active_group: None,
                 next_preview_id: 1,
                 drop_target: None,
                 pending_group_delete: None,
@@ -2062,6 +1572,7 @@ mod tests {
             let output = context.run_ui(input, |ui| {
                 app.top_bar(ui);
                 app.bottom_bar(ui);
+                app.output_bar(ui);
                 app.central_workspace(ui);
             });
             let update = output
@@ -2086,7 +1597,10 @@ mod tests {
                 .count();
             let tree = format!("{:?}", update.nodes);
 
-            assert!(button_count >= 20, "expected slot and command buttons");
+            assert!(
+                button_count >= 9,
+                "expected group, preview and command buttons"
+            );
             assert!(text_input_count >= 2, "expected labeled output fields");
             assert!(progress_count >= 1, "expected an accessible progress bar");
             assert!(
@@ -2137,6 +1651,8 @@ mod tests {
             notices: NoticeCenter::default(),
             configured_language: AppLanguage::English,
             previews: Vec::new(),
+            active_preview: None,
+            active_group: None,
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,
@@ -2160,13 +1676,6 @@ mod tests {
     }
 
     #[test]
-    fn slot_cards_share_the_available_width_without_overflowing() {
-        assert_eq!(144.0, slot_card_width(760.0, 5));
-        assert_eq!(136.0, slot_card_width(430.0, 3));
-        assert_eq!(176.0, slot_card_width(360.0, 2));
-    }
-
-    #[test]
     fn standalone_preview_selection_does_not_add_groups_or_parts() {
         let mut app = NativeApp {
             state: NativeAppState::new(Default::default()),
@@ -2175,6 +1684,8 @@ mod tests {
             notices: NoticeCenter::default(),
             configured_language: AppLanguage::English,
             previews: Vec::new(),
+            active_preview: None,
+            active_group: None,
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,
@@ -2195,7 +1706,7 @@ mod tests {
         app.open_preview_selection(Some(path.clone()));
         assert_eq!(app.previews.len(), 1);
         assert_eq!(app.previews[0].title, "part-00.cast");
-        assert!(app.previews[0].open);
+        assert_eq!(app.active_preview, Some(app.previews[0].id));
         assert_eq!(app.state.groups().len(), group_count);
         assert!(
             app.state
@@ -2209,14 +1720,40 @@ mod tests {
     }
 
     #[test]
-    fn compact_workspace_preserves_the_settings_pane_and_minimum_slot_width() {
-        let group_content_width = 812.0;
-        let slots_width = group_content_width - SETTINGS_PANE_WIDTH - 8.0;
-        let columns = slot_columns(slots_width);
+    fn closing_preview_tabs_preserves_the_other_sessions_and_active_group() {
+        let mut app = drop_test_app();
+        let index = app.state.add_group();
+        app.select_group(index);
+        for file in ["first.cast", "second.cast", "third.cast"] {
+            app.open_preview(Path::new(file));
+        }
+        let ids: Vec<_> = app.previews.iter().map(|preview| preview.id).collect();
+        assert_eq!(app.active_preview, Some(ids[2]));
+        app.close_preview(ids[0]);
+        assert_eq!(app.active_preview, Some(ids[2]));
+        app.close_preview(ids[2]);
+        assert_eq!(app.active_preview, Some(ids[1]));
+        assert_eq!(app.active_group_index(), index);
+        app.close_preview(ids[1]);
+        assert_eq!(app.active_preview, None);
+    }
 
-        assert_eq!(300.0, SETTINGS_PANE_WIDTH);
-        assert_eq!(3, columns);
-        assert!(slot_card_width(slots_width, columns) >= MINIMUM_SLOT_CARD_WIDTH);
+    #[test]
+    fn deleting_an_earlier_group_keeps_the_selected_output_context() {
+        let mut app = drop_test_app();
+        let second = app.state.add_group();
+        let selected = app.state.add_group();
+        app.select_group(selected);
+        app.state.groups_mut()[selected]
+            .plan
+            .set_output_file_name("selected.cast");
+        assert_eq!(app.active_group_index(), selected);
+        assert!(app.state.delete_group(0));
+        assert_eq!(app.active_group_index(), second);
+        assert_eq!(
+            app.state.groups()[second].plan.state().output_file_name,
+            "selected.cast"
+        );
     }
 
     #[test]
@@ -2241,6 +1778,8 @@ mod tests {
             notices: NoticeCenter::default(),
             configured_language: AppLanguage::English,
             previews: Vec::new(),
+            active_preview: None,
+            active_group: None,
             next_preview_id: 1,
             drop_target: None,
             pending_group_delete: None,

@@ -1,11 +1,10 @@
 use eframe::egui::{
     self, Color32, FontData, FontDefinitions, FontFamily, FontId, Stroke, TextStyle,
 };
-use model_merger_app_core::AppLanguage;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 const MISANS_MEDIUM: &[u8] = include_bytes!("../assets/fonts/MiSans-Medium.ttf");
+const UI_FONT: &str = "MiSans Medium";
 
 pub const DISABLED_ALPHA: f32 = 0.78;
 
@@ -110,8 +109,8 @@ pub(crate) fn review_text(
     result
 }
 
-pub fn configure(context: &egui::Context, language: AppLanguage) {
-    install_fonts(context, language);
+pub fn configure(context: &egui::Context) {
+    context.set_fonts(font_definitions());
     configure_style(context, egui::Theme::Light, LIGHT, egui::Visuals::light());
     configure_style(context, egui::Theme::Dark, DARK, egui::Visuals::dark());
 }
@@ -187,42 +186,18 @@ fn configure_style(
     context.set_style_of(theme, style);
 }
 
-fn install_fonts(context: &egui::Context, language: AppLanguage) {
+fn font_definitions() -> FontDefinitions {
     let mut definitions = FontDefinitions::default();
-    let mut installed = Vec::new();
-    if let Some(bytes) = load_font(&segoe_candidates()) {
-        definitions
-            .font_data
-            .insert("Segoe UI".into(), Arc::new(FontData::from_owned(bytes)));
-        installed.push("Segoe UI".to_owned());
-    }
     definitions.font_data.insert(
-        "MiSans Medium".into(),
+        UI_FONT.into(),
         Arc::new(FontData::from_static(MISANS_MEDIUM)),
     );
-    if language == AppLanguage::ChineseSimplified {
-        installed.insert(0, "MiSans Medium".to_owned());
-    } else {
-        installed.push("MiSans Medium".to_owned());
-    }
-    if let Some(family) = definitions.families.get_mut(&FontFamily::Proportional) {
-        for font in installed.into_iter().rev() {
-            family.insert(0, font);
-        }
-    }
-    context.set_fonts(definitions);
-}
-
-fn load_font(candidates: &[PathBuf]) -> Option<Vec<u8>> {
-    candidates.iter().find_map(|path| std::fs::read(path).ok())
-}
-
-fn segoe_candidates() -> Vec<PathBuf> {
-    std::env::var_os("WINDIR")
-        .map(PathBuf::from)
-        .into_iter()
-        .map(|path| path.join("Fonts").join("segoeui.ttf"))
-        .collect()
+    definitions
+        .families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .insert(0, UI_FONT.into());
+    definitions
 }
 
 #[cfg(test)]

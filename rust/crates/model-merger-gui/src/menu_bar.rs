@@ -16,23 +16,11 @@ pub(crate) enum Action {
 }
 
 pub(crate) fn labels(language: AppLanguage) -> [&'static str; 3] {
-    [
-        ["文件", "设置", "帮助"],
-        ["File", "Settings", "Help"],
-        ["Fichier", "Réglages", "Aide"],
-        ["Файл", "Настройки", "Справка"],
-        ["Archivo", "Ajustes", "Ayuda"],
-    ][language as usize]
+    [["文件", "设置", "帮助"], ["File", "Settings", "Help"]][language as usize]
 }
 
 fn armature_label(language: AppLanguage) -> &'static str {
-    [
-        "手臂武器拼接",
-        "Arm + weapon assembly",
-        "Assemblage bras + arme",
-        "Сборка рук и оружия",
-        "Ensamble brazos + arma",
-    ][language as usize]
+    ["手臂武器拼接", "Arm + weapon assembly"][language as usize]
 }
 
 pub(crate) fn show(
@@ -84,13 +72,14 @@ pub(crate) fn show(
                     ui.menu_button(catalog.text(TextKey::Language), |ui| {
                         menu_style(ui);
                         for candidate in AppLanguage::ALL {
-                            if ui
-                                .selectable_label(
-                                    candidate == language,
-                                    Catalog::new(candidate).language_name(),
-                                )
-                                .clicked()
-                            {
+                            let selected = candidate == language;
+                            let name = egui::RichText::new(Catalog::new(candidate).language_name())
+                                .color(if selected {
+                                    palette.on_primary
+                                } else {
+                                    palette.foreground
+                                });
+                            if ui.selectable_label(selected, name).clicked() {
                                 action = Some(Action::Language(candidate));
                                 ui.close();
                             }
@@ -231,7 +220,7 @@ mod tests {
     #[test]
     fn keyboard_can_open_and_dismiss_the_file_menu() {
         let ctx = egui::Context::default();
-        theme::configure(&ctx, AppLanguage::English);
+        theme::configure(&ctx);
         let mut h = Harness {
             ctx,
             language: AppLanguage::English,
@@ -281,7 +270,7 @@ mod tests {
         for language in AppLanguage::ALL {
             for dark in [false, true] {
                 let ctx = egui::Context::default();
-                theme::configure(&ctx, language);
+                theme::configure(&ctx);
                 ctx.set_theme(if dark {
                     egui::ThemePreference::Dark
                 } else {

@@ -12,7 +12,7 @@ const PREVIEW_TRIANGLE_LIMIT: usize = 250_000;
 
 pub struct PreviewSession {
     pub id: u64,
-    pub open: bool,
+    pub path: PathBuf,
     pub title: String,
     state: PreviewLoadState,
     yaw: f32,
@@ -85,7 +85,7 @@ impl PreviewSession {
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned();
-        let path = path.to_path_buf();
+        let source = path.to_path_buf();
         let (sender, receiver) = mpsc::channel();
         let cancelled = Arc::new(AtomicBool::new(false));
         let worker_cancelled = Arc::clone(&cancelled);
@@ -93,7 +93,7 @@ impl PreviewSession {
             .name(format!("preview-{id}"))
             .spawn(move || {
                 let result =
-                    model_merger_engine::load_preview(&path, PREVIEW_TRIANGLE_LIMIT, || {
+                    model_merger_engine::load_preview(&source, PREVIEW_TRIANGLE_LIMIT, || {
                         worker_cancelled.load(Ordering::Acquire)
                     })
                     .map(|data| {
@@ -125,7 +125,7 @@ impl PreviewSession {
             .expect("failed to start preview loader thread");
         Self {
             id,
-            open: true,
+            path: path.to_path_buf(),
             title,
             state: PreviewLoadState::Loading(receiver),
             yaw: -0.55,
@@ -141,38 +141,10 @@ impl PreviewSession {
         }
     }
 
-    pub fn path_title(path: &Path, prefix: &str) -> String {
-        format!("{prefix} — {}", short_name(path))
-    }
-
-    pub fn show(&mut self, ui: &mut egui::Ui, catalog: Catalog) {
-        if ui.input(|input| {
-            input.viewport().close_requested() || input.key_pressed(egui::Key::Escape)
-        }) {
-            self.open = false;
-            return;
-        }
+    pub(super) fn show(&mut self, ui: &mut egui::Ui, catalog: Catalog) {
         self.receive_preview();
         self.receive_textures();
-        crate::chrome::show_with_title(ui, catalog.language(), catalog.text(TextKey::Preview));
         let palette = theme::palette(ui);
-        egui::Panel::top(egui::Id::new(("preview-name", self.id)))
-            .frame(
-                egui::Frame::new()
-                    .fill(palette.preview_canvas)
-                    .inner_margin(egui::Margin::symmetric(16, 10)),
-            )
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(catalog.text(TextKey::PreviewName))
-                            .size(13.0)
-                            .color(palette.primary),
-                    );
-                    ui.add(egui::Label::new(RichText::new(&self.title).size(13.0)).truncate())
-                        .on_hover_text(&self.title);
-                });
-            });
         let ready = matches!(self.state, PreviewLoadState::Ready(_));
         egui::Panel::bottom(egui::Id::new(("preview-tabs", self.id)))
             .frame(
@@ -218,9 +190,6 @@ impl PreviewSession {
                         self.show_info = true;
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(catalog.text(TextKey::Close)).clicked() {
-                            self.open = false;
-                        }
                         if let PreviewLoadState::Ready(loaded) = &self.state {
                             let mut status = format!(
                                 "{} {} · {} {}",
@@ -315,7 +284,6 @@ impl PreviewSession {
                 }
                 self.view_tools(ui, response.rect, catalog, ready);
             });
-        crate::chrome::resize_edges(ui);
     }
 
     fn reset_view(&mut self) {
@@ -340,7 +308,7 @@ impl PreviewSession {
             }
         }
         // Focused buttons keep their arrow-key navigation; the viewport gets camera keys.
-        if !response.has_focus() && ui.ctx().egui_wants_keyboard_input() {
+        if !response.has_focus() && (!response.hovered() || ui.ctx().egui_wants_keyboard_input()) {
             return;
         }
         ui.input(|input| {
@@ -374,101 +342,91 @@ impl PreviewSession {
     fn view_tools(&mut self, ui: &mut egui::Ui, rect: egui::Rect, catalog: Catalog, ready: bool) {
         use crate::preview_controls::{Icon, button};
         let palette = theme::palette(ui);
-        egui::Area::new(egui::Id::new(("preview-tools", self.id)))
-            .order(egui::Order::Foreground)
-            .movable(false)
-            .fixed_pos(egui::pos2(rect.left() + 12.0, rect.bottom() - 54.0))
-            .show(ui.ctx(), |ui| {
-                egui::Frame::new()
-                    .fill(palette.toolbar)
-                    .stroke(egui::Stroke::new(1.0, palette.border))
-                    .corner_radius(8.0)
-                    .inner_margin(egui::Margin::same(6))
-                    .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing.x = 4.0;
-                        ui.horizontal(|ui| {
-                            ui.add_enabled_ui(ready, |ui| {
-                                ui.horizontal(|ui| {
-                                    if button(
-                                        ui,
-                                        Icon::Reset,
-                                        catalog.text(TextKey::ResetView),
-                                        false,
-                                    )
+        if rect.height() < 58.0 {
+            return;
+        }
+        // The toolbar stays in the canvas layer so it cannot cover modal windows.
+        let bounds = egui::Rect::from_min_max(
+            egui::pos2(rect.left() + 12.0, rect.bottom() - 54.0),
+            rect.right_bottom(),
+        );
+        let mut tools = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt(("preview-tools", self.id))
+                .max_rect(bounds),
+        );
+        tools.set_clip_rect(ui.clip_rect().intersect(rect));
+        tools.scope(|ui| {
+            egui::Frame::new()
+                .fill(palette.toolbar)
+                .stroke(egui::Stroke::new(1.0, palette.border))
+                .corner_radius(8.0)
+                .inner_margin(egui::Margin::same(6))
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.horizontal(|ui| {
+                        ui.add_enabled_ui(ready, |ui| {
+                            ui.horizontal(|ui| {
+                                if button(ui, Icon::Reset, catalog.text(TextKey::ResetView), false)
                                     .clicked()
-                                    {
-                                        self.reset_view();
+                                {
+                                    self.reset_view();
+                                }
+                                if button(
+                                    ui,
+                                    Icon::Grid,
+                                    catalog.text(TextKey::PreviewGrid),
+                                    self.show_grid,
+                                )
+                                .clicked()
+                                {
+                                    self.show_grid = !self.show_grid;
+                                }
+                                if button(
+                                    ui,
+                                    Icon::Material,
+                                    catalog.text(TextKey::PreviewMaterials),
+                                    self.show_materials,
+                                )
+                                .clicked()
+                                {
+                                    self.show_materials = !self.show_materials;
+                                    if self.show_materials {
+                                        self.ensure_materials_started();
                                     }
-                                    if button(
-                                        ui,
-                                        Icon::Grid,
-                                        catalog.text(TextKey::PreviewGrid),
-                                        self.show_grid,
-                                    )
+                                }
+                                ui.separator();
+                                if button(ui, Icon::Left, catalog.text(TextKey::RotateLeft), false)
                                     .clicked()
-                                    {
-                                        self.show_grid = !self.show_grid;
-                                    }
-                                    if button(
-                                        ui,
-                                        Icon::Material,
-                                        catalog.text(TextKey::PreviewMaterials),
-                                        self.show_materials,
-                                    )
+                                {
+                                    self.yaw -= 0.18;
+                                }
+                                if button(
+                                    ui,
+                                    Icon::Right,
+                                    catalog.text(TextKey::RotateRight),
+                                    false,
+                                )
+                                .clicked()
+                                {
+                                    self.yaw += 0.18;
+                                }
+                                ui.separator();
+                                if button(ui, Icon::ZoomOut, catalog.text(TextKey::ZoomOut), false)
                                     .clicked()
-                                    {
-                                        self.show_materials = !self.show_materials;
-                                        if self.show_materials {
-                                            self.ensure_materials_started();
-                                        }
-                                    }
-                                    ui.separator();
-                                    if button(
-                                        ui,
-                                        Icon::Left,
-                                        catalog.text(TextKey::RotateLeft),
-                                        false,
-                                    )
+                                {
+                                    self.zoom = (self.zoom / 1.15).max(0.2);
+                                }
+                                if button(ui, Icon::ZoomIn, catalog.text(TextKey::ZoomIn), false)
                                     .clicked()
-                                    {
-                                        self.yaw -= 0.18;
-                                    }
-                                    if button(
-                                        ui,
-                                        Icon::Right,
-                                        catalog.text(TextKey::RotateRight),
-                                        false,
-                                    )
-                                    .clicked()
-                                    {
-                                        self.yaw += 0.18;
-                                    }
-                                    ui.separator();
-                                    if button(
-                                        ui,
-                                        Icon::ZoomOut,
-                                        catalog.text(TextKey::ZoomOut),
-                                        false,
-                                    )
-                                    .clicked()
-                                    {
-                                        self.zoom = (self.zoom / 1.15).max(0.2);
-                                    }
-                                    if button(
-                                        ui,
-                                        Icon::ZoomIn,
-                                        catalog.text(TextKey::ZoomIn),
-                                        false,
-                                    )
-                                    .clicked()
-                                    {
-                                        self.zoom = (self.zoom * 1.15).min(8.0);
-                                    }
-                                });
+                                {
+                                    self.zoom = (self.zoom * 1.15).min(8.0);
+                                }
                             });
                         });
                     });
-            });
+                });
+        });
     }
 
     fn state_message(
@@ -715,16 +673,9 @@ impl Drop for PreviewSession {
         );
         self.cancelled.store(true, Ordering::Release);
         // Dropping a JoinHandle detaches the cancellable loader. Never wait for disk I/O or
-        // decoding on the GUI thread when a preview window is dismissed.
+        // decoding on the GUI thread when a preview is closed.
         self.worker.take();
     }
-}
-
-fn short_name(path: &Path) -> String {
-    path.file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned()
 }
 
 /// Cast texture paths may be relative to the exported asset folder.
@@ -754,7 +705,7 @@ mod tests {
             model_merger_engine::load_preview(&path, PREVIEW_TRIANGLE_LIMIT, || false).unwrap();
         PreviewSession {
             id: 1,
-            open: true,
+            path,
             title: "long_sample_model_name_".repeat(12) + ".cast",
             state: PreviewLoadState::Ready(LoadedPreview {
                 gpu_model: Arc::new(preview_gpu::PreviewModel::from_preview(&data)),
@@ -812,7 +763,7 @@ mod tests {
                 for size in [egui::vec2(640.0, 480.0), egui::vec2(900.0, 700.0)] {
                     for state in 0..4 {
                         let context = egui::Context::default();
-                        theme::configure(&context, language);
+                        theme::configure(&context);
                         context.set_theme(if dark {
                             egui::ThemePreference::Dark
                         } else {
@@ -852,7 +803,7 @@ mod tests {
                             .unwrap()
                             .nodes;
                         let keys: &[TextKey] = if state == 1 {
-                            &[TextKey::Close]
+                            &[TextKey::PreviewViewport, TextKey::PreviewInfo]
                         } else {
                             &[
                                 TextKey::ResetView,
@@ -861,7 +812,7 @@ mod tests {
                                 TextKey::RotateRight,
                                 TextKey::ZoomIn,
                                 TextKey::ZoomOut,
-                                TextKey::Close,
+                                TextKey::PreviewInfo,
                             ]
                         };
                         for key in keys {
@@ -891,7 +842,7 @@ mod tests {
     fn preview_tools_and_tabs_have_real_pointer_actions() {
         let context = egui::Context::default();
         let catalog = Catalog::new(model_merger_app_core::AppLanguage::English);
-        theme::configure(&context, catalog.language());
+        theme::configure(&context);
         context.enable_accesskit();
         let mut preview = ready_session();
         let size = egui::vec2(640.0, 480.0);
@@ -901,18 +852,11 @@ mod tests {
             if let Some(update) = &output.platform_output.accesskit_update {
                 for (_, node) in &update.nodes {
                     if let (Some(label), Some(rect)) = (node.label(), node.bounds()) {
-                        // Prefer bottom Close over the title-bar Close for this test.
                         let position = egui::pos2(
                             ((rect.x0 + rect.x1) / 2.0) as f32,
                             ((rect.y0 + rect.y1) / 2.0) as f32,
                         );
-                        if label != catalog.text(TextKey::Close)
-                            || bounds
-                                .get(label)
-                                .is_none_or(|previous| previous.y < position.y)
-                        {
-                            bounds.insert(label.to_owned(), position);
-                        }
+                        bounds.insert(label.to_owned(), position);
                     }
                 }
             }
@@ -959,16 +903,12 @@ mod tests {
         assert!(preview.show_info);
         click(&mut preview, TextKey::PreviewViewport);
         assert!(!preview.show_info);
-        click(&mut preview, TextKey::Close);
-        assert!(!preview.open);
     }
 
     #[test]
     fn preview_title_keeps_the_selected_file_name() {
-        assert_eq!(
-            "Preview — body.cast",
-            PreviewSession::path_title(Path::new("C:/models/body.cast"), "Preview")
-        );
+        let preview = PreviewSession::load(1, Path::new("C:/models/body.cast"));
+        assert_eq!(preview.title, "body.cast");
     }
 
     #[test]
@@ -980,7 +920,7 @@ mod tests {
         });
         let session = PreviewSession {
             id: 1,
-            open: true,
+            path: PathBuf::from("body.cast"),
             title: "slow.cast".to_owned(),
             state: PreviewLoadState::Loading(receiver),
             yaw: 0.0,

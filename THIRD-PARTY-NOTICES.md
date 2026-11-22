@@ -2,7 +2,7 @@
 
 ## MiSans
 
-Official release builds of Cast Model Merger GUI embed the original MiSans Medium face supplied by Xiaomi Inc. for the Simplified Chinese interface.
+Windows builds embed the original MiSans Medium face supplied by Xiaomi Inc. for both the Simplified Chinese and English interfaces.
 
 MiSans is not covered by this project's MIT License. It is used and distributed under the **MiSans Fonts Intellectual Property License Agreement**. The software visibly acknowledges its use of MiSans, as required by that agreement. The font files have not been modified.
 

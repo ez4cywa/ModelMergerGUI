@@ -21,7 +21,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      - name: Install MiSans for the embedded Chinese UI
+      - name: Install the embedded MiSans UI font
         shell: pwsh
         run: ./scripts/Install-MiSans.ps1 -AcceptLicense
       - name: Verify Rust workspace

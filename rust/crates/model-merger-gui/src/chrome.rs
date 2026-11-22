@@ -1,9 +1,9 @@
 //! User-requested macOS-style window chrome, with native Windows window commands.
 use crate::theme;
-use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke};
+use eframe::egui::{self, Color32, FontId, Pos2, Rect, Sense, Stroke};
 use model_merger_app_core::{AppLanguage, Catalog, TextKey};
 
-fn text(language: AppLanguage, choices: [&'static str; 5]) -> &'static str {
+fn text(language: AppLanguage, choices: [&'static str; 2]) -> &'static str {
     choices[language as usize]
 }
 
@@ -33,30 +33,15 @@ pub(crate) fn show_with_title(ui: &mut egui::Ui, language: AppLanguage, title: &
                 ),
                 (
                     Color32::from_rgb(255, 189, 46),
-                    text(
-                        language,
-                        ["最小化", "Minimize", "Réduire", "Свернуть", "Minimizar"],
-                    ),
+                    text(language, ["最小化", "Minimize"]),
                     egui::ViewportCommand::Minimized(true),
                 ),
                 (
                     Color32::from_rgb(40, 201, 64),
                     if maximized {
-                        text(
-                            language,
-                            [
-                                "还原窗口",
-                                "Restore window",
-                                "Restaurer",
-                                "Восстановить",
-                                "Restaurar ventana",
-                            ],
-                        )
+                        text(language, ["还原窗口", "Restore window"])
                     } else {
-                        text(
-                            language,
-                            ["最大化", "Maximize", "Agrandir", "Развернуть", "Maximizar"],
-                        )
+                        text(language, ["最大化", "Maximize"])
                     },
                     egui::ViewportCommand::Maximized(!maximized),
                 ),
@@ -148,23 +133,52 @@ pub(crate) fn show_with_title(ui: &mut egui::Ui, language: AppLanguage, title: &
             } else if response.drag_started() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
             }
-            ui.painter().text(
-                rect.center(),
-                Align2::CENTER_CENTER,
-                title,
-                FontId::proportional(13.0),
-                if focused {
-                    palette.foreground
-                } else {
-                    palette.secondary
-                },
-            );
+            let icon = title_icon(ui.ctx());
+            let color = if focused {
+                palette.foreground
+            } else {
+                palette.secondary
+            };
+            let galley =
+                ui.painter()
+                    .layout_no_wrap(title.to_owned(), FontId::proportional(13.0), color);
+            let icon_space = if icon.is_some() { 22.0 } else { 0.0 };
+            let left = rect.center().x - (galley.size().x + icon_space) * 0.5;
+            if let Some(icon) = icon {
+                ui.painter().image(
+                    icon.id(),
+                    Rect::from_min_size(
+                        Pos2::new(left, rect.center().y - 9.0),
+                        egui::vec2(18.0, 18.0),
+                    ),
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            }
+            let y = rect.center().y - galley.size().y * 0.5;
+            ui.painter()
+                .galley(Pos2::new(left + icon_space, y), galley, color);
             ui.painter().hline(
                 rect.x_range(),
                 rect.bottom() - 0.5,
                 Stroke::new(1.0, palette.border),
             );
         });
+}
+
+fn title_icon(context: &egui::Context) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new("cast-assembly-title-icon");
+    if let Some(texture) = context.data_mut(|data| data.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let data = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).ok()?;
+    let image = egui::ColorImage::from_rgba_unmultiplied(
+        [data.width as usize, data.height as usize],
+        &data.rgba,
+    );
+    let texture = context.load_texture("cast-assembly-icon", image, egui::TextureOptions::LINEAR);
+    context.data_mut(|data| data.insert_temp(id, texture.clone()));
+    Some(texture)
 }
 
 pub(crate) fn resize_edges(ui: &mut egui::Ui) {
@@ -254,7 +268,7 @@ mod tests {
     fn traffic_lights_dispatch_native_window_commands() {
         for (index, expected) in [(0, "Close"), (1, "Minimized(true)"), (2, "Maximized(true)")] {
             let context = egui::Context::default();
-            theme::configure(&context, AppLanguage::English);
+            theme::configure(&context);
             let position = egui::pos2(22.0 + index as f32 * 22.0, 18.0);
             for step in 0..5 {
                 let mut input = egui::RawInput {

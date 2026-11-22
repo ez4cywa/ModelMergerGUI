@@ -8,7 +8,7 @@ struct InteractionHarness {
 impl InteractionHarness {
     fn new() -> Self {
         let context = egui::Context::default();
-        theme::configure(&context, AppLanguage::English);
+        theme::configure(&context);
         context.global_style_mut(|style| style.animation_time = 0.0);
         let mut dialog = AboutDialog::default();
         dialog.open();
@@ -124,7 +124,7 @@ fn about_dialog_fits_all_languages_and_themes() {
         for dark in [false, true] {
             for size in [egui::vec2(900.0, 680.0), egui::vec2(1180.0, 860.0)] {
                 let context = egui::Context::default();
-                theme::configure(&context, language);
+                theme::configure(&context);
                 context.set_theme(if dark {
                     egui::ThemePreference::Dark
                 } else {

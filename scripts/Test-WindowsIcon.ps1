@@ -31,6 +31,18 @@ public static class NativeIconProbe
         EnumResNameProc callback,
         IntPtr parameter);
 
+    [DllImport("kernel32.dll", EntryPoint = "FindResourceW", SetLastError = true)]
+    public static extern IntPtr FindResource(IntPtr module, IntPtr name, IntPtr type);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint SizeofResource(IntPtr module, IntPtr resource);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr LoadResource(IntPtr module, IntPtr resource);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr LockResource(IntPtr handle);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr word, IntPtr data);
 
@@ -71,6 +83,7 @@ public static class NativeIconProbe
 }
 
 $loadLibraryAsDataFile = 0x00000002
+$resourceTypeIcon = [IntPtr]3
 $resourceTypeGroupIcon = [IntPtr]14
 $module = [NativeIconProbe]::LoadLibraryEx($resolvedExecutable, [IntPtr]::Zero, $loadLibraryAsDataFile)
 if ($module -eq [IntPtr]::Zero) {
@@ -78,6 +91,30 @@ if ($module -eq [IntPtr]::Zero) {
 }
 
 $groupIconCount = 0
+$sha256 = [Security.Cryptography.SHA256]::Create()
+$expectedIco = [IO.File]::ReadAllBytes(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'rust/crates/model-merger-gui/assets/icon.ico')
+)
+$expectedHashes = for ($i = 0; $i -lt [BitConverter]::ToUInt16($expectedIco, 4); $i++) {
+    $entry = 6 + $i * 16
+    $length = [BitConverter]::ToInt32($expectedIco, $entry + 8)
+    $offset = [BitConverter]::ToInt32($expectedIco, $entry + 12)
+    [Convert]::ToBase64String($sha256.ComputeHash($expectedIco, $offset, $length))
+}
+$embeddedHashes = [System.Collections.Generic.List[string]]::new()
+$imageCallback = [NativeIconProbe+EnumResNameProc]{
+    param($moduleHandle, $type, $name, $parameter)
+    $resource = [NativeIconProbe]::FindResource($moduleHandle, $name, $type)
+    if ($resource -eq [IntPtr]::Zero) { return $false }
+    $size = [NativeIconProbe]::SizeofResource($moduleHandle, $resource)
+    $handle = [NativeIconProbe]::LoadResource($moduleHandle, $resource)
+    $address = [NativeIconProbe]::LockResource($handle)
+    if ($address -eq [IntPtr]::Zero -or $size -eq 0) { return $false }
+    $payload = [byte[]]::new($size)
+    [Runtime.InteropServices.Marshal]::Copy($address, $payload, 0, $size)
+    $embeddedHashes.Add([Convert]::ToBase64String($sha256.ComputeHash($payload)))
+    return $true
+}
 $callback = [NativeIconProbe+EnumResNameProc]{
     param($moduleHandle, $type, $name, $parameter)
     $script:groupIconCount++
@@ -89,14 +126,23 @@ try {
         $resourceTypeGroupIcon,
         $callback,
         [IntPtr]::Zero)
+    [void][NativeIconProbe]::EnumResourceNames(
+        $module,
+        $resourceTypeIcon,
+        $imageCallback,
+        [IntPtr]::Zero)
 }
 finally {
+    $sha256.Dispose()
     [void][NativeIconProbe]::FreeLibrary($module)
 }
 
 $failures = [System.Collections.Generic.List[string]]::new()
 if ($groupIconCount -lt 1) {
     $failures.Add('Explorer icon check failed: the executable has no RT_GROUP_ICON resource.')
+}
+if ((($expectedHashes | Sort-Object) -join ',') -cne (($embeddedHashes | Sort-Object) -join ',')) {
+    throw 'Explorer icon check failed: the executable icon images differ from assets/icon.ico.'
 }
 
 $process = Start-Process -FilePath $resolvedExecutable -WindowStyle Hidden -PassThru
@@ -142,5 +188,6 @@ if ($failures.Count -gt 0) {
 [pscustomobject]@{
     Executable = $resolvedExecutable
     GroupIconResources = $groupIconCount
+    IconImageResources = $embeddedHashes.Count
     WindowIcon = $true
 } | Format-List

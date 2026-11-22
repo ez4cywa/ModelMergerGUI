@@ -79,7 +79,8 @@ $headers = @{
 
 $archivePath = Join-Path $repositoryRoot 'artifacts\release\CastModelMerger-win-x64.zip'
 $hashPath = "$archivePath.sha256"
-foreach ($requiredPath in @($archivePath, $hashPath)) {
+$executablePath = Join-Path $repositoryRoot 'artifacts\release\CastAssembly.exe'
+foreach ($requiredPath in @($archivePath, $hashPath, $executablePath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Release asset is missing: $requiredPath"
     }
@@ -109,7 +110,7 @@ catch {
 $payload = @{
     tag_name = $Tag
     target_commitish = (git -C $repositoryRoot rev-parse HEAD).Trim()
-    name = "Cast Model Merger GUI $Tag"
+    name = "CAST 装配台 $Tag"
     body = $body
     draft = $true
     prerelease = $false
@@ -122,6 +123,7 @@ if ($null -eq $release) {
 }
 
 $assets = @(
+    @{ Path = $executablePath; Name = 'CastAssembly.exe'; Type = 'application/octet-stream' },
     @{ Path = $archivePath; Name = 'CastModelMerger-win-x64.zip'; Type = 'application/zip' },
     @{ Path = $hashPath; Name = 'CastModelMerger-win-x64.zip.sha256'; Type = 'text/plain' }
 )

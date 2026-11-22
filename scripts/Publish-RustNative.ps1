@@ -9,6 +9,8 @@ $resolvedOutputRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $
 $packageName = 'CastModelMerger-win-x64'
 $publishDirectory = Join-Path $resolvedOutputRoot $packageName
 $archivePath = Join-Path $resolvedOutputRoot "$packageName.zip"
+$releaseExecutableName = 'CastAssembly.exe'
+$standalonePath = Join-Path $resolvedOutputRoot $releaseExecutableName
 $rustRoot = Join-Path $repositoryRoot 'rust'
 $fontPath = Join-Path $repositoryRoot 'rust\crates\model-merger-gui\assets\fonts\MiSans-Medium.ttf'
 $targetTriple = 'x86_64-pc-windows-gnu'
@@ -20,7 +22,7 @@ if (-not $resolvedPublishDirectory.StartsWith($requiredPrefix, [StringComparison
     throw "Refusing to clean publish directory outside the selected output root: $resolvedPublishDirectory"
 }
 if (-not (Test-Path -LiteralPath $fontPath -PathType Leaf)) {
-    throw "MiSans Medium is required for the embedded Chinese interface. Run scripts\Install-MiSans.ps1 -AcceptLicense first."
+    throw "MiSans Medium is required for both interface languages. Run scripts\Install-MiSans.ps1 -AcceptLicense first."
 }
 
 if (-not $SkipTests) {
@@ -72,13 +74,16 @@ try {
 finally {
     $stream.Dispose()
 }
-Copy-Item -LiteralPath $executable -Destination $resolvedPublishDirectory
-$publishedExecutable = Join-Path $resolvedPublishDirectory 'CastModelMerger.exe'
+$publishedExecutable = Join-Path $resolvedPublishDirectory $releaseExecutableName
+Copy-Item -LiteralPath $executable -Destination $publishedExecutable
 & (Join-Path $PSScriptRoot 'Test-WindowsIcon.ps1') -ExecutablePath $publishedExecutable
 if ($LASTEXITCODE -ne 0) {
     throw "Windows icon verification failed with exit code $LASTEXITCODE."
 }
-# The release package ships only the executable and the bilingual user guides.
+Copy-Item -LiteralPath $publishedExecutable -Destination $standalonePath
+# Include notices and bilingual guides without duplicating the standalone EXE in the archive.
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $resolvedPublishDirectory
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'THIRD-PARTY-NOTICES.md') -Destination $resolvedPublishDirectory
 $tutorialDestination = Join-Path $resolvedPublishDirectory 'docs'
 New-Item -ItemType Directory -Force -Path $tutorialDestination | Out-Null
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'docs\user-guide.zh-CN.md') -Destination $tutorialDestination
@@ -89,3 +94,4 @@ $hash = Get-FileHash -LiteralPath $archivePath -Algorithm SHA256
 $hash | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $packageName.zip" } |
     Set-Content -LiteralPath "$archivePath.sha256" -Encoding ascii
 Write-Host "Created Rust-native package: $archivePath"
+Write-Host "Created standalone executable: $standalonePath"

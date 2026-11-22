@@ -332,16 +332,8 @@ fn language_from_locale(locale: &str) -> AppLanguage {
     let locale = locale.to_ascii_lowercase();
     if locale.starts_with("zh") {
         AppLanguage::ChineseSimplified
-    } else if locale.starts_with("fr") {
-        AppLanguage::French
-    } else if locale.starts_with("ru") {
-        AppLanguage::Russian
-    } else if locale.starts_with("es") {
-        AppLanguage::Spanish
-    } else if locale.starts_with("en") {
-        AppLanguage::English
     } else {
-        AppLanguage::ChineseSimplified
+        AppLanguage::English
     }
 }
 
@@ -392,14 +384,9 @@ mod tests {
             AppLanguage::ChineseSimplified,
             language_from_locale("zh-CN")
         );
-        assert_eq!(AppLanguage::French, language_from_locale("fr-FR"));
-        assert_eq!(AppLanguage::Russian, language_from_locale("ru-RU"));
-        assert_eq!(AppLanguage::Spanish, language_from_locale("es-MX"));
-        assert_eq!(AppLanguage::English, language_from_locale("en-US"));
-        assert_eq!(
-            AppLanguage::ChineseSimplified,
-            language_from_locale("de-DE")
-        );
+        for locale in ["en-US", "fr-FR", "ru-RU", "es-MX", "de-DE"] {
+            assert_eq!(AppLanguage::English, language_from_locale(locale));
+        }
     }
 
     #[test]

@@ -32,7 +32,7 @@ fn run() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "Cast Model Merger",
+        "Cast Assembly",
         options,
         Box::new(|creation| Ok(Box::new(NativeApp::new(creation)))),
     )
@@ -41,12 +41,12 @@ fn run() -> eframe::Result {
 fn report_failure(log_directory: &Path, details: &str) {
     model_merger_gui::diagnostics::record_runtime_error("fatal", details);
     let message = format!(
-        "Cast 模型合并器遇到错误，已尝试保存诊断日志。\n请将日志文件提供给开发者。是否打开日志文件夹？\n\nCast Model Merger encountered an error.\nOpen the diagnostics folder to share the logs?\n\n{}",
+        "CAST 装配台遇到错误，已尝试保存诊断日志。\n请将日志文件提供给开发者。是否打开日志文件夹？\n\nCast Assembly encountered an error.\nOpen the diagnostics folder to share the logs?\n\n{}",
         log_directory.display()
     );
     let result = MessageDialog::new()
         .set_level(MessageLevel::Error)
-        .set_title("Cast Model Merger")
+        .set_title("CAST 装配台")
         .set_description(message)
         .set_buttons(MessageButtons::YesNo)
         .show();
