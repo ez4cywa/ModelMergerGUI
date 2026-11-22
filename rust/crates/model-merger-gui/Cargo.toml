@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 bytemuck = { version = "1.25", features = ["derive"] }
 eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "default_fonts", "links", "wgpu"] }
+flate2 = "1"
 image = { version = "0.25", default-features = false, features = ["png", "tiff", "jpeg", "tga", "bmp"] }
 model-merger-app-core.workspace = true
 model-merger-engine.workspace = true
@@ -17,6 +18,7 @@ serde_json.workspace = true
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 
 [build-dependencies]
+flate2 = "1"
 winresource = { version = "0.1.31", default-features = false }
 
 [[bin]]

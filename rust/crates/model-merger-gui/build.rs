@@ -1,8 +1,16 @@
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use std::env;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io;
+use std::path::{Path, PathBuf};
 
 fn main() {
-    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let manifest = PathBuf::from(
+        env::var_os("CARGO_MANIFEST_DIR").expect("Cargo must set CARGO_MANIFEST_DIR"),
+    );
+    let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo must set OUT_DIR"));
+    embed_font(&manifest, &output).expect("MiSans Medium font compression failed");
     let repository = manifest.join("../../..");
     let revision = std::process::Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -31,8 +39,7 @@ fn main() {
         return;
     }
 
-    let icon_path =
-        PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("assets/icon.ico");
+    let icon_path = manifest.join("assets/icon.ico");
     println!("cargo:rerun-if-changed={}", icon_path.display());
 
     let icon_path = icon_path
@@ -44,4 +51,17 @@ fn main() {
         .set("FileDescription", "CAST 装配台")
         .compile()
         .expect("Windows application resources should compile");
+}
+
+fn embed_font(manifest: &Path, output: &Path) -> io::Result<()> {
+    let source = manifest.join("assets/fonts/MiSans-Medium.ttf");
+    println!("cargo:rerun-if-changed={}", source.display());
+    let mut font = File::open(source)?;
+    let mut encoder = GzEncoder::new(
+        File::create(output.join("MiSans-Medium.ttf.gz"))?,
+        Compression::best(),
+    );
+    io::copy(&mut font, &mut encoder)?;
+    encoder.finish()?;
+    Ok(())
 }

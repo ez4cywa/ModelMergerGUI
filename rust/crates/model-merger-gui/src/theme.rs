@@ -1,9 +1,11 @@
 use eframe::egui::{
     self, Color32, FontData, FontDefinitions, FontFamily, FontId, Stroke, TextStyle,
 };
-use std::sync::Arc;
+use flate2::read::GzDecoder;
+use std::io::Read;
+use std::sync::{Arc, OnceLock};
 
-const MISANS_MEDIUM: &[u8] = include_bytes!("../assets/fonts/MiSans-Medium.ttf");
+const MISANS_MEDIUM_GZIP: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/MiSans-Medium.ttf.gz"));
 const UI_FONT: &str = "MiSans Medium";
 
 pub const DISABLED_ALPHA: f32 = 0.78;
@@ -188,10 +190,7 @@ fn configure_style(
 
 fn font_definitions() -> FontDefinitions {
     let mut definitions = FontDefinitions::default();
-    definitions.font_data.insert(
-        UI_FONT.into(),
-        Arc::new(FontData::from_static(MISANS_MEDIUM)),
-    );
+    definitions.font_data.insert(UI_FONT.into(), misans_font());
     definitions
         .families
         .entry(FontFamily::Proportional)
@@ -200,9 +199,33 @@ fn font_definitions() -> FontDefinitions {
     definitions
 }
 
+fn misans_font() -> Arc<FontData> {
+    static FONT: OnceLock<Arc<FontData>> = OnceLock::new();
+    Arc::clone(FONT.get_or_init(|| {
+        // Keep the original font bytes in memory; no font installation or temporary file is needed.
+        let mut bytes = Vec::new();
+        GzDecoder::new(MISANS_MEDIUM_GZIP)
+            .read_to_end(&mut bytes)
+            .expect("embedded MiSans Medium must be a valid gzip stream");
+        Arc::new(FontData::from_owned(bytes))
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn embedded_misans_round_trips_without_changing_the_original_font() {
+        let original = include_bytes!("../assets/fonts/MiSans-Medium.ttf");
+        let font = misans_font();
+        assert!(
+            font.font.as_ref() == original,
+            "embedded MiSans differs from the original TTF"
+        );
+        assert!(MISANS_MEDIUM_GZIP.len() < original.len());
+        assert!(Arc::ptr_eq(&font, &misans_font()));
+    }
 
     fn luminance(color: Color32) -> f32 {
         let channel = |value: u8| {
